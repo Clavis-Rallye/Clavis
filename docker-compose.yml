@@ -1,0 +1,313 @@
+# The local stack: everything on one machine, reachable at http://localhost.
+# Start it with `docker compose up -d --build --wait`, or run
+# ./scripts/quickstart.sh, which also creates the accounts and the demo content.
+# A server installation uses deployment/standalone/ instead (TLS, own secrets).
+
+services:
+  # PostgreSQL database
+  db:
+    image: postgres:18-alpine
+    container_name: clavis-db${STACK_SUFFIX:-}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clavis
+      POSTGRES_USER: clavis
+      POSTGRES_PASSWORD: clavis
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clavis -d clavis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Garage: S3-compatible object storage. Single node, one
+  # bucket, created from GARAGE_DEFAULT_BUCKET on first start. The key pair
+  # below is fixed and obviously fake (GK + 24 hex zeros, 64 hex zeros) —
+  # dev and E2E stacks never see real credentials.
+  garage:
+    image: dxflrs/garage:v2.4.1
+    container_name: clavis-garage${STACK_SUFFIX:-}
+    restart: unless-stopped
+    command: /garage server --single-node --default-bucket
+    environment:
+      GARAGE_RPC_SECRET: "0000000000000000000000000000000000000000000000000000000000000000"
+      GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000000
+      GARAGE_DEFAULT_SECRET_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      GARAGE_DEFAULT_BUCKET: clavis
+    # No published port: only the API talks to the store. The dev override
+    # (docker-compose.dev.yml) publishes 3900 for the backend tests on the host.
+    volumes:
+      - ./deployment/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    networks:
+      - backend
+    healthcheck:
+      # The image has no shell and no HTTP client, so readiness is probed
+      # with the garage binary itself (it exits non-zero until the node
+      # answers its admin API on 3903).
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: clavis-api${STACK_SUFFIX:-}
+    restart: unless-stopped
+    # Migrate the database to the current schema, then serve. A fresh volume
+    # needs no separate `alembic upgrade head`. docker-compose.dev.yml replaces
+    # this command with one that migrates the same way before its reloading server.
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://clavis:clavis@db:5432/clavis
+      # S3 store on Garage (settings.storage). S3_REGION must equal s3_region
+      # in deployment/garage.toml: a mismatch fails every signed request with
+      # AuthorizationHeaderMalformed.
+      S3_ENDPOINT: garage:3900
+      S3_ACCESS_KEY: GK000000000000000000000000
+      S3_SECRET_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      S3_BUCKET: clavis
+      S3_SECURE: "false"
+      S3_REGION: us-east-1
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-to-a-random-string-at-least-32-chars-long}
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-60}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      PASSWORD_CRITERIA_COUNT: ${PASSWORD_CRITERIA_COUNT:-3}
+      MAX_LOGIN_ATTEMPTS: ${MAX_LOGIN_ATTEMPTS:-5}
+      LOCKOUT_DURATION_MINUTES: ${LOCKOUT_DURATION_MINUTES:-15}
+      # Registrations per client address. The E2E suite registers a fresh organisation per spec
+      # from one IP, so the local stack default is high; production keeps 10/minute.
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-1000/minute}
+      # Sign-in attempts per client address. The dev overlay raises it for the E2E suite.
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10/minute}
+      HMAC_AUDIT_KEY: ${HMAC_AUDIT_KEY:-change-me-to-a-random-string-for-audit-chain}
+      LOG_DIR: /var/log/clavis
+      ACCESS_LOG_RETENTION_DAYS: ${ACCESS_LOG_RETENTION_DAYS:-90}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-365}
+      APP_LOG_RETENTION_DAYS: ${APP_LOG_RETENTION_DAYS:-90}
+      ERROR_LOG_RETENTION_DAYS: ${ERROR_LOG_RETENTION_DAYS:-90}
+      # The browser's origin: http://localhost, with the port when CLAVIS_HTTP_PORT is set.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost${CLAVIS_HTTP_PORT:+:${CLAVIS_HTTP_PORT}}}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Clavis}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost${CLAVIS_HTTP_PORT:+:${CLAVIS_HTTP_PORT}}}
+      # Instance-wide product name: app shell, title, headlines, mail signature.
+      BRAND_NAME: ${BRAND_NAME:-Clavis}
+      # Address search: the outside service, its URL and the operator's contact.
+      GEOCODER_UPSTREAM: ${GEOCODER_UPSTREAM:-none}
+      GEOCODER_UPSTREAM_URL: ${GEOCODER_UPSTREAM_URL:-}
+      GEOCODER_CONTACT: ${GEOCODER_CONTACT:-}
+      # Where the station map starts, and the Overpass API of the place import. Empty: the defaults.
+      GEOCODER_MAP_CENTRE: ${GEOCODER_MAP_CENTRE:-}
+      GEOCODER_OVERPASS_URL: ${GEOCODER_OVERPASS_URL:-}
+      # The tile server of both maps and its attribution. Empty: the defaults.
+      GEOCODER_MAP_TILE_URL: ${MAP_TILE_URL:-}
+      GEOCODER_MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+      # Transactional email. With an empty SMTP_HOST the API logs a mail instead of sending it.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-ssl}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@example.org}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Clavis}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost${CLAVIS_HTTP_PORT:+:${CLAVIS_HTTP_PORT}}}
+      INVITATION_EXPIRY_DAYS: ${INVITATION_EXPIRY_DAYS:-7}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-20}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      MAX_VIDEO_FILE_SIZE_MB: ${MAX_VIDEO_FILE_SIZE_MB:-100}
+      # The feedback module for test sessions. Off unless .env switches it on.
+      QA_FEEDBACK_ENABLED: ${QA_FEEDBACK_ENABLED:-false}
+      QA_FEEDBACK_TOKEN: ${QA_FEEDBACK_TOKEN:-}
+      QA_FEEDBACK_RETENTION_DAYS: ${QA_FEEDBACK_RETENTION_DAYS:-30}
+      QA_FEEDBACK_NOTE_RATE_LIMIT: ${QA_FEEDBACK_NOTE_RATE_LIMIT:-120/minute}
+      # The API takes the client address from X-Forwarded-For only for a request from this
+      # network: the frontend network below, both its subnets, where Caddy is. Caddy replaces
+      # the header with the address it sees. Never "*": then any client chooses its own address.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-${CLAVIS_FRONTEND_SUBNET:-172.16.239.0/24},${CLAVIS_FRONTEND_SUBNET_V6:-fd00:172:16:239::/64}}
+    volumes:
+      - api_logs:/var/log/clavis
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      db:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      args:
+        # Vite bakes VITE_API_URL into the bundle at build time. Empty means
+        # the browser calls the API on its own origin, through Caddy's /api
+        # route, which is the only setup the CSP allows. Set it only when the
+        # API lives on another origin.
+        VITE_API_URL: ${VITE_API_URL:-}
+    # The tile server of both maps: the API hands its URL to the
+    # browser, and nginx fills the CSP with the origin of it.
+    environment:
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+    container_name: clavis-frontend${STACK_SUFFIX:-}
+    restart: unless-stopped
+    networks:
+      - frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Caddy Reverse Proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: clavis-caddy${STACK_SUFFIX:-}
+    restart: unless-stopped
+    ports:
+      # The one address of the local stack: http://localhost, or
+      # http://localhost:<CLAVIS_HTTP_PORT>. Caddy routes /api/* to the API and
+      # everything else to the frontend. The API and the frontend publish no
+      # port of their own.
+      - "${CLAVIS_HTTP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  backend:
+    driver: bridge
+    name: clavis-backend${STACK_SUFFIX:-}
+  frontend:
+    driver: bridge
+    name: clavis-frontend${STACK_SUFFIX:-}
+    # Fixed subnets, so that FORWARDED_ALLOW_IPS of the API can name them. The IPv4 default lies
+    # outside Docker's default address pools, and the IPv6 default is a private range. A second
+    # stack on the same host needs other subnets: if `up` stops with "Pool overlaps with other one
+    # on this address space", set CLAVIS_FRONTEND_SUBNET and CLAVIS_FRONTEND_SUBNET_V6 in .env.
+    # IPv6 on this network lets Docker pass an IPv6 visitor to Caddy with its own address, as it
+    # does for IPv4. Without it, all IPv6 visitors share the gateway's address. A host without
+    # IPv6, or a Docker before 27, starts the same and behaves as before.
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: ${CLAVIS_FRONTEND_SUBNET:-172.16.239.0/24}
+        - subnet: ${CLAVIS_FRONTEND_SUBNET_V6:-fd00:172:16:239::/64}
+
+volumes:
+  postgres_data:
+    name: clavis-postgres-data${STACK_SUFFIX:-}
+  garage_meta:
+    name: clavis-garage-meta${STACK_SUFFIX:-}
+  garage_data:
+    name: clavis-garage-data${STACK_SUFFIX:-}
+  api_logs:
+    name: clavis-api-logs${STACK_SUFFIX:-}
+  caddy_data:
+    name: clavis-caddy-data${STACK_SUFFIX:-}
+  caddy_config:
+    name: clavis-caddy-config${STACK_SUFFIX:-}

@@ -1,0 +1,80 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # One PR for all minor/patch bumps. Ungrouped, each bump was its own PR,
+      # and every direct push to main put all of them BEHIND at once — with
+      # strict required checks each then needs a rebase and a fresh ~27 min
+      # test run before it can merge. Twelve PRs never drained.
+      # Majors stay separate on purpose: those deserve to be read one at a time.
+      backend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/src/frontend"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      types:
+        patterns:
+          - "@types/*"
+        update-types: ["minor", "patch"]
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+        update-types: ["minor", "patch"]
+      tiptap:
+        patterns:
+          - "@tiptap/*"
+        update-types: ["minor", "patch"]
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/*"
+          - "jsdom"
+          - "@testing-library/*"
+        update-types: ["minor", "patch"]
+      mui:
+        patterns:
+          - "@mui/*"
+          - "@emotion/*"
+        update-types: ["minor", "patch"]
+      # Every named group above is limited to minor and patch on purpose: on
+      # 2026-09-18 the testing group carried vitest 4 -> 5 and the whole group
+      # stayed red for a week. A major belongs in its own PR.
+      # Catch-all LAST: Dependabot assigns in order, so the named groups above
+      # still win. Without it, react/vite/typescript/fontsource each opened
+      # their own PR.
+      frontend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # BOTH Dockerfiles, not just the backend's. Until 2026-08-09 only /src/backend
+  # was listed, and the consequence was measurable: the frontend production image
+  # sat on node:20-alpine past its 2026-04-30 EOL, and nginx drifted from 1.27 to
+  # four minor versions behind current — neither was ever proposed, because
+  # nothing looked. Meanwhile python:3.12-slim WAS watched, so the gap was
+  # invisible: Dependabot ran green every week and was simply blind on one side.
+  - package-ecosystem: "docker"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/src/frontend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

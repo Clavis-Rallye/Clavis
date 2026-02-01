@@ -1,0 +1,37 @@
+# Clavis - Caddy configuration of the local stack (docker-compose.yml)
+
+{
+	# Global options
+	auto_https off
+}
+
+# This file serves the local stack only, over plain HTTP. A server with a
+# domain and TLS uses deployment/standalone/Caddyfile, which gets its
+# certificate from Let's Encrypt.
+
+# Local development configuration (HTTP only)
+# Listen on all interfaces for Docker port mapping to work
+:80 {
+	# Security headers: who sets what in this stack
+	# - Content-Security-Policy, X-Content-Type-Options, X-Frame-Options and
+	#   Referrer-Policy: the services behind Caddy set them. The API does it in
+	#   add_security_headers (src/backend/app/main.py), the frontend in
+	#   src/frontend/nginx.conf. Caddy must not set them again: a second copy
+	#   reaches the browser as a second header, and two different values of a
+	#   Content-Security-Policy both apply.
+	# - Permissions-Policy: nothing behind Caddy sets it, so Caddy does.
+	# - Strict-Transport-Security: not set here, this stack is plain HTTP.
+	#   deployment/standalone/Caddyfile sets it.
+	# The QR scanner needs the camera. Recording an answer may need the microphone.
+	header Permissions-Policy "geolocation=(self), microphone=(self), camera=(self)"
+
+	# Route /api/* to backend service
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Route everything else to frontend
+	handle {
+		reverse_proxy frontend:80
+	}
+}

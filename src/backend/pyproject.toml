@@ -1,0 +1,164 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "clavis-backend"
+version = "0.9.1"
+description = "Backend API for Clavis"
+readme = "README.md"
+# Below 3.15: httptools, a dependency of uvicorn[standard], has no wheel for 3.15, so a fresh sync would have to
+# compile it.
+requires-python = ">=3.12,<3.15"
+license = "EUPL-1.2"
+authors = [
+    { name = "Aaron Kokal and the Clavis contributors", email = "contact@clavis-rallye.de" }
+]
+
+dependencies = [
+    # Pinned FastAPI/Starlette pair. CI and the API image install from
+    # `uv.lock`, which is resolved from these constraints, so we pin
+    # explicitly to stop newer upstream releases silently breaking a green
+    # main.
+    # Starlette >=1.0.1 fixes PYSEC-2026-161 (Host-header path poisoning); the
+    # 1.x multipart 1 MB `max_part_size` default is raised app-wide to
+    # MAX_FILE_SIZE for our <=10 MB uploads (see app/main.py). 0.136.3 is a
+    # malicious fastapi release (MAL-2026-4750) — never pin it.
+    "fastapi==0.141.1",
+    "starlette==1.6.0",
+    "uvicorn[standard]>=0.32.0",
+    # Below 2.1: the project is tested on 2.0 only, and under 2.1 mypy rejects
+    # the typing of a select in app/routers/analytics.py.
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "argon2-cffi>=23.1.0",
+    "pyotp>=2.9.0",
+    # >=2.14.0 fixes the ten pip-audit findings (PYSEC entries) in 2.13.0.
+    "pyjwt>=2.14.0",
+    "structlog>=24.4.0",
+    # minio-py is the S3 client, whatever the store is: it speaks
+    # plain S3 and works with every S3-compatible store. Pinned below 8: the
+    # unreleased 8.0 makes every Minio() argument keyword-only.
+    "minio>=7.2.11,<8",
+    "pydantic-settings>=2.6.1",
+    "pydantic[email]>=2.10.3",
+    # >=0.0.27 fixes CVE-2026-40347 + CVE-2026-42561 (oversize/part-count DoS).
+    "python-multipart>=0.0.27",
+    "uuid-utils>=0.9.0",
+    "slowapi>=0.1.9",
+    # Transactional email. Async SMTP so a send cannot block the event loop.
+    # Plain SMTP keeps the deployment portable: the app talks to a self-hosted
+    # mail server, with no provider API to be locked into.
+    "aiosmtplib>=3.0.2",
+    "nh3>=0.3.7",
+    "pillow>=11.0.0",
+    # The address search asks the outside geocoder from the server, and the CLI
+    # imports the place index. Both import httpx at module level.
+    "httpx>=0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.24.0",
+    "pytest-sugar>=1.0.0",
+    "pytest-xdist>=3.5.0",
+    "httpx-ws>=0.7.0",
+    "testcontainers[postgres]>=4.10.0",
+    "ruff>=0.8.5",
+    "mypy>=1.14.0",
+    "pip-audit>=2.7.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ARG",  # flake8-unused-arguments
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults (FastAPI uses this)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Unused imports in __init__.py
+"tests/*" = ["ARG"]       # Unused arguments common in test fixtures
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "asyncpg.*",
+    "minio.*",
+    "pyotp.*",
+    "testcontainers.*",
+    "uuid_utils.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

@@ -1,0 +1,135 @@
+# Development overrides for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # PostgreSQL - no host port binding (mirrors prod). For IDE / psql access:
+  #   docker compose exec db psql -U clavis -d clavis
+  # If you need a JDBC/IDE connection, re-add a `ports: ["5432:5432"]` block
+  # locally but don't commit it.
+  db: {}
+
+  # Garage - 3900 (S3 API) stays bound in dev because host-side backend
+  # pytest talks to the store on localhost (see tests/conftest.py; export
+  # S3_ENDPOINT=localhost:3900 or use `make test-backend`, which starts its
+  # own). Garage has no browser console, and the admin API (3903) stays
+  # unpublished. Prod binds neither.
+  garage:
+    ports:
+      - "${CLAVIS_S3_PORT:-3900}:3900"  # S3 API (consumed by host pytest)
+
+  # FastAPI Backend - hot-reload with source mount.
+  # No host port binding — /api/* must go through Caddy (mirrors prod).
+  api:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      target: development  # Use development stage from multi-stage Dockerfile
+    # The schema first, as the command of the base stack does: a fresh volume has no tables, and
+    # every page that reads the database then answers 500. Then uvicorn with --reload. A new
+    # migration file needs a restart of this container, or `docker compose exec api alembic upgrade head`.
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"]
+    volumes:
+      # Mount source code for hot-reload
+      - ./src/backend/app:/app/app:ro
+      - ./src/backend/alembic:/app/alembic:ro
+      - ./src/backend/alembic.ini:/app/alembic.ini:ro
+      # Keep logs writable
+      - api_logs:/var/log/clavis
+    environment:
+      # Development-specific overrides
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: "1"
+      WATCHFILES_FORCE_POLLING: "true"  # Better hot-reload in Docker
+      # Long session for dev so MCP test runs don't keep getting bounced to /login.
+      # 7 days = 10080 minutes. Override locally with SESSION_TIMEOUT_MINUTES if needed.
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-10080}
+      # Skip the org_admin forced-TOTP enrollment in dev so testing isn't gated
+      # behind a phone authenticator. Production keeps the default (true).
+      ENFORCE_ORG_ADMIN_TOTP: ${ENFORCE_ORG_ADMIN_TOTP:-false}
+      # The E2E suite logs in dozens of times per minute from one IP — the
+      # production default (10/minute) trips and surfaces as 429 login flakes
+      # (profile.spec was the repeat offender). Dev stacks aren't exposed.
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-1000/minute}
+      # Nearly every E2E spec bootstraps its own fresh org via registerNewOrg
+      # (helpers.ts), which uses the unauthenticated bootstrap register. The API
+      # closes that path once one org exists, so the dev/E2E stack opts back
+      # in. Production keeps the default (false).
+      ALLOW_UNLIMITED_ORG_REGISTRATIONS: ${ALLOW_UNLIMITED_ORG_REGISTRATIONS:-true}
+      # http://localhost is the Caddy ingress that serves the SPA.
+      # :3000 and :8000 are the ports of a Vite server and an API that run
+      # outside Docker, as in the default of CORS_ORIGINS in config.py. This
+      # stack publishes neither port.
+      CORS_ORIGINS: "http://localhost,http://localhost:3000,http://localhost:8000"
+      WEBAUTHN_ORIGIN: "http://localhost"
+
+  # React Frontend - Vite dev server with hot-reload
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      target: development  # Use development stage from multi-stage Dockerfile
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    volumes:
+      # Mount source code for hot-reload
+      - ./src/frontend/src:/app/src:ro
+      - ./src/frontend/public:/app/public:ro
+      - ./src/frontend/index.html:/app/index.html:ro
+      - ./src/frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./src/frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./src/frontend/tsconfig.node.json:/app/tsconfig.node.json:ro
+      # Mount the dep manifest too — without this the container runs against
+      # the package.json baked into the image at build time, so newly added
+      # deps are invisible until the image is rebuilt. Mounting these means
+      # `docker exec clavis-frontend npm install` actually installs what the
+      # current source needs.
+      - ./src/frontend/package.json:/app/package.json:ro
+      - ./src/frontend/package-lock.json:/app/package-lock.json:ro
+      # Preserve node_modules from container (don't mount from host)
+      - /app/node_modules
+    # No host port binding — frontend reachable only through Caddy on :80.
+    # Vite HMR is also routed through Caddy via server.hmr.clientPort
+    # in vite.config.ts.
+    environment:
+      # The origin at which the browser calls the API: Caddy, the only way into
+      # this stack. CI's isolated stacks serve Caddy on a dynamic port and
+      # override this to match. A fixed http://localhost sent every browser API
+      # call to port 80, where a foreign stack or nothing answered.
+      VITE_API_URL: ${CLAVIS_DEV_API_ORIGIN:-http://localhost}
+    # Override the base compose's 512M cap. That limit is sized for the prod
+    # nginx stage (static files); in dev this container runs `vite` whose
+    # dep-pre-bundler peaks well above 512M on a cold start, gets OOM-killed
+    # (npm reports SIGKILL during "bundling dependencies"), and the container
+    # restarts in a loop — Caddy then returns 502 to the CI smoke check.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Caddy - dev ingress on 80/443. Uses Caddyfile.dev which targets
+  # frontend:3000 (Vite) instead of frontend:80 (prod nginx stage).
+  # This mirrors the prod "Caddy is the only ingress" shape so /api
+  # and /api/*/ws routing can be tested end-to-end in dev.
+  #
+  # localhost → Caddy → frontend (Vite), and /api with its WebSockets → api.
+  # Vite's port 3000 is not published on the host. HMR also goes through
+  # Caddy (server.hmr in vite.config.ts).
+  caddy:
+    volumes: !override
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports: !override
+      - "${CLAVIS_HTTP_PORT:-80}:80"
+      - "${CLAVIS_HTTPS_PORT:-443}:443"
+
+volumes:
+  api_logs:
+    name: clavis-api-logs${STACK_SUFFIX:-}

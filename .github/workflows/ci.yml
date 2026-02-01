@@ -1,0 +1,629 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    # No paths-ignore on PRs: required-status-check rulesets need each
+    # check to report a result. A workflow that never triggers (paths-
+    # ignore) leaves required checks pending → PR is BLOCKED forever.
+    # Jobs are gated on the `changes` filter below instead, so they
+    # report "skipped" (which counts as passing) on non-app PRs.
+
+jobs:
+  # ==========================================================================
+  # Path filter — the gated jobs below run only when app code, a compose file or this
+  # workflow changed. On any other PR they report `skipped` instead of spending
+  # runner time on a docs-only change. `router-table` starts `backend-lint`, which holds
+  # the router-table check, and `dco-script` starts `dco-self-test`; `app` stays the
+  # start of the other gated jobs.
+  # ==========================================================================
+
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      router-table: ${{ steps.filter.outputs.router-table }}
+      dco-script: ${{ steps.filter.outputs.dco-script }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/frontend/**'
+              - 'src/backend/**'
+              - 'docker-compose*.yml'
+              - '.github/workflows/ci.yml'
+            router-table:
+              - 'docs/development/api-structure.md'
+              - 'scripts/docs-router-table.py'
+            dco-script:
+              - '.github/scripts/**'
+              - '.github/workflows/dco.yml'
+
+  # ==========================================================================
+  # Backend
+  # ==========================================================================
+
+  backend-lint:
+    name: Backend / Lint & Types
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true' || needs.changes.outputs.router-table == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        # Official action, pinned to an exact version tag: unlike the
+        # major tags used for the other actions here, setup-uv has no
+        # floating vN — since v8 it publishes only full version tags
+        # (v10.2.0, v10.1.0, ...), and `@v10` does not resolve, so
+        # every backend job would fail at setup. uv reads
+        # src/backend/.python-version, so uv sync resolves CPython 3.12
+        # and not the newest interpreter that requires-python (>=3.12)
+        # allows. setup-uv's cache (on by default on hosted runners)
+        # keys on uv.lock.
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies from the lock file
+        # --locked fails when uv.lock is out of sync with pyproject.toml
+        # instead of quietly resolving fresh, unpinned versions: a new
+        # upstream release would turn CI red without any change here.
+        working-directory: src/backend
+        run: uv sync --locked --extra dev
+
+      - name: Lint with ruff
+        # Every uv run re-syncs the environment exactly, so each one
+        # repeats --extra dev: without it uv would prune the dev tools
+        # out of the venv before the command starts (same pattern as
+        # the Makefile's test-backend target).
+        working-directory: src/backend
+        run: uv run --extra dev ruff check .
+
+      - name: Format check with ruff
+        working-directory: src/backend
+        run: uv run --extra dev ruff format --check .
+
+      - name: Type check with mypy
+        working-directory: src/backend
+        run: uv run --extra dev mypy app/
+
+      - name: The router-table script passes its own cases
+        run: python3 scripts/docs-router-table.py --self-test
+
+      - name: Check the router table of the API document
+        run: python3 scripts/docs-router-table.py --check
+
+  # dco.yml judges a pull request with the base branch's script, so a change to the
+  # check is never tested before the merge. This job runs the pull request's own
+  # script on its cases, with no token and no API call.
+  dco-self-test:
+    name: DCO / self-test
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.dco-script == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The sign-off check of this pull request passes its own cases
+        run: python3 .github/scripts/check-signoff.py --self-test
+
+  # No path filter: a link also breaks when its target is renamed or deleted,
+  # and that change can touch no Markdown file at all.
+  docs-links:
+    name: Docs / Links
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The link check passes its own cases
+        run: python3 scripts/check-links.py --self-test
+      - name: Every relative link of the Markdown files leads to a file or a heading
+        run: python3 scripts/check-links.py
+
+  # The working files of the agents live outside this repository. This job fails when one of
+  # their paths is tracked, or when the link check still skips them.
+  private-paths:
+    name: Repository / private paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: No working file of the agents is tracked
+        run: |
+          found=$(git ls-files -- AGENTS.md CLAUDE.md .agents .claude specs .specify docs/loop.md skills-lock.json .t0loop design-assets docs/history)
+          if [ -n "$found" ]; then
+            printf '%s\n' "$found" | head -20
+            echo "::error::These paths hold working files of the agents and never enter this repository."
+            exit 1
+          fi
+          if grep -q SKIPPED_UNTIL_THE_MOVE scripts/check-links.py; then
+            echo "::error::scripts/check-links.py still skips paths that left the repository."
+            exit 1
+          fi
+
+  backend-test:
+    name: Backend / Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: clavis
+          POSTGRES_PASSWORD: clavis
+          POSTGRES_DB: clavis_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Ephemeral host port: a fixed 5432 bind would collide when another
+          # job on the same host already holds it.
+          - 5432
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start Garage
+        # Per-job container name + ephemeral host port. A fixed `--name` + fixed
+        # `-p` is shared mutable state across concurrent jobs on one host: a
+        # second job's `docker rm -f` kills the first job's store mid-run, and
+        # an upload that returned 201 then fails with NoSuchKey on the next read.
+        # The key pair is the fixed, obviously fake one every dev/test stack
+        # uses (GK + 24 hex zeros, 64 hex zeros). Readiness is GET /health on
+        # the admin API; the S3 API has no health route.
+        run: |
+          GARAGE_NAME="garage-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "GARAGE_NAME=$GARAGE_NAME" >> "$GITHUB_ENV"
+          docker run -d --rm \
+            -p 127.0.0.1::3900 \
+            -p 127.0.0.1::3903 \
+            -e GARAGE_RPC_SECRET=0000000000000000000000000000000000000000000000000000000000000000 \
+            -e GARAGE_DEFAULT_ACCESS_KEY=GK000000000000000000000000 \
+            -e GARAGE_DEFAULT_SECRET_KEY=0000000000000000000000000000000000000000000000000000000000000000 \
+            -e GARAGE_DEFAULT_BUCKET=clavis-test \
+            -v "$PWD/deployment/garage.toml:/etc/garage.toml:ro" \
+            --name "$GARAGE_NAME" \
+            dxflrs/garage:v2.4.1 /garage server --single-node --default-bucket
+          S3_PORT=$(docker port "$GARAGE_NAME" 3900/tcp | head -1 | awk -F: '{print $NF}')
+          ADMIN_PORT=$(docker port "$GARAGE_NAME" 3903/tcp | head -1 | awk -F: '{print $NF}')
+          echo "S3_ENDPOINT=localhost:$S3_PORT" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            curl -sf "http://localhost:$ADMIN_PORT/health" && break
+            sleep 1
+          done
+
+      - name: Install uv
+        # Official action, pinned to an exact version tag — it has no
+        # floating major tag (see backend-lint). uv reads
+        # src/backend/.python-version, so uv sync resolves CPython 3.12
+        # and not the newest interpreter that requires-python (>=3.12)
+        # allows. setup-uv's cache (on by default on hosted runners)
+        # keys on uv.lock.
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies from the lock file
+        # --locked fails when uv.lock is out of sync with pyproject.toml
+        # instead of quietly resolving fresh, unpinned versions: a new
+        # upstream release would turn CI red without any change here.
+        working-directory: src/backend
+        run: uv sync --locked --extra dev
+
+      - name: Run tests with pytest
+        working-directory: src/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://clavis:clavis@localhost:${{ job.services.postgres.ports['5432'] }}/clavis_test
+          JWT_SECRET_KEY: test-secret-key-at-least-32-characters-long-for-ci
+          HMAC_AUDIT_KEY: test-hmac-key-for-audit-chain-integrity
+          # S3_ENDPOINT comes from $GITHUB_ENV (Start Garage step, ephemeral port)
+          S3_ACCESS_KEY: GK000000000000000000000000
+          S3_SECRET_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+          S3_BUCKET: clavis-test
+          S3_SECURE: false
+          SESSION_TIMEOUT_MINUTES: 60
+          PASSWORD_MIN_LENGTH: 8
+          PASSWORD_CRITERIA_COUNT: 3
+          MAX_LOGIN_ATTEMPTS: 5
+          LOCKOUT_DURATION_MINUTES: 15
+          WEBAUTHN_RP_ID: localhost
+          WEBAUTHN_RP_NAME: Clavis Test
+          WEBAUTHN_ORIGIN: http://localhost:3000
+          CORS_ORIGINS: http://localhost:3000
+          LOG_DIR: /tmp/clavis-logs
+          AUDIT_LOG_RETENTION_DAYS: 365
+          APP_LOG_RETENTION_DAYS: 90
+          ERROR_LOG_RETENTION_DAYS: 90
+          TESTCONTAINERS_RYUK_DISABLED: true
+        # TODO: add pytest-cov once it is in [project.optional-dependencies].dev
+        # `-n 2` caps pytest-xdist workers. `-n auto` (one worker per CPU)
+        # amplifies concurrent Postgres + store I/O on a small runner and
+        # shows up as testcontainers read timeouts and store drive-offline
+        # flakes; capping at 2 leaves disk-I/O headroom. Raise it only on a
+        # runner with more I/O than that. `--dist loadfile` keeps tests in the
+        # same file on the same worker so module-scoped fixtures (orgs, runs)
+        # are reused per worker.
+        run: uv run --extra dev pytest --tb=short -n 2 --dist loadfile
+
+      - name: Stop Garage
+        if: always()
+        run: docker rm -f "$GARAGE_NAME" 2>/dev/null || true
+
+  backend-security:
+    name: Backend / Security audit
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        # Official action, pinned to an exact version tag — it has no
+        # floating major tag (see backend-lint). uv reads
+        # src/backend/.python-version, so uv sync resolves CPython 3.12
+        # and not the newest interpreter that requires-python (>=3.12)
+        # allows. setup-uv's cache (on by default on hosted runners)
+        # keys on uv.lock.
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies from the lock file
+        # --locked fails when uv.lock is out of sync with pyproject.toml
+        # instead of quietly resolving fresh, unpinned versions: a new
+        # upstream release would turn CI red without any change here.
+        working-directory: src/backend
+        run: uv sync --locked --extra dev
+
+      - name: Security audit with pip-audit
+        working-directory: src/backend
+        # pip-audit structurally requires a real `pip` inside the
+        # interpreter it runs under (pip_api shells out to `pip --version`
+        # at import time, trailofbits/pip-audit#842) and a uv venv ships
+        # without one. Seed pip after the sync and run with --no-sync —
+        # an exact re-sync would prune it again.
+        # CVE-2026-3219: the build-time `pip` tool's own CVE — no patched
+        # release upstream; the runtime container ships its own deps and
+        # doesn't expose `pip`. Drop when a fixed pip is published.
+        run: |
+          uv pip install pip
+          uv run --no-sync pip-audit --ignore-vuln CVE-2026-3219
+
+  # ==========================================================================
+  # Frontend
+  # ==========================================================================
+
+  frontend:
+    name: Frontend / Test + build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: src/frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: src/frontend
+        run: npm run lint
+
+      - name: Test (vitest)
+        working-directory: src/frontend
+        run: npx vitest run
+
+      - name: Build
+        working-directory: src/frontend
+        run: npm run build
+
+  frontend-security:
+    name: Frontend / Security audit
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Security audit (audit-ci)
+        working-directory: src/frontend
+        # audit-ci wraps `npm audit` with a reviewed allowlist (audit-ci.jsonc).
+        # Config: moderate+ severity, production deps only (skip-dev), because
+        # build/test-only vulns aren't shipped to clients. The allowlist holds
+        # documented exceptions, each tracked in an issue, for advisories that don't apply to this SPA and
+        # have no forward fix; everything else still fails the gate.
+        run: npx audit-ci --config audit-ci.jsonc
+
+  # ==========================================================================
+  # End-to-end SMOKE (Playwright @smoke subset against the live dev stack).
+  # Two-tier model: this lean, stable subset is the REQUIRED gate;
+  # the full suite runs non-gating in .github/workflows/e2e-full.yml
+  # (nightly on new commits, on release tags, and on demand).
+  # ==========================================================================
+
+  e2e-smoke:
+    name: Frontend / E2E smoke
+    runs-on: ubuntu-latest
+    # A full dev stack + a Chromium suite is a lot of work for one runner.
+    # Stack isolation (below) keeps concurrent E2E jobs *correct*, but running
+    # several on one host at once still starves them into action timeouts.
+    #
+    # Per-ref group: a newer push on the same PR supersedes the older smoke
+    # run. Deliberately NOT a repo-wide group — GitHub allows only ONE
+    # pending job per group and cancels the older waiter when a newer one
+    # arrives ("higher priority waiting request"), so queued PR runs would
+    # cancel each other one after another. Cross-PR collisions are prevented
+    # by the stack isolation instead.
+    concurrency:
+      group: clavis-e2e-smoke-${{ github.ref }}
+      cancel-in-progress: true
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dev dependencies (incl. @playwright/test)
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium + system deps
+        working-directory: src/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Isolate this job's stack (project name, container suffix, ports)
+        # One host can execute several E2E jobs at once (two PRs, or both
+        # shards). With the default compose project + fixed container names +
+        # fixed host ports they would collide, and a pre-clean `down -v` would
+        # kill the other job's stack mid-run. So every job gets a unique
+        # project name, container-name suffix, and host-port block; the
+        # compose files interpolate them.
+        run: |
+          SUFFIX="e2e-${GITHUB_RUN_ID}-smoke"
+          BASE=$(( 10000 + (GITHUB_RUN_ID % 5000) * 10 ))
+          {
+            echo "COMPOSE_PROJECT_NAME=clavis-${SUFFIX}"
+            echo "STACK_SUFFIX=-${SUFFIX}"
+            echo "CLAVIS_HTTP_PORT=${BASE}"
+            echo "CLAVIS_HTTPS_PORT=$(( BASE + 1 ))"
+            echo "CLAVIS_API_PORT=$(( BASE + 2 ))"
+            echo "CLAVIS_FRONTEND_PORT=$(( BASE + 3 ))"
+            echo "CLAVIS_S3_PORT=$(( BASE + 4 ))"
+            echo "E2E_BASE_URL=http://localhost:${BASE}"
+            echo "CLAVIS_DEV_API_ORIGIN=http://localhost:${BASE}"
+          } >> "$GITHUB_ENV"
+
+      - name: Clean stale E2E stacks (crashed runs)
+        # Unique project names mean crashed runs leak containers forever.
+        # Remove any e2e-suffixed container older than 3 hours, then its
+        # project's volumes/networks via the compose label.
+        run: |
+          for c in $(docker ps -aq --filter "name=-e2e-"); do
+            created=$(docker inspect -f '{{.Created}}' "$c")
+            if [ "$(date -d "$created" +%s)" -lt "$(date -d '3 hours ago' +%s)" ]; then
+              proj=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")
+              docker rm -f "$c" || true
+              [ -n "$proj" ] && docker compose -p "$proj" down -v --remove-orphans 2>/dev/null || true
+            fi
+          done
+          # Legacy fixed-name stack from pre-isolation runs (one-time path).
+          docker rm -f clavis-db clavis-garage clavis-api clavis-frontend clavis-caddy 2>/dev/null || true
+
+      - name: Bring up dev stack (build + wait for healthchecks)
+        # `--build` ensures CI uses the current source, not a cached image.
+        # `--wait` blocks until every service's healthcheck passes (db/api/
+        # frontend/caddy/garage all have healthchecks defined). Caddy is the
+        # ingress on $CLAVIS_HTTP_PORT — the suite hits it via E2E_BASE_URL.
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --wait
+
+      - name: Run database migrations
+        # Fresh CI Postgres has no schema. /api/health is a SELECT 1 and
+        # passes the healthcheck without touching any table, so docker
+        # --wait won't catch the missing schema. The first POST that hits
+        # the organizations table then 500s with `relation "organizations"
+        # does not exist`. Local dev usually has tables from a previous
+        # session, which is why this only surfaces in clean CI.
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T api alembic upgrade head
+
+      - name: Smoke check ingress
+        run: |
+          curl -fsS "${E2E_BASE_URL}/api/health"
+          curl -fsS -o /dev/null "${E2E_BASE_URL}/"
+
+      - name: Run Playwright tests
+        working-directory: src/frontend
+        run: npx playwright test --reporter=list --grep "@smoke"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-smoke
+          path: src/frontend/playwright-report
+          retention-days: 7
+
+      - name: Upload trace + video artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results-smoke
+          path: src/frontend/test-results
+          retention-days: 7
+
+      - name: Dump docker logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=400
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
+
+  # ==========================================================================
+  # Production image build. Without it only the build of a release runs the
+  # runtime stages, so a broken Dockerfile or a base-image drift (a base tag
+  # past end of life) would surface only at the next release.
+  # The images are built and not pushed.
+  # ==========================================================================
+  images:
+    name: Images / build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: clavis-api
+            context: ./src/backend
+          - image: clavis-frontend
+            context: ./src/frontend
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+      # The tests run the development stage, which installs the dev extra. A module
+      # that only the dev extra brings passes every test and still stops the
+      # production image at start (httpx, imported by the address search and the
+      # CLI, was one). The import below runs in the image that production runs.
+      - name: Import the app in the production image
+        if: matrix.image == 'clavis-api'
+        run: |
+          docker run --rm \
+            -e CLAVIS_ENV_FILE=none \
+            -e JWT_SECRET_KEY=test-secret-key-at-least-32-characters-long-for-ci \
+            -e HMAC_AUDIT_KEY=test-hmac-key-for-audit-chain-integrity \
+            -e DATABASE_URL=postgresql+asyncpg://ci:ci@localhost:5432/ci \
+            -e S3_ENDPOINT=127.0.0.1:3900 \
+            -e S3_ACCESS_KEY=GK000000000000000000000000 \
+            -e S3_SECRET_KEY=0000000000000000000000000000000000000000000000000000000000000000 \
+            -e S3_BUCKET=ci \
+            -e S3_SECURE=false \
+            -e CORS_ORIGINS=http://localhost:3000 \
+            -e WEBAUTHN_RP_ID=localhost \
+            -e WEBAUTHN_RP_NAME=ci \
+            -e WEBAUTHN_ORIGIN=http://localhost:3000 \
+            -e LOG_DIR=/tmp/clavis-logs \
+            clavis-api:ci python -c "import app.main, app.cli; print('production image imports app.main and app.cli')"
+
+  # ==========================================================================
+  # Required-status-check gate
+  #
+  # Single aggregator job that branch protection should require *instead of*
+  # the individual conditional jobs above. The conditional jobs are gated by
+  # `needs.changes.outputs.app`, so on docs-only PRs they emit `skipped` —
+  # which GitHub ruleset semantics treat as "missing", blocking the PR
+  # forever. This gate runs on every PR (no `if:`) and translates the
+  # upstream `skipped`/`success` mix into a single pass/fail signal.
+  # ==========================================================================
+  ci-gate:
+    name: CI / required
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - backend-lint
+      - dco-self-test
+      - docs-links
+      - private-paths
+      - backend-test
+      - backend-security
+      - frontend
+      - frontend-security
+      - e2e-smoke
+      - images
+    if: always()
+    steps:
+      - name: Check upstream job results
+        env:
+          R_CHANGES: ${{ needs.changes.result }}
+          R_BACKEND_LINT: ${{ needs.backend-lint.result }}
+          R_DCO_SELF_TEST: ${{ needs.dco-self-test.result }}
+          R_DOCS_LINKS: ${{ needs.docs-links.result }}
+          R_PRIVATE_PATHS: ${{ needs.private-paths.result }}
+          R_BACKEND_TEST: ${{ needs.backend-test.result }}
+          R_BACKEND_SECURITY: ${{ needs.backend-security.result }}
+          R_FRONTEND: ${{ needs.frontend.result }}
+          R_FRONTEND_SECURITY: ${{ needs.frontend-security.result }}
+          R_E2E_SMOKE: ${{ needs.e2e-smoke.result }}
+          R_IMAGES: ${{ needs.images.result }}
+        run: |
+          fail=0
+          for var in R_CHANGES R_BACKEND_LINT R_DCO_SELF_TEST R_DOCS_LINKS R_PRIVATE_PATHS R_BACKEND_TEST R_BACKEND_SECURITY \
+                     R_FRONTEND R_FRONTEND_SECURITY R_E2E_SMOKE R_IMAGES; do
+            result="${!var}"
+            echo "$var = $result"
+            # `skipped` is the intended state for path-filtered jobs on
+            # non-app PRs; only `success` and `skipped` pass the gate.
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more required upstream jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All upstream jobs reported success or skipped — gate passes."

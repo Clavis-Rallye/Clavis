@@ -1,0 +1,118 @@
+html {
+  /* Reserve the scrollbar gutter so layout doesn't shift when content
+     starts overflowing the viewport. Also forces the scrollbar to render
+     in browsers that hide it for short pages (some webkit settings). */
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.print-only {
+  display: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main, #1d47a4);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Outlined inputs and selects already show a focus ring via the MUI notched
+   outline (a 2px primary border). Suppress the global *:focus-visible ring on
+   their inner control so focus draws a single outline, not two stacked rings. */
+.MuiOutlinedInput-input:focus-visible,
+.MuiSelect-select:focus-visible {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: #1D47A4;
+  color: #FFFFFF;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 4px 0;
+  transition: top 0.1s;
+}
+.skip-link:focus-visible {
+  top: 0;
+}
+
+/* The skip link hands its focus to #main-content, which carries tabindex -1
+   for that. A container that only receives the focus draws no outline of its
+   own. The focused control inside it is the indicator. */
+#main-content:focus,
+#main-content:focus-visible {
+  outline: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 15mm;
+  /* Page numbers come from the browser's print header and footer. */
+}
+
+@media print {
+  body {
+    background: #FFFFFF;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-card {
+    break-inside: avoid;
+  }
+
+  #main-content {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 0 !important;
+    background: #FFFFFF;
+  }
+
+  .print-card svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* A table must never clip in print. The scroll container would cut off the
+     last column of the task table, "Max. Punkte". */
+  .print-card .MuiTableContainer-root {
+    overflow: visible !important;
+  }
+
+  .print-card .MuiTableCell-root {
+    padding: 4px 6px;
+    font-size: 9pt;
+  }
+
+  /* A card taller than a page breaks between table rows, never through a
+     chart or a row, and the table header repeats on the next page. A title
+     stays with what follows it. */
+  .print-keep,
+  .print-card tr {
+    break-inside: avoid;
+  }
+
+  .print-keep-with-next {
+    break-after: avoid;
+  }
+
+  .print-card thead {
+    display: table-header-group;
+  }
+}
