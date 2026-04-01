@@ -1,0 +1,56 @@
+# Clavis - Caddy Configuration (DEV)
+#
+# Mirrors the production ingress shape (Caddy is the single entrypoint;
+# /api/* and /api/*/ws go through Caddy) but targets the Vite dev server
+# (frontend:3000) instead of the production nginx stage (frontend:80).
+#
+# Used by docker-compose.dev.yml via volume override; the root Caddyfile
+# still serves the prod-image local stack (`docker compose up` without
+# the dev override) and points at frontend:80.
+{
+	# Local dev: HTTP only, no auto-HTTPS, no HSTS
+	auto_https off
+}
+
+:80 {
+	# Security headers: who sets what in the dev overlay
+	# - API responses (/api/*): the API sets Content-Security-Policy,
+	#   X-Content-Type-Options, X-Frame-Options and Referrer-Policy itself
+	#   (add_security_headers in src/backend/app/main.py). Caddy must not set
+	#   them again there: a second copy is a second header.
+	# - Pages: the Vite dev server (frontend:3000) sets none of them, so Caddy
+	#   sets them in the frontend handle at the bottom. The production nginx
+	#   (src/frontend/nginx.conf) is not part of this overlay.
+	# - Permissions-Policy: nothing behind Caddy sets it, so Caddy does, on
+	#   every response.
+	header Permissions-Policy "geolocation=(), microphone=(), camera=(self)"
+
+	# WebSocket: explicit upgrade for /api/.../ws routes so coordinators
+	# (run-state) and team chat both reach the FastAPI WS handlers.
+	@api_ws {
+		path /api/*/ws
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @api_ws {
+		reverse_proxy api:8000
+	}
+
+	# REST API
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Frontend: the Vite dev server. Its port 3000 is not published on the
+	# host, so the browser reaches it only through this handle. HMR comes
+	# through here too: vite.config.ts points the HMR client at port 80.
+	handle {
+		# dev-permissive: no HSTS, CSP allows ws: for HMR
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: https://tile.openstreetmap.de; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		header X-Content-Type-Options "nosniff"
+		header X-Frame-Options "DENY"
+		header Referrer-Policy "strict-origin-when-cross-origin"
+		header X-XSS-Protection "1; mode=block"
+		reverse_proxy frontend:3000
+	}
+}
