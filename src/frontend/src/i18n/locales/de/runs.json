@@ -1,0 +1,969 @@
+{
+  "list": {
+    "title": "Läufe",
+    "createButton": "Lauf erstellen",
+    "filter": {
+      "label": "Status",
+      "all": "Alle",
+      "configured": "Konfiguriert",
+      "scheduled": "Geplant",
+      "active": "Aktiv",
+      "paused": "Pausiert",
+      "ended": "Beendet"
+    },
+    "empty": "Noch keine Läufe vorhanden.",
+    "teamCount_one": "{{count}} Team",
+    "teamCount_other": "{{count}} Teams",
+    "search": "Läufe durchsuchen",
+    "table": {
+      "name": "Name",
+      "joinCode": "Beitrittscode",
+      "state": "Status",
+      "scheduledFor": "Geplant für",
+      "createdAt": "Erstellt",
+      "actions": "Aktionen",
+      "open": "Öffnen",
+      "neverScheduled": "—"
+    },
+    "exportCsv": "Als CSV exportieren",
+    "exportCsvFilename": "runs-{{org}}.csv"
+  },
+  "analytics": {
+    "title": "Statistiken",
+    "runPicker": {
+      "label": "Lauf auswählen"
+    },
+    "noRuns": "Noch keine Läufe vorhanden. Erstelle zunächst einen Lauf.",
+    "loadError": "Statistiken konnten nicht geladen werden.",
+    "tiles": {
+      "teams": "Teams",
+      "participants": "Teilnehmende",
+      "participantsCaption": "{{registered}} registriert · {{guests}} Gäste",
+      "submissions": "Einreichungen",
+      "scoredPercent": "Bewertet",
+      "scoredCaption": "{{scored}} von {{total}}"
+    },
+    "charts": {
+      "funnel": {
+        "title": "Stationen-Trichter",
+        "attempted": "Versucht",
+        "scored": "Bewertet",
+        "empty": "Für diesen Lauf liegen noch keine Stationsdaten vor.",
+        "toggleTable": "Datentabelle für den Stationen-Trichter ein-/ausblenden",
+        "table": {
+          "station": "Station",
+          "attempted": "Versucht",
+          "scored": "Bewertet"
+        }
+      },
+      "points": {
+        "title": "Punkteverteilung",
+        "empty": "Für diesen Lauf liegen noch keine Teampunkte vor.",
+        "toggleTable": "Datentabelle für die Punkteverteilung ein-/ausblenden",
+        "table": {
+          "team": "Team",
+          "points": "Punkte"
+        }
+      },
+      "timeline": {
+        "title": "Einreichungen im Zeitverlauf",
+        "empty": "Für diesen Lauf liegen noch keine Einreichungen vor.",
+        "toggleTable": "Datentabelle für Einreichungen im Zeitverlauf ein-/ausblenden",
+        "table": {
+          "time": "Uhrzeit",
+          "submissions": "Einreichungen"
+        }
+      }
+    },
+    "challengeTable": {
+      "title": "Aufgaben-Statistik",
+      "empty": "Für diesen Lauf liegen noch keine Aufgaben-Daten vor.",
+      "station": "Station",
+      "challenge": "Aufgabe",
+      "type": "Typ",
+      "submissions": "Einreichungen",
+      "scored": "Bewertet",
+      "avgPoints": "Ø Punkte",
+      "maxPoints": "Max. Punkte",
+      "timeMedian": "Zeit bis zur Antwort (Median)",
+      "timeSpread": "Mittlere Hälfte"
+    },
+    "feedback": {
+      "title": "Feedback",
+      "averageRating": "Durchschnittliche Bewertung",
+      "totalCount_one": "{{count}} Rückmeldung",
+      "totalCount_other": "{{count}} Rückmeldungen"
+    },
+    "export": {
+      "teams": "Teams als CSV exportieren",
+      "challenges": "Aufgaben als CSV exportieren",
+      "pdf": "Als PDF speichern",
+      "json": "JSON",
+      "jsonFileName": "run-analytics-{{runId}}.json",
+      "image": "{{title}} als Bild speichern",
+      "filename": {
+        "teams": "analytics-teams-{{runId}}.csv",
+        "challenges": "analytics-challenges-{{runId}}.csv",
+        "working_time": "analytics-working-time-{{runId}}.csv",
+        "task_times": "analytics-task-times-{{runId}}.csv"
+      },
+      "error": "Export fehlgeschlagen.",
+      "workingTime": "Bearbeitungsdauer als CSV exportieren",
+      "taskTimes": "Zeit je Aufgabe als CSV exportieren"
+    },
+    "print": {
+      "generated": "Erstellt am {{date}}"
+    },
+    "modeLabel": "Ansicht",
+    "modeRange": "Zeitraum",
+    "modeRun": "Einzelner Lauf",
+    "range": {
+      "from": "Von",
+      "to": "Bis",
+      "bucket": "Gruppierung",
+      "bucketDay": "Tag",
+      "bucketWeek": "Woche",
+      "bucketMonth": "Monat",
+      "exportCsv": "CSV exportieren",
+      "exportJson": "JSON exportieren",
+      "exportPdf": "Als PDF speichern",
+      "jsonFileName": "analytics-timeseries-{{from}}-{{to}}.json",
+      "metricsLabel": "Metriken",
+      "chartTitle": "Kennzahlen pro Zeitraum",
+      "toggleTable": "Datentabelle anzeigen",
+      "selectMetric": "Bitte mindestens eine Metrik auswählen.",
+      "empty": "Keine Läufe im gewählten Zeitraum.",
+      "date": "Datum",
+      "metric": {
+        "run_count": "Läufe",
+        "participant_count": "Teilnehmende",
+        "guest_count": "Gäste",
+        "registered_count": "Registriert",
+        "team_count": "Teams",
+        "submission_count": "Einreichungen",
+        "scored_count": "Bewertet",
+        "unscored_count": "Unbewertet"
+      },
+      "tiles": {
+        "avgPointsPerTeam": "Ø Punkte je Team",
+        "pointsCaption": "{{percent}} der möglichen Punkte",
+        "pointsCaptionNone": "Noch keine bewertete Antwort"
+      },
+      "points": {
+        "title": "Punkte je Team im Verlauf",
+        "toggleTable": "Datentabelle für die Punkte im Verlauf ein-/ausblenden",
+        "series": "Ø Punkte je Team",
+        "exportCsv": "Punkte als CSV exportieren",
+        "table": {
+          "runs": "Läufe",
+          "teams": "Teams",
+          "total": "Punkte gesamt",
+          "perTeam": "Ø je Team",
+          "perAnswer": "Ø je bewertete Antwort",
+          "percent": "Erreicht"
+        },
+        "percentHint": "„Erreicht“ teilt die vergebenen Punkte durch die Höchstpunkte der bewerteten Antworten."
+      },
+      "duration": {
+        "title": "Bearbeitungsdauer im Verlauf (Median)",
+        "toggleTable": "Datentabelle für die Bearbeitungsdauer im Verlauf ein-/ausblenden",
+        "series": "Bearbeitungsdauer (Median)",
+        "table": {
+          "teams": "Teams gemessen",
+          "median": "Median"
+        }
+      },
+      "tasks": {
+        "title": "Aufgaben im Zeitraum",
+        "empty": "Keine Aufgaben im gewählten Zeitraum.",
+        "exportCsv": "Aufgaben als CSV exportieren",
+        "hint": "Eine Aufgabe aus derselben Bibliothek steht über alle Läufe in einer Zeile.",
+        "table": {
+          "station": "Station",
+          "task": "Aufgabe",
+          "type": "Typ",
+          "runs": "Läufe",
+          "answers": "Antworten",
+          "scored": "Bewertet",
+          "avgPoints": "Ø Punkte",
+          "maxPoints": "Max. Punkte",
+          "timeMedian": "Zeit bis zur Antwort (Median)",
+          "timeSpread": "Mittlere Hälfte"
+        }
+      },
+      "teams": {
+        "title": "Teams im Zeitraum",
+        "empty": "Keine Teams im gewählten Zeitraum.",
+        "exportCsv": "Teams als CSV exportieren",
+        "showAll": "Alle {{count}} Teams anzeigen",
+        "showFewer": "Nur die ersten {{count}} anzeigen",
+        "table": {
+          "rank": "Platz",
+          "team": "Team",
+          "run": "Lauf",
+          "date": "Datum",
+          "points": "Punkte",
+          "answered": "Aufgaben beantwortet",
+          "duration": "Bearbeitungsdauer"
+        }
+      },
+      "printTitle": "{{mode}}: {{from}} bis {{to}}, {{per}}",
+      "printPerDay": "je Tag",
+      "printPerWeek": "je Woche",
+      "printPerMonth": "je Monat"
+    },
+    "axis": {
+      "teams": "Teams",
+      "points": "Punkte",
+      "submissions": "Einreichungen",
+      "count": "Anzahl",
+      "minutes": "Minuten",
+      "pointsPerTeam": "Punkte je Team",
+      "percent": "Prozent"
+    },
+    "modeCompare": "Vergleich",
+    "workingTime": {
+      "helpTitle": "So wird die Bearbeitungsdauer gemessen",
+      "helpTeam": "Die Bearbeitungsdauer eines Teams läuft vom Start des Laufs bis zur letzten Antwort des Teams. Ein Team, das später beitritt, beginnt mit seinem Beitritt. Pausen des Laufs zählen mit, denn die App speichert keine Pausenzeiten.",
+      "helpTask": "Die Zeit bis zur Antwort läuft von der vorigen Antwort des Teams bis zu dieser Antwort. Sie enthält den Weg zur Station. Der Median ist der mittlere Wert: Die Hälfte der Teams war schneller. Die mittlere Hälfte nennt die Zeiten, zwischen denen die mittleren 50 % der Teams liegen.",
+      "tile": "Bearbeitungsdauer (Median)",
+      "tileCaption_one": "{{count}} Team gemessen · {{min}} bis {{max}}",
+      "tileCaption_other": "{{count}} Teams gemessen · {{min}} bis {{max}}",
+      "tileCaptionNone": "Noch kein Team gemessen",
+      "chartTitle": "Bearbeitungsdauer je Team",
+      "toggleTable": "Datentabelle für die Bearbeitungsdauer je Team ein-/ausblenden",
+      "empty": "Noch keine Bearbeitungsdauer. Kein Team hat geantwortet, oder der Lauf wurde nicht gestartet.",
+      "table": {
+        "team": "Team",
+        "start": "Beginn",
+        "lastAnswer": "Letzte Antwort",
+        "duration": "Bearbeitungsdauer",
+        "longestGap": "Längster Abstand",
+        "points": "Punkte",
+        "answered": "Aufgaben beantwortet"
+      },
+      "taskChartTitle": "Zeit bis zur Antwort je Aufgabe (Median)",
+      "taskToggleTable": "Datentabelle für die Zeit bis zur Antwort ein-/ausblenden",
+      "taskEmpty": "Noch keine Zeit bis zur Antwort. Kein Team hat geantwortet, oder der Lauf wurde nicht gestartet.",
+      "taskTable": {
+        "task": "Aufgabe",
+        "teams": "Teams mit Zeit",
+        "median": "Median",
+        "middleHalf": "Mittlere Hälfte",
+        "shortest": "Kürzeste",
+        "longest": "Längste"
+      },
+      "tileCaptionSame_one": "{{count}} Team gemessen · {{value}}",
+      "tileCaptionSame_other": "{{count}} Teams gemessen · {{value}}"
+    },
+    "compare": {
+      "pickerLabel": "Läufe für den Vergleich",
+      "pickerHelp": "Wähle zwei bis sechs Läufe.",
+      "tooFew": "Wähle mindestens zwei Läufe, um sie zu vergleichen.",
+      "notEnoughRuns": "Für einen Vergleich braucht es mindestens zwei Läufe.",
+      "printTitle": "Vergleich: {{names}}",
+      "jsonFileName": "analytics-compare.json",
+      "exportRuns": "Läufe als CSV exportieren",
+      "exportStations": "Stationen als CSV exportieren",
+      "exportTasks": "Aufgaben als CSV exportieren",
+      "filename": {
+        "runs": "analytics-compare-runs.csv",
+        "stations": "analytics-compare-stations.csv",
+        "tasks": "analytics-compare-tasks.csv"
+      },
+      "differentContent": "Die Läufe haben nicht dieselben Inhalte. Stationen und Aufgaben stehen nur dort nebeneinander, wo sie aus derselben Bibliothek stammen.",
+      "notInRun": "nicht im Lauf",
+      "summary": {
+        "title": "Läufe im Vergleich",
+        "measure": "Kennzahl",
+        "date": "Datum",
+        "state": "Status",
+        "stations": "Stationen",
+        "tasks": "Aufgaben",
+        "teams": "Teams",
+        "participants": "Teilnehmende",
+        "participantsDetail": "{{registered}} registriert · {{guests}} Gäste",
+        "answers": "Antworten",
+        "completion": "Beantwortet",
+        "teamsFinished": "Teams mit allen Aufgaben",
+        "avgPoints": "Ø Punkte je Team",
+        "medianPoints": "Median Punkte je Team",
+        "achievable": "Erreichbare Punkte je Team",
+        "pointsPercent": "Erreicht",
+        "durationMedian": "Bearbeitungsdauer (Median)",
+        "durationRange": "Kürzeste bis längste",
+        "teamsMeasured": "Teams mit Bearbeitungsdauer"
+      },
+      "participation": {
+        "title": "Beteiligung",
+        "toggleTable": "Datentabelle für die Beteiligung ein-/ausblenden",
+        "teams": "Teams",
+        "participants": "Teilnehmende",
+        "answers": "Antworten",
+        "run": "Lauf"
+      },
+      "points": {
+        "title": "Ø Punkte je Team",
+        "toggleTable": "Datentabelle für die Punkte je Team ein-/ausblenden"
+      },
+      "duration": {
+        "title": "Bearbeitungsdauer (Median)",
+        "toggleTable": "Datentabelle für die Bearbeitungsdauer ein-/ausblenden",
+        "empty": "In keinem der Läufe wurde ein Team gemessen."
+      },
+      "stations": {
+        "title": "Teams mit Antwort je Station",
+        "toggleTable": "Datentabelle für die Stationen ein-/ausblenden",
+        "empty": "Die gewählten Läufe haben keine Stationen.",
+        "cell": "{{attempted}} von {{teams}}"
+      },
+      "tasks": {
+        "title": "Aufgaben im Vergleich",
+        "empty": "Die gewählten Läufe haben keine Aufgaben.",
+        "task": "Aufgabe",
+        "cellAnswered": "{{answered}} von {{teams}} Teams",
+        "cellPoints": "Ø {{points}} Punkte",
+        "cellTime": "Median {{time}}"
+      }
+    }
+  },
+  "create": {
+    "title": "Neuer Lauf",
+    "step1": "Rallye auswählen",
+    "step2": "Einstellungen",
+    "step3": "Zusammenfassung",
+    "selectRallye": "Rallye auswählen",
+    "noPublishedRallyes": "Keine veröffentlichten Rallyes verfügbar.",
+    "nameLabel": "Name",
+    "nameHelper": "Erscheint in der Liste der Läufe.",
+    "maxTeams": "Maximale Teamanzahl",
+    "scheduledStart": "Geplante Startzeit",
+    "scheduledStartHelperAuto": "Optional. Mit Startzeit startet der Lauf dann von selbst. Ohne Startzeit startest du ihn von Hand.",
+    "scheduledStartHelperManual": "Optional. Die Startzeit ist nur ein Plan. Den Lauf startest du von Hand.",
+    "review": "Zusammenfassung",
+    "summaryRallye": "Rallye",
+    "summaryName": "Name",
+    "summaryMaxTeams": "Maximale Teamanzahl",
+    "summaryScheduledStart": "Geplante Startzeit",
+    "afterCreate": "Nach dem Erstellen siehst du Beitrittscode und QR-Code und kannst sie teilen. Teams können beitreten, sobald du den Lauf startest.",
+    "afterCreatePlanned": "Nach dem Erstellen siehst du Beitrittscode und QR-Code und kannst sie teilen. Der Lauf startet zur geplanten Zeit von selbst. Ab dann können Teams beitreten.",
+    "submit": "Lauf erstellen"
+  },
+  "dashboard": {
+    "metrics": {
+      "teams": "Teams",
+      "timeSinceStart": "Seit Start",
+      "helpRequests": "Hilfeanfragen",
+      "totalSubmissions": "Einreichungen",
+      "notStarted": "—",
+      "hoursUnit": "Std",
+      "minutesUnit": "min",
+      "scoredOfTotal": "{{scored}} von {{total}} bewertet",
+      "unscoredCount": "{{count}} unbewertet",
+      "open": "Öffnen",
+      "openSubmissions": "Einreichungen öffnen",
+      "openScoreboard": "Rangliste öffnen"
+    },
+    "teamsEmpty": "Noch keine Teams. Teile den Beitrittscode {{code}}, damit Teams beitreten können.",
+    "joinCode": "Beitrittscode",
+    "copyCode": "Code kopieren",
+    "copyCodeSuccess": "Code in die Zwischenablage kopiert",
+    "copyCodeFailure": "Kopieren fehlgeschlagen",
+    "joinLink": "Beitritts-Link",
+    "copyJoinUrl": "Beitritts-Link kopieren",
+    "qrTitle": "Beitritts-QR-Code (Code {{code}})",
+    "presentation": {
+      "open": "Groß anzeigen",
+      "openLabel": "Beitrittscode groß anzeigen",
+      "close": "Schließen"
+    },
+    "joinWindow": {
+      "manualStart": "Teams können beitreten, sobald du den Lauf startest. Code und QR-Code kannst du schon vorher teilen.",
+      "plannedStart": "Teams können beitreten, sobald der Lauf startet: von selbst zur geplanten Zeit oder vorher mit „Starten“. Code und QR-Code kannst du schon vorher teilen.",
+      "paused": "Während der Pause können keine Teams beitreten. Nach „Fortsetzen“ können sie wieder beitreten."
+    },
+    "state": {
+      "configured": "Konfiguriert",
+      "scheduled": "Geplant",
+      "active": "Aktiv",
+      "paused": "Pausiert",
+      "ended": "Beendet"
+    },
+    "actions": {
+      "start": "Starten",
+      "schedule": "Planen",
+      "scheduleDateLabel": "Startzeit",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "end": "Beenden"
+    },
+    "blockedJoins": {
+      "beforeStart_one": "{{count}} Beitrittsversuch vor dem Start",
+      "beforeStart_other": "{{count}} Beitrittsversuche vor dem Start",
+      "whilePaused_one": "{{count}} Beitrittsversuch während der Pause",
+      "whilePaused_other": "{{count}} Beitrittsversuche während der Pause"
+    },
+    "endConfirm": "Lauf wirklich beenden? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "teamsTitle": "Teams",
+    "memberCount_one": "{{count}} Mitglied",
+    "memberCount_other": "{{count}} Mitglieder",
+    "teamWithoutName": "Team ohne Namen",
+    "memberNames": {
+      "more": "+ {{count}}",
+      "moreLabel": "und {{count}} weitere"
+    },
+    "teamProgressSummary": "{{members}} · Stationen {{stationsDone}}/{{stationsTotal}} · Aufgaben {{challengesDone}}/{{challengesTotal}} · {{points}} Pkt.",
+    "feedTitle": "Mitteilungen",
+    "plannedAuto": "Startet automatisch: {{datetime}}",
+    "plannedManual": "Geplant: {{datetime}}. Start von Hand.",
+    "autoStartBlocked": {
+      "RALLYE_HAS_NO_STATIONS": "Der automatische Start ist gescheitert: Die Rallye hat keine Stationen. Mit Stationen startet der Lauf bei der nächsten Prüfung, sonst von Hand.",
+      "RALLYE_NOT_FOUND": "Der automatische Start ist gescheitert: Die Rallye gibt es nicht mehr.",
+      "SNAPSHOT_FAILED": "Der automatische Start ist gescheitert. Bitte starte den Lauf von Hand."
+    },
+    "edit": {
+      "button": "Lauf bearbeiten",
+      "title": "Lauf bearbeiten",
+      "save": "Speichern",
+      "maxTeamsHelper": "Leer: keine Grenze.",
+      "scheduledHelper": "Leer: Start von Hand."
+    },
+    "copyJoinUrlSuccess": "Beitritts-Link in die Zwischenablage kopiert",
+    "copyJoinUrlFailure": "Link kopieren fehlgeschlagen",
+    "feedbackEmpty": "Noch kein Feedback eingegangen."
+  },
+  "feedComposer": {
+    "typeLabel": "Typ",
+    "types": {
+      "system": "System",
+      "announcement": "Mitteilung",
+      "milestone": "Meilenstein",
+      "countdown": "Countdown",
+      "reminder": "Erinnerung",
+      "alert": "Alarm",
+      "team_update": "Team-Update",
+      "results_available": "Ergebnisse",
+      "feedback_prompt": "Feedback"
+    },
+    "typeHints": {
+      "announcement": "Allgemeine Mitteilung an alle Teams oder ein einzelnes Team.",
+      "countdown": "Zeigt den Teams eine mitlaufende Restzeit bis zu einem Zeitpunkt.",
+      "alert": "Dringende Meldung, wird bei den Teams rot hervorgehoben."
+    },
+    "alertHint": "Nur für Notfälle und wirklich dringende Situationen. Die Teams sehen die Meldung rot hervorgehoben. Je seltener sie kommt, desto verlässlicher wirkt sie.",
+    "content": "Inhalt",
+    "targetTime": "Zielzeit",
+    "targetTeam": "Zielteam",
+    "allTeams": "Alle Teams",
+    "submit": "Veröffentlichen",
+    "pastEvents": "Vergangene Mitteilungen"
+  },
+  "submissions": {
+    "title": "Einreichungen",
+    "backToRun": "Zurück zum Lauf",
+    "filter": {
+      "all": "Alle",
+      "scored": "Bewertet",
+      "unscored": "Unbewertet",
+      "stateLabel": "Status",
+      "challengeLabel": "Aufgabe"
+    },
+    "scoreLabel": "Punkte",
+    "commentLabel": "Interne Bewertungsnotiz",
+    "commentHelper": "Sichtbar nur für die Spielleitung. Teams sehen diese Notiz nie.",
+    "scoreButton": "Bewerten",
+    "empty": "Noch keine Einreichungen vorhanden.",
+    "optionLabel": "Option: {{value}}",
+    "scannedLabel": "Gescannter Code: {{value}}",
+    "reopenButton": "Bewertung zurücknehmen",
+    "reopenTitle": "Bewertung zurücknehmen?",
+    "reopenMessage": "Die Bewertung wird entfernt und das Team kann seine Antwort ersetzen. Die Punkte werden vom Punktestand abgezogen.",
+    "reopenConfirm": "Zurücknehmen",
+    "taskLabel": "Aufgabe",
+    "solutionReference": "Referenzantwort",
+    "maxPointsHint": "max. {{max}}",
+    "photoAlt": "Eingereichtes Foto",
+    "mediaRemoved": "Medium entfernt",
+    "emptyFiltered": "Keine Einreichung passt zu diesem Filter.",
+    "audioLabel": "Audio-Antwort von {{team}}, {{task}}",
+    "videoLabel": "Video-Antwort von {{team}}, {{task}}"
+  },
+  "scoreboard": {
+    "title": "Rangliste",
+    "backToRun": "Zurück zum Lauf",
+    "rank": "Platz",
+    "team": "Team",
+    "points": "Punkte",
+    "maxPoints": "Max",
+    "percentage": "Prozent",
+    "scored": "Bewertet",
+    "refresh": "Aktualisieren",
+    "copy": "Kopieren",
+    "export": "Exportieren"
+  },
+  "results": {
+    "title": "Ergebnisse",
+    "scoredOfTotal": "{{scored}} von {{total}} bewertet",
+    "gradingOpen": "Bewertung läuft noch",
+    "gradingComplete": "Bewertung abgeschlossen",
+    "publish": "Ergebnis veröffentlichen",
+    "publishPrerequisiteHint": "Die Veröffentlichung wird möglich, sobald alle Einreichungen bewertet sind.",
+    "publishConfirmTitle": "Ergebnis veröffentlichen",
+    "publishConfirmMessage": "Der Link ist ohne Anmeldung abrufbar und macht die Teamnamen mit ihrer Platzierung öffentlich sichtbar. Er läuft standardmäßig nach 90 Tagen ab und kann jederzeit zurückgezogen werden.",
+    "linkLabel": "Öffentlicher Link",
+    "copyLink": "Link kopieren",
+    "copySuccess": "Link in die Zwischenablage kopiert",
+    "copyFailure": "Kopieren fehlgeschlagen",
+    "expires": "Gültig bis {{date}}",
+    "republish": "Erneut veröffentlichen",
+    "revoke": "Freigabe zurückziehen",
+    "revokeConfirmTitle": "Freigabe zurückziehen?",
+    "revokeConfirmMessage": "Der öffentliche Link ist danach nicht mehr abrufbar. Ein erneutes Veröffentlichen erzeugt einen neuen Link.",
+    "revokedNotice": "Die Freigabe wurde zurückgezogen. Der bisherige Link ist nicht mehr gültig.",
+    "openClosingView": "Abschlussansicht öffnen",
+    "endedOn": "Beendet am {{date}}",
+    "labelFinal": "Endstand",
+    "labelInterim": "Zwischenstand",
+    "winnerLabel_one": "Gewinner",
+    "winnerLabel_other": "Gewinner",
+    "vollbild": "Vollbild",
+    "exitVollbild": "Vollbild beenden",
+    "print": "Drucken",
+    "public": {
+      "unnamedTeam": "Team {{index}}",
+      "invalid": "Dieser Ergebnis-Link ist nicht mehr gültig.",
+      "notFound": "Dieser Ergebnis-Link ist nicht gültig oder existiert nicht.",
+      "loadError": "Das Ergebnis konnte nicht geladen werden."
+    },
+    "republishConfirmTitle": "Ergebnis erneut veröffentlichen",
+    "republishConfirmMessage": "Der Link bleibt derselbe. Der veröffentlichte Stand wird durch den aktuellen ersetzt, und die Laufzeit des Links beginnt neu."
+  },
+  "guestJoin": {
+    "title": "Rallye beitreten",
+    "codeLabel": "Beitrittscode",
+    "displayNameLabel": "Dein Name",
+    "teamNameLabel": "Teamname",
+    "teamCodeLabel": "Team-Code",
+    "submit": "Beitreten",
+    "invalidCode": "Ungültiger Code. Bitte prüfe deine Eingabe.",
+    "step": {
+      "codeAndName": "Rallye-Code und dein Name",
+      "choose": "Team gründen oder beitreten?",
+      "create": "Neues Team erstellen",
+      "join": "Bestehendem Team beitreten"
+    },
+    "action": {
+      "next": "Weiter",
+      "back": "Zurück",
+      "create": "Team erstellen",
+      "join": "Beitreten",
+      "continue": "Weiter zum Run"
+    },
+    "choice": {
+      "create": {
+        "title": "Neues Team gründen",
+        "subtitle": "Du bekommst einen Team-Code, den du an deine Mitspieler:innen weitergibst."
+      },
+      "join": {
+        "title": "Bestehendem Team beitreten",
+        "subtitle": "Frag deine Mitspieler:innen nach dem Team-Code."
+      }
+    },
+    "success": {
+      "titleCreate": "Team „{{team}}\" erstellt!",
+      "titleJoin": "Team „{{team}}\" beigetreten!",
+      "introCreate": "Gib diesen Code an deine Mitspieler:innen weiter, damit sie ins gleiche Team kommen:",
+      "introJoin": "Du bist im Team. Mit diesem Code können auch andere noch dazustoßen:"
+    },
+    "error": {
+      "codeUnknown": "Team-Code unbekannt. Bitte prüfen.",
+      "teamFull": "Dieses Team ist voll.",
+      "alreadyInTeam": "Du bist bereits in einem Team für diesen Run.",
+      "runInactive": "Der Run ist nicht aktiv.",
+      "tooManyAttempts": "Zu viele Fehlversuche. Bitte 1 Minute warten."
+    }
+  },
+  "team": {
+    "shareCode": {
+      "label": "Team-Code",
+      "intro": "Dein Team-Code zum Teilen:",
+      "copy": "Code kopieren",
+      "copied": "Code kopiert!",
+      "share": "Code teilen"
+    },
+    "info": {
+      "title": "Team",
+      "membersTitle": "Mitglieder",
+      "noLocation": "Noch keine Position",
+      "noMembership": "Für diesen Lauf wurde keine Team-Mitgliedschaft gefunden.",
+      "memberCount_one": "{{count}} Mitglied",
+      "memberCount_other": "{{count}} Mitglieder",
+      "lookupFailed": "Die Team-Mitgliedschaft konnte nicht geprüft werden."
+    },
+    "leave": {
+      "button": "Team verlassen",
+      "confirmTitle": "Team verlassen?",
+      "confirmMessage": "Möchtest du dieses Team wirklich verlassen?",
+      "confirmMessageGuest": "Möchtest du dieses Team wirklich verlassen? Als Gast kannst du diesem Lauf danach nicht erneut beitreten.",
+      "cancel": "Abbrechen",
+      "confirm": "Verlassen"
+    }
+  },
+  "participant": {
+    "nav": {
+      "stations": "Stationen",
+      "feed": "Mitteilungen",
+      "chat": "Chat",
+      "scoreboard": "Rangliste",
+      "rallye": "Rallye",
+      "team": "Team",
+      "leaderboard": "Rangliste",
+      "unreadLabel_one": "Mitteilungen, {{count}} neue Meldung",
+      "unreadLabel_other": "Mitteilungen, {{count}} neue Meldungen",
+      "label": "Teilnahme"
+    },
+    "guestLogout": {
+      "title": "Als Gast abmelden?",
+      "message": "Dein Fortschritt ist an diesen Browser gebunden. Nach dem Abmelden kommst du als Gast nicht mehr in dein Team zurück. Wenn du später weitermachen willst, lege vorher im Profil ein Konto an.",
+      "confirm": "Abmelden"
+    },
+    "overflow": {
+      "menuLabel": "Mehr",
+      "profile": "Profil",
+      "runHistory": "Verlauf",
+      "language": "Sprachauswahl",
+      "dataPrivacy": "Datenschutz",
+      "accessibility": "Barrierefreiheit",
+      "impressum": "Impressum",
+      "logout": "Abmelden",
+      "comingSoon": "Diese Seite ist demnächst verfügbar."
+    },
+    "offline": {
+      "banner": "Du bist gerade offline. Updates erscheinen erst, wenn die Verbindung wiederhergestellt ist."
+    },
+    "leaderboard": {
+      "title": "Rangliste",
+      "yourTeam": "Dein Team",
+      "neverScored": "noch keine Punkte",
+      "points": "{{points}} Pkt.",
+      "interim": "Zwischenstand, die Bewertung läuft noch.",
+      "final": "Endstand, die Bewertung ist abgeschlossen.",
+      "winner": "Gewinner",
+      "rankLabel": "Platz {{rank}}",
+      "empty": {
+        "title": "Noch keine Einträge",
+        "subtitle": "Sobald die ersten Teams Punkte sammeln, erscheinen sie hier."
+      },
+      "resultLink": "Öffentliches Ergebnis öffnen",
+      "resultLinkCopy": "Link kopieren",
+      "resultLinkCopied": "Link kopiert"
+    },
+    "runStateChange": {
+      "configured": "Der Lauf wurde zurückgesetzt.",
+      "scheduled": "Der Lauf wurde geplant.",
+      "active": "Der Lauf hat begonnen!",
+      "paused": "Der Lauf wurde pausiert.",
+      "resumed": "Der Lauf wurde fortgesetzt.",
+      "ended": "Der Lauf ist beendet. Danke fürs Mitmachen!"
+    },
+    "teamMovedToast": "Du wurdest in das Team „{{teamName}}“ verschoben.",
+    "stations": {
+      "title": "Stationen",
+      "completed": "Abgeschlossen",
+      "locked": "Gesperrt",
+      "untitled": "Unbenannte Station",
+      "tasksDone_one": "{{done}} von {{count}} Aufgabe",
+      "tasksDone_other": "{{done}} von {{count}} Aufgaben",
+      "stationCount_one": "{{count}} Station",
+      "stationCount_other": "{{count}} Stationen",
+      "openStationLabel": "{{number}}, {{title}}, {{progress}}, öffnen",
+      "noStationsYet": "Sobald die Rallye startet, erscheinen die Stationen hier.",
+      "progressLabel": "Aufgaben gelöst",
+      "viewToggle": "Ansicht",
+      "listView": "Liste",
+      "mapView": "Karte",
+      "markerName": "Station {{number}}: {{title}}",
+      "withoutPosition_one": "{{count}} Station hat keinen Standort und steht nur in der Liste.",
+      "withoutPosition_other": "{{count}} Stationen haben keinen Standort und stehen nur in der Liste.",
+      "noCoords": "Für diese Rallye sind noch keine Standorte hinterlegt.",
+      "tilesUnavailable": "Die Karte ist gerade nicht verfügbar."
+    },
+    "challenge": {
+      "backToStation": "Zurück zur Station",
+      "instructions": "Anleitung",
+      "maxPoints": "Maximale Punkte",
+      "untitled": "Unbenannte Aufgabe",
+      "types": {
+        "text": "Frage",
+        "quiz": "Quizfrage",
+        "qr_scan": "QR-Code",
+        "photo": "Foto",
+        "creative": "Kreativ",
+        "audio": "Audio",
+        "video": "Video"
+      },
+      "points": "{{points}} Pkt.",
+      "submit": "Antwort senden",
+      "submitted": "Eingereicht",
+      "answerSubmitted": "Antwort gesendet",
+      "yourAnswer": "Eure Antwort",
+      "mediaRemoved": "Medium entfernt",
+      "teamSubmitHint": "Eine Antwort gilt für das ganze Team.",
+      "editWindowHint": "Ihr könnt eure Antwort ändern, bis sie bewertet ist.",
+      "backToTasks": "Zurück zu den Aufgaben",
+      "scoredWithPoints": "Bewertet · {{points}}/{{maxPoints}}",
+      "alreadySubmitted": "Ihr habt diese Aufgabe bereits beantwortet.",
+      "successGeneric": "Eure Antwort wurde gesendet.",
+      "successAutoScored": "Eure Antwort wurde gesendet und automatisch bewertet.",
+      "successPendingReview": "Eure Antwort wurde gesendet. Die Bewertung folgt durch die Spielleitung.",
+      "successPoints": "Punkte: {{points}} / {{max}}.",
+      "changeAnswer": "Antwort ändern",
+      "changeCancel": "Ändern abbrechen",
+      "changeLockedEnded": "Der Lauf ist beendet. Antworten können nicht mehr geändert werden.",
+      "changeLockedPaused": "Der Lauf ist pausiert. Antworten können erst nach der Pause wieder geändert werden.",
+      "answerLockedEnded": "Der Lauf ist beendet. Für diese Aufgabe kann keine Antwort mehr gesendet werden.",
+      "answerLockedPaused": "Der Lauf ist pausiert. Sobald es weitergeht, könnt ihr diese Aufgabe beantworten.",
+      "scoredLocked": "Eure Antwort wurde bereits bewertet. Nur die Spielleitung kann die Bewertung wieder öffnen.",
+      "autoScoredLocked": "Automatisch bewertete Antworten lassen sich nicht mehr ändern. Die Spielleitung kann die Bewertung wieder öffnen.",
+      "errors": {
+        "teamAlreadySubmitted": "Ein anderes Teammitglied hat diese Aufgabe bereits beantwortet. Die Antwort eures Teams wird angezeigt.",
+        "imageTooLarge": "Das Foto ist zu groß. Bitte nimm es mit geringerer Auflösung auf.",
+        "imageNotDecodable": "Diese Datei ist kein lesbares Bild. Bitte nimm ein anderes Foto auf.",
+        "mediaNotReadable": "Diese Datei kann Clavis nicht lesen. Bitte nimm das Video oder die Aufnahme neu auf.",
+        "generic": "Die Antwort konnte nicht gesendet werden. Bitte versuche es erneut.",
+        "runEnded": "Der Lauf ist beendet. Es können keine Antworten mehr gesendet werden.",
+        "runPaused": "Der Lauf ist gerade pausiert. Bitte sendet eure Antwort, sobald es weitergeht.",
+        "runNotStarted": "Der Lauf hat noch nicht begonnen. Bitte wartet auf den Start."
+      },
+      "text": {
+        "placeholder": "Schreibe deine Antwort hier…",
+        "label": "Deine Antwort",
+        "charCount": "{{count}} / 5000"
+      },
+      "quiz": {
+        "noOptions": "Für diese Aufgabe sind keine Antwortoptionen konfiguriert. Wende dich an die Spielleitung."
+      },
+      "qr": {
+        "startScan": "Scannen starten",
+        "rescan": "Erneut scannen",
+        "scanned": "Gescannt",
+        "scannedStatus": "QR-Code gescannt: {{code}}",
+        "manualLabel": "Oder Code manuell eingeben",
+        "scanInstruction": "Wenn die Kamera nicht verfügbar ist, gib den Code unten manuell ein.",
+        "cameraViewport": "QR-Code-Scanner",
+        "cameraError": "Kamera nicht verfügbar. Gib den Code unten manuell ein."
+      },
+      "photo": {
+        "capture": "Foto aufnehmen",
+        "gallery": "Aus Galerie wählen",
+        "uploading": "Wird hochgeladen…",
+        "preview": "Vorschau"
+      },
+      "audio": {
+        "record": "Sprachnachricht aufnehmen",
+        "library": "Audiodatei wählen",
+        "uploading": "Wird hochgeladen…",
+        "preview": "Vorschau",
+        "replace": "Aufnahme ersetzen"
+      },
+      "video": {
+        "capture": "Video aufnehmen",
+        "gallery": "Aus Galerie wählen",
+        "uploading": "Wird hochgeladen…",
+        "preview": "Vorschau",
+        "replace": "Video ersetzen"
+      },
+      "fallback": {
+        "open": {
+          "photo": "Foto klappt nicht? Dann antworte mit Text.",
+          "video": "Video klappt nicht? Dann antworte mit Text.",
+          "audio": "Aufnahme klappt nicht? Dann antworte mit Text."
+        },
+        "label": "Deine Antwort als Text"
+      },
+      "teammateFirst": {
+        "title": "Deine Antwort wurde nicht gesendet",
+        "body": "Ein anderes Teammitglied hat diese Aufgabe kurz vorher beantwortet. Unten steht die Antwort, die für euer Team zählt.",
+        "yours": "Das wolltest du senden:",
+        "replaceHint": "Solange die Antwort nicht bewertet ist, könnt ihr sie mit „Antwort ändern“ ersetzen. Deine Eingabe steht dann schon im Formular."
+      },
+      "submitting": "Wird gesendet…",
+      "notFound": "Aufgabe nicht gefunden",
+      "unsupportedType": "Nicht unterstützte Aufgabenart: {{type}}",
+      "audioAnswer": "Eure Audio-Antwort",
+      "videoAnswer": "Eure Video-Antwort"
+    },
+    "stationChallenges": {
+      "title": "Aufgaben",
+      "backToStations": "Zurück zu Stationen",
+      "empty": "Keine Aufgaben für diese Station.",
+      "tipsButton": "Tipps & Links",
+      "tipsIntro": "Du willst mehr zum Thema wissen? Dann tippe auf Tipps & Links.",
+      "openTask": "Öffnen",
+      "address": {
+        "copy": "Adresse kopieren",
+        "copied": "Kopiert",
+        "openInMaps": "{{address}}: in der Karten-App öffnen",
+        "mapsHint": "Antippen öffnet die Karten-App."
+      }
+    },
+    "chat": {
+      "title": "Teamchat",
+      "placeholder": "Nachricht schreiben …",
+      "messageLabel": "Nachricht eingeben",
+      "send": "Senden",
+      "charCount": "{{count}}/2000",
+      "you": "Du",
+      "system": "System",
+      "anonymousSender": "Teammitglied",
+      "noTeam": "Du bist (noch) keinem Team zugeordnet. Sobald du beigetreten bist, erscheint hier euer Teamchat.",
+      "emptyTitle": "Hier ist es noch still",
+      "emptySubtitle": "Schreibt eurem Team eine Nachricht, um den Chat zu starten.",
+      "closedEnded": "Der Lauf ist beendet, der Teamchat ist geschlossen. Eure Nachrichten bleiben hier lesbar.",
+      "closedPaused": "Der Lauf ist pausiert. Sobald es weitergeht, könnt ihr wieder schreiben.",
+      "closedNotStarted": "Der Lauf hat noch nicht begonnen. Der Teamchat öffnet sich mit dem Start.",
+      "deliveryFailed": "Deine Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.",
+      "deliveryFailedRetry": "Erneut senden",
+      "deliveryFailedDismiss": "Nachricht verwerfen"
+    },
+    "feed": {
+      "title": "Mitteilungen",
+      "feedbackCta": "Feedback geben",
+      "empty": "Noch keine Mitteilungen.",
+      "emptyTitle": "Noch keine Mitteilungen",
+      "emptySubtitle": "Hier gibt es während der Rallye Tipps und wichtige Infos.",
+      "timesUp": "Zeit abgelaufen!",
+      "relativeTime": {
+        "justNow": "gerade eben",
+        "minutesAgo": "vor {{minutes}} Min.",
+        "hoursAgo": "vor {{hours}} Std.",
+        "daysAgo": "vor {{days}} T."
+      },
+      "leaderboardCta": "Zur Rangliste"
+    },
+    "history": {
+      "title": "Verlauf",
+      "back": "Zurück",
+      "placement": "Platz {{place}} von {{total}}",
+      "state": {
+        "configured": "Vorbereitet",
+        "scheduled": "Geplant",
+        "active": "Läuft",
+        "paused": "Pausiert",
+        "ended": "Beendet"
+      },
+      "empty": {
+        "title": "Noch keine abgeschlossenen Rallyes",
+        "subtitle": "Sobald du eine {{brand}} gespielt hast, erscheint sie hier."
+      },
+      "joinWithCode": "Mit Code einem Lauf beitreten"
+    },
+    "profile": {
+      "title": "Profil",
+      "close": "Schließen",
+      "displayName": "Anzeigename",
+      "email": "E-Mail",
+      "role": "Rolle",
+      "guestNotice": "Du nutzt einen Gast-Zugang. Erstelle ein Konto, um deine Ergebnisse dauerhaft zu speichern.",
+      "createAccount": "Konto erstellen",
+      "fullProfile": "Vollständiges Profil öffnen",
+      "logout": "Abmelden",
+      "roles": {
+        "guest": "Gast",
+        "participant": "Teilnehmende",
+        "coordinator": "Spielleitung",
+        "creator": "Erstellung",
+        "org_admin": "Verwaltung"
+      }
+    },
+    "feedback": {
+      "title": "Feedback",
+      "intro": "Deine Meinung ist uns wichtig! Hilf uns, die App und zukünftige Rallyes zu verbessern. Dieses Feedback ist anonym und dauert nur eine Minute.",
+      "rating": "Bewertung",
+      "comment": "Kommentar (optional)",
+      "commentLabel": "Was könnten wir verbessern?",
+      "submit": "Feedback absenden",
+      "thankYou": "Danke für dein Feedback!",
+      "thankYouSubtitle": "Deine Antworten helfen uns, beim nächsten Mal noch besser zu werden.",
+      "back": "Zurück zur Mitteilung",
+      "stars_one": "{{count}} Stern",
+      "stars_other": "{{count}} Sterne",
+      "noRating": "Keine Bewertung",
+      "rateLimited": "Aus diesem Netz kamen gerade sehr viele Rückmeldungen zu diesem Lauf. Bitte versuche es später noch einmal."
+    },
+    "countdown": {
+      "label": "Countdown bis {{time}} Uhr",
+      "remaining_one": "Countdown: noch {{count}} Minute",
+      "remaining_other": "Countdown: noch {{count}} Minuten",
+      "expired": "Countdown: Die Zeit ist abgelaufen."
+    },
+    "pausedNotice": "Der Lauf ist pausiert. Es geht weiter, sobald die Spielleitung ihn fortsetzt."
+  },
+  "teamChat": {
+    "title": "Chat mit {{teamName}}",
+    "back": "Zurück zur Laufseite",
+    "coordinatorRole": "Spielleitung",
+    "openChat": "Chat mit Team {{teamName}} öffnen",
+    "openChatShort": "Chat öffnen",
+    "emptySubtitle": "Noch keine Nachrichten in diesem Teamchat.",
+    "loadFailed": "Team konnte nicht geladen werden.",
+    "chatLocked": "Gesperrt. Der Chat öffnet sich, wenn das Team Hilfe anfordert.",
+    "windowClosed": "Der Chat ist geschlossen. Das Team muss erneut Hilfe anfordern.",
+    "endAssistance": "Hilfe beenden",
+    "endAssistanceConfirm": "Hilfe für dieses Team wirklich beenden? Der Chat schließt sich, bis das Team erneut Hilfe anfordert.",
+    "leaveFailed": "Chat konnte nicht verlassen werden.",
+    "coordinatorLeft": "Die Spielleitung hat den Team-Chat verlassen.",
+    "coordinatorJoined": "Die Spielleitung ist dem Team-Chat beigetreten.",
+    "coordinatorRequestedUnnamed": "Das Team hat Hilfe von der Spielleitung angefordert.",
+    "openChatNamed": "Chat öffnen, Team {{teamName}}",
+    "openChatUnnamed": "Chat öffnen, Team ohne Namen"
+  },
+  "teamMembers": {
+    "manage": "{{teamName}} verwalten",
+    "title": "Mitglieder: {{teamName}}",
+    "remove": "{{name}} aus dem Team entfernen",
+    "removeConfirm": "{{name}} wirklich aus dem Team entfernen? Im selben Browser kann dieser Gast dem Lauf nicht erneut beitreten. Ein anderes Gerät oder ein privates Fenster gilt als neuer Gast.",
+    "removeConfirmMember": "{{name}} wirklich aus dem Team entfernen? {{name}} kann dem Lauf danach wieder beitreten.",
+    "confirmRemove": "Entfernen",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "empty": "Keine Mitglieder in diesem Team.",
+    "guest": "Gast",
+    "dialogTitle": "{{teamName}} verwalten",
+    "invite": {
+      "open": "Mitglied hinzufügen",
+      "hint": "Gib diesen Code oder QR-Code weiter. Die Person tritt dem Team damit selbst bei."
+    },
+    "move": {
+      "action": "{{name}} in ein anderes Team verschieben",
+      "pickerTitle": "{{name}} verschieben in:",
+      "freePlaces": "{{free}} von {{max}} Plätzen frei",
+      "full": "Voll",
+      "noTeams": "In diesem Lauf gibt es keine weiteren Teams."
+    },
+    "removeTeam": {
+      "action": "Team entfernen",
+      "confirm": "Team {{teamName}} wirklich entfernen?",
+      "busy": "Das Team wird gerade geändert. Versuch es bitte gleich noch einmal.",
+      "reload": "Erneut laden",
+      "membersFailed": "Die Mitglieder des Teams konnten nicht gelesen werden.",
+      "guests": "Die Gäste des Teams können dem Lauf im selben Browser nicht erneut beitreten."
+    }
+  },
+  "stationTipsDialog": {
+    "close": "Schließen"
+  },
+  "answerState": {
+    "open": "Offen",
+    "submitted": "Eingereicht, wartet auf Bewertung",
+    "scored": "Bewertet, {{points}} von {{maxPoints}} Punkten",
+    "stationDone": "Station abgeschlossen"
+  },
+  "dissolveRefused": {
+    "staff": "Mit diesem Schritt wird das Team {{teamName}} aufgelöst. Mitglieder: {{members}}, Antworten: {{answers}}. Das Team verlässt die Rangliste.",
+    "staffRunEnded": "Der Lauf ist beendet. Die Endrangliste ändert sich.",
+    "staffResultPublished": "Das Ergebnis ist veröffentlicht. Das öffentliche Ergebnis ändert sich sofort.",
+    "participant": "Du bist das letzte Mitglied. Wenn du gehst, wird das Team aufgelöst und seine Antworten zählen nicht mehr.",
+    "participantGuest": "Du bist das letzte Mitglied. Wenn du gehst, wird das Team aufgelöst und seine Antworten zählen nicht mehr. Als Gast kannst du diesem Lauf danach nicht erneut beitreten."
+  }
+}

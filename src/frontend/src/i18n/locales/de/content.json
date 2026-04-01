@@ -1,0 +1,408 @@
+{
+  "rallye": {
+    "list": {
+      "title": "Rallyes",
+      "createButton": "Rallye erstellen",
+      "filter": {
+        "all": "Alle",
+        "published": "Veröffentlicht",
+        "draft": "Entwurf",
+        "label": "Status"
+      },
+      "search": "Rallyes durchsuchen",
+      "empty": "Noch keine Rallyes erstellt.",
+      "stationCount_one": "{{count}} Station",
+      "stationCount_other": "{{count}} Stationen",
+      "table": {
+        "name": "Name",
+        "description": "Beschreibung",
+        "status": "Status",
+        "stations": "Stationen",
+        "author": "Erstellt von",
+        "actions": "Aktionen",
+        "open": "Öffnen"
+      },
+      "exportCsv": "Als CSV exportieren",
+      "exportCsvFilename": "rallyes-{{org}}.csv"
+    },
+    "create": {
+      "title": "Neue Rallye",
+      "titleLabel": "Titel",
+      "descriptionLabel": "Beschreibung",
+      "submit": "Rallye erstellen",
+      "success": "Rallye erfolgreich erstellt"
+    },
+    "detail": {
+      "title": "Rallye",
+      "backToList": "Zurück zu Rallyes",
+      "editTitle": "Rallye bearbeiten",
+      "languagesHint": "Die Inhaltssprachen werden in den Organisationseinstellungen festgelegt.",
+      "languagesHintLink": "Zu den Einstellungen",
+      "publishToggle": "Veröffentlichung",
+      "publish": "Veröffentlichen",
+      "unpublish": "Veröffentlichung zurückziehen",
+      "publishedLabel": "Veröffentlicht",
+      "publishConsequence": "Eingeschaltet kann die Spielleitung Läufe aus dieser Rallye anlegen.",
+      "unpublishConsequence": "Ausgeschaltet ist die Rallye nur für Erstellung und Verwaltung sichtbar. Gestartete Läufe arbeiten mit ihrer eingefrorenen Kopie weiter.",
+      "duplicate": "Duplizieren",
+      "archive": "Archivieren",
+      "archiveConfirm": "Rallye wirklich archivieren? Die Verwaltung kann sie über „Archivierte anzeigen“ wiederherstellen.",
+      "duplicateConfirm": "Eine Kopie dieser Rallye erstellen? Die Kopie nutzt dieselben Stationen und Aufgaben wie das Original: Wer eine davon ändert, ändert sie in beiden Rallyes. Die Kopie ist zunächst unveröffentlicht.",
+      "duplicateSuccess": "Rallye erfolgreich dupliziert",
+      "publishedNow": "Die Rallye ist jetzt veröffentlicht.",
+      "unpublishedNow": "Die Rallye ist jetzt nicht mehr veröffentlicht."
+    }
+  },
+  "station": {
+    "image": {
+      "label": "Titelbild",
+      "none": "Kein Titelbild festgelegt",
+      "upload": "Bild hochladen",
+      "replace": "Bild ersetzen",
+      "remove": "Entfernen",
+      "previewAlt": "Vorschau des Stations-Titelbilds",
+      "saved": "Das Titelbild ist gespeichert."
+    },
+    "tips": {
+      "sectionTitle": "Tipps & Links (optional)",
+      "helper": "Teilnehmende sehen diese Inhalte als Popup, das sie sich bei dieser Station öffnen können.",
+      "headerLabel": "Popup-Überschrift",
+      "linkLabel": "Link {{index}}: Beschriftung",
+      "urlLabel": "URL",
+      "urlInvalid": "Die URL muss mit http:// oder https:// beginnen.",
+      "addLink": "Link hinzufügen",
+      "removeLink": "Link „{{label}}“ entfernen",
+      "incomplete": {
+        "header": "Die Tipps brauchen eine Popup-Überschrift. Ohne sie lässt sich die Station nicht speichern.",
+        "links": "Die Tipps brauchen mindestens einen Link. Füge einen hinzu oder leere die Überschrift.",
+        "label": "Jeder Link braucht eine Beschriftung.",
+        "url": "Jeder Link braucht eine URL, die mit https:// oder http:// beginnt.",
+        "headerTooLong": "Die Popup-Überschrift ist zu lang. Sie darf höchstens 2000 Zeichen haben.",
+        "labelTooLong": "Die Beschriftung eines Links ist zu lang. Sie darf höchstens 200 Zeichen haben."
+      }
+    },
+    "list": {
+      "title": "Stationen",
+      "subtitle": "Vorhandene Stationen hier global verwalten.",
+      "addButton": "Station hinzufügen",
+      "createButton": "Station erstellen",
+      "search": "Stationen durchsuchen",
+      "empty": "Noch keine Stationen vorhanden.",
+      "emptyHint": "Erstelle deine erste Station, um zu beginnen.",
+      "noMatch": "Keine Station passt zu dieser Suche.",
+      "metrics": {
+        "stations": "Stationen",
+        "challenges": "Aufgaben",
+        "points": "Punkte gesamt"
+      },
+      "rowMetrics": "{{challenges}} Aufgaben · {{points}} Pkt.",
+      "reorderHandle": "Reihenfolge ändern",
+      "table": {
+        "name": "Name",
+        "address": "Adresse",
+        "usage": "Verwendet in",
+        "rallye": "Rallye",
+        "usageCount": "Verwendungen",
+        "challenges": "Aufgaben",
+        "points": "Punkte",
+        "duration": "Dauer (Min.)",
+        "author": "Erstellt von",
+        "date": "Datum",
+        "actions": "Aktionen",
+        "open": "Öffnen",
+        "unused": "Nicht verwendet"
+      }
+    },
+    "create": {
+      "title": "Neue Station",
+      "titleLabel": "Titel",
+      "descriptionLabel": "Beschreibung",
+      "instructionsLabel": "Hinweise",
+      "addressLabel": "Adresse suchen",
+      "addressFieldLabel": "Adresse",
+      "locationLabel": "Standort",
+      "locationHint": "Adresse suchen, Pin auf der Karte verschieben oder klicken, um die Position festzulegen.",
+      "locationHintNoSearch": "Pin auf der Karte verschieben oder klicken, um die Position festzulegen.",
+      "latitudeLabel": "Breitengrad",
+      "longitudeLabel": "Längengrad",
+      "submit": "Station erstellen"
+    },
+    "detail": {
+      "title": "Station",
+      "backToList": "Zurück zur Übersicht",
+      "backToRallye": "Zurück zur Rallye",
+      "titleImageFailed": "Die Station ist gespeichert. Das Titelbild ließ sich nicht hochladen. Lade es unten noch einmal hoch.",
+      "editTitle": "Station bearbeiten",
+      "save": "Speichern",
+      "saveAcrossAll": "In allen Rallyes aktualisieren",
+      "usedInTitle": "Verwendet in {{count}} Rallye",
+      "usedInTitle_other": "Verwendet in {{count}} Rallyes",
+      "propagationNote": "Änderungen wirken sich auf alle Rallyes aus, die diese Station verwenden.",
+      "archive": "Archivieren",
+      "archiveConfirm": "Station wirklich archivieren? Die Verwaltung kann sie über „Archivierte anzeigen“ wiederherstellen.",
+      "archiveInUseConfirm_one": "Diese Station wird in {{count}} Rallye verwendet: {{rallyes}}. Beim Archivieren wird sie dort entfernt. Die Verwaltung kann sie über „Archivierte anzeigen“ in die Bibliothek zurückholen, aber nicht zurück in die Rallye. Fortfahren?",
+      "archiveInUseConfirm_other": "Diese Station wird in {{count}} Rallyes verwendet: {{rallyes}}. Beim Archivieren wird sie aus allen entfernt. Die Verwaltung kann sie über „Archivierte anzeigen“ in die Bibliothek zurückholen, aber nicht zurück in diese Rallyes. Fortfahren?",
+      "challengeListTitle": "Aufgaben",
+      "addChallenge": "Aufgabe hinzufügen",
+      "unlinkChallenge": "Aufgabe entfernen",
+      "unlinkChallengeConfirm": "Diese Aufgabe von der Station entfernen? Die Aufgabe bleibt in der Bibliothek erhalten.",
+      "challengeReorderHandle": "Reihenfolge der Aufgaben ändern",
+      "created": "Die Station wurde erstellt."
+    },
+    "addPopup": {
+      "title": "Station hinzufügen",
+      "subtitle": "Wähle, wie du eine Station zu deiner Rallye hinzufügen möchtest",
+      "createNew": "Neue Station erstellen",
+      "createNewDesc": "Eine neue Station mit eigenen Aufgaben und Einstellungen erstellen",
+      "importExisting": "Vorhandene Station verwenden",
+      "importExistingDesc": "Aus zuvor erstellten Stationen deiner Bibliothek auswählen"
+    },
+    "import": {
+      "title": "Vorhandene Station verwenden",
+      "search": "Stationen durchsuchen",
+      "submit": "Station hinzufügen",
+      "empty": "Keine Stationen in deiner Bibliothek.",
+      "alreadyLinked": "Bereits hinzugefügt"
+    },
+    "location": {
+      "results": "Treffer, bitte auswählen",
+      "noResults": "Keine Adresse gefunden. Bitte Straße und Hausnummer eingeben oder den Pin auf der Karte setzen.",
+      "failed": "Adresssuche fehlgeschlagen. Bitte später erneut versuchen oder den Pin setzen.",
+      "searchPending": "Adresse noch nicht gewählt. Einen Vorschlag wählen, oder Enter drücken und dann einen Treffer wählen.",
+      "coordinatesRequired": "Die Station hat eine Adresse, aber keine Position auf der Karte. Adresse suchen und einen Treffer wählen, oder den Pin setzen.",
+      "attribution": "Adresssuche: © OpenStreetMap-Mitwirkende{{services}}",
+      "resultCount_one": "{{count}} Treffer. Mit den Pfeiltasten auswählen.",
+      "resultCount_other": "{{count}} Treffer. Mit den Pfeiltasten auswählen.",
+      "searchButton": "Adresse suchen",
+      "hintTypeahead": "Ab zwei Zeichen erscheinen Vorschläge. Enter sucht nach dem ganzen Text.",
+      "hintSearch": "Name oder Straße mit Hausnummer eingeben, dann Enter drücken oder die Lupe antippen.",
+      "service": {
+        "nominatim": "Nominatim",
+        "photon": "Photon"
+      },
+      "category": {
+        "station": "Bahnhof",
+        "stop": "Haltestelle",
+        "authority": "Behörde",
+        "culture": "Kultur",
+        "sight": "Sehenswürdigkeit",
+        "university": "Hochschule",
+        "school": "Schule",
+        "worship": "Religiöse Stätte",
+        "health": "Gesundheit",
+        "leisure": "Park und Freizeit",
+        "area": "Ort oder Stadtteil",
+        "street": "Straße",
+        "address": "Adresse",
+        "shop": "Geschäft",
+        "food": "Gastronomie",
+        "lodging": "Unterkunft",
+        "nature": "Natur",
+        "building": "Gebäude",
+        "other": ""
+      },
+      "widened": "Treffer aus anderen Orten",
+      "resultCountRegion_one": "{{count}} Treffer in der Region",
+      "resultCountRegion_other": "{{count}} Treffer in der Region",
+      "resultCountOutside_one": "{{count}} Treffer aus anderen Orten",
+      "resultCountOutside_other": "{{count}} Treffer aus anderen Orten",
+      "resultCountPick": "Mit den Pfeiltasten auswählen.",
+      "noSearch": "Für diese Installation ist keine Adresssuche eingerichtet. Setze den Pin auf der Karte.",
+      "tilesUnavailable": "Die Karte ist gerade nicht verfügbar."
+    }
+  },
+  "challenge": {
+    "types": {
+      "photo": "Foto",
+      "text": "Text",
+      "qr_scan": "QR-Code",
+      "quiz": "Quiz",
+      "creative": "Kreativ",
+      "audio": "Audio",
+      "video": "Video"
+    },
+    "list": {
+      "title": "Aufgaben",
+      "subtitle": "Vorhandene Aufgaben hier global verwalten.",
+      "createButton": "Aufgabe erstellen",
+      "search": "Aufgaben durchsuchen",
+      "filter": {
+        "type": "Typ"
+      },
+      "empty": "Noch keine Aufgaben vorhanden.",
+      "emptyHint": "Erstelle deine erste Aufgabe, um zu beginnen.",
+      "noMatch": "Keine Aufgabe passt zu dieser Suche oder diesem Filter.",
+      "table": {
+        "name": "Name",
+        "usage": "Verwendet in",
+        "station": "Station",
+        "rallye": "Rallye",
+        "usageCount": "Verwendungen",
+        "points": "Punkte",
+        "type": "Typ",
+        "duration": "Dauer (Min.)",
+        "author": "Erstellt von",
+        "date": "Datum",
+        "actions": "Aktionen",
+        "open": "Öffnen",
+        "unused": "Nicht verwendet"
+      }
+    },
+    "create": {
+      "title": "Neue Aufgabe",
+      "selectType": "Aufgabentyp wählen",
+      "titleLabel": "Titel",
+      "instructionsLabel": "Anleitung",
+      "scoringTitle": "Bewertung",
+      "maxPoints": "Maximale Punkte",
+      "durationLabel": "Geschätzte Dauer (Min.)",
+      "autoApprove": "Automatisch bewerten",
+      "quizOptions": "Antwortoptionen",
+      "quizOptionLabel": "Option {{index}}",
+      "quizOptionAdd": "Option hinzufügen",
+      "quizOptionRemove": "Option entfernen",
+      "correctOption": "Richtige Antwort",
+      "correctOptionEmptyHint": "Füge zuerst Antwortoptionen hinzu.",
+      "expectedValue": "Erwarteter QR-Wert",
+      "expectedValueHint": "Gescannte QR-Codes werden mit diesem Wert verglichen.",
+      "submit": "Aufgabe erstellen",
+      "solutionLabel": "Lösung / Referenzantwort (optional)",
+      "solutionHelp": "Nur für die Bewertung sichtbar. Teilnehmende sehen dieses Feld nicht.",
+      "success": "Aufgabe erstellt."
+    },
+    "detail": {
+      "title": "Aufgabe",
+      "backToList": "Zurück zur Übersicht",
+      "editTitle": "Aufgabe bearbeiten",
+      "typeLabel": "Aufgabentyp",
+      "typeChange": {
+        "title": "Aufgabentyp ändern",
+        "intro": "Der Typ wechselt von {{from}} zu {{to}}.",
+        "discardedIntro": "Diese Einstellungen der Bewertung werden dabei verworfen:",
+        "nothingDiscarded": "Der neue Typ verwirft keine Einstellung der Bewertung.",
+        "discarded": {
+          "options": "Antwortoptionen",
+          "correct_option": "Richtige Antwort",
+          "expected_value": "Erwarteter QR-Wert",
+          "auto_approve": "Automatisch bewerten"
+        },
+        "runsNote": "Bereits gestartete Läufe behalten ihre Kopie der Aufgabe.",
+        "confirm": "Typ ändern"
+      },
+      "save": "Speichern",
+      "saveAcrossAll": "Überall aktualisieren",
+      "propagationNote": "Änderungen wirken sich auf alle Stationen und Rallyes aus, die diese Aufgabe verwenden.",
+      "usedInTitle": "Verwendet in",
+      "usedInStations": "Stationen: {{stations}}",
+      "usedInRallyes": "Rallyes: {{rallyes}}",
+      "archive": "Archivieren",
+      "archiveConfirm": "Aufgabe wirklich archivieren? Die Verwaltung kann sie über „Archivierte anzeigen“ wiederherstellen.",
+      "archiveInUseConfirm_one": "Diese Aufgabe wird an {{count}} Station verwendet: {{stations}}. Beim Archivieren wird sie dort entfernt. Die Verwaltung kann sie über „Archivierte anzeigen“ in die Bibliothek zurückholen, aber nicht zurück an die Station. Fortfahren?",
+      "archiveInUseConfirm_other": "Diese Aufgabe wird an {{count}} Stationen verwendet: {{stations}}. Beim Archivieren wird sie überall entfernt. Die Verwaltung kann sie über „Archivierte anzeigen“ in die Bibliothek zurückholen, aber nicht zurück an diese Stationen. Fortfahren?"
+    },
+    "import": {
+      "title": "Vorhandene Aufgabe verwenden",
+      "search": "Aufgaben durchsuchen",
+      "submit": "Aufgabe hinzufügen",
+      "empty": "Keine Aufgaben in deiner Bibliothek.",
+      "alreadyLinked": "Bereits hinzugefügt",
+      "typeFilter": "Typ",
+      "allTypes": "Alle Typen",
+      "relevant": "Passt zu dieser Station"
+    },
+    "addPopup": {
+      "title": "Aufgabe hinzufügen",
+      "subtitle": "Wähle, wie du eine Aufgabe zur Station hinzufügen möchtest",
+      "createNew": "Neue Aufgabe erstellen",
+      "createNewDesc": "Eine neue Aufgabe von Grund auf erstellen",
+      "importExisting": "Vorhandene Aufgabe verwenden",
+      "importExistingDesc": "Aus zuvor erstellten Aufgaben deiner Bibliothek auswählen"
+    }
+  },
+  "composition": {
+    "metrics": {
+      "stations": "Stationen",
+      "challenges": "Aufgaben gesamt",
+      "points": "Punkte gesamt",
+      "duration": "Gesch. Dauer (Min.)"
+    },
+    "unlinkStation": "Station entfernen",
+    "unlinkStationConfirm": "Diese Station aus der Rallye entfernen? Die Station bleibt in der Bibliothek erhalten.",
+    "stationsAndChallenges": "Stationen & Aufgaben",
+    "toggleChallenges": "Aufgaben anzeigen",
+    "addChallenge": "Aufgabe hinzufügen",
+    "noChallenges": "Noch keine Aufgaben",
+    "removeChallenge": "Aufgabe entfernen",
+    "removeChallengeConfirm": "Diese Aufgabe von der Station entfernen? Die Aufgabe bleibt in der Bibliothek erhalten.",
+    "challengeMetrics": "{{points}} Pkt. · {{minutes}} Min.",
+    "colChallenges": "Aufgaben",
+    "colPoints": "Punkte",
+    "colTime": "Zeit in Min.",
+    "editStation": "Station bearbeiten",
+    "taskLabel": "Aufgabe",
+    "toggleTask": "Aufgabentext anzeigen",
+    "sharedIn_one": "{{count}} Rallye",
+    "sharedIn_other": "{{count}} Rallyes",
+    "sharedTooltip_one": "Verwendet in {{count}} Rallye",
+    "sharedTooltip_other": "Verwendet in {{count}} Rallyes",
+    "editAsCopy": "Als Kopie bearbeiten",
+    "copyFailed": "Die Kopie konnte nicht erstellt werden.",
+    "editAsCopyConfirm": "Diese Rallye bekommt eine eigene Kopie der Station, die sich dann öffnet. Andere Rallyes behalten das Original.",
+    "editAsCopyConfirmButton": "Kopie anlegen",
+    "editChallenge": "Aufgabe bearbeiten",
+    "unlinkStationRunsNote": "Bereits gestartete Läufe behalten ihre Kopie."
+  },
+  "multilingual": {
+    "tab": {
+      "de": "Deutsch",
+      "en": "Englisch",
+      "ar": "Arabisch",
+      "uk": "Ukrainisch"
+    },
+    "required": "*",
+    "optionalHint": "Optional",
+    "missingTranslation": "Fehlt",
+    "requiredHint": "Pflichtfeld: bitte auf Deutsch ausfüllen."
+  },
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "delete": "Löschen"
+  },
+  "archive": {
+    "showArchived": "Archivierte anzeigen",
+    "archivedChip": "Archiviert",
+    "archive": "Archivieren",
+    "restore": "Wiederherstellen",
+    "restoreError": "Wiederherstellen fehlgeschlagen.",
+    "deleteForever": "Endgültig löschen",
+    "deleteForeverTitle": "Endgültig löschen?",
+    "deleteForeverConfirm": "Dieser Inhalt wird unwiderruflich gelöscht. Das kann nicht rückgängig gemacht werden. Abgeschlossene Runs behalten ihre Kopien."
+  },
+  "sortable": {
+    "instructions": "Zum Aufnehmen Leertaste oder Enter drücken. Mit den Pfeiltasten verschieben. Mit Leertaste oder Enter ablegen, mit Escape abbrechen.",
+    "pickedUp": "{{name}} aufgenommen, Position {{position}} von {{total}}.",
+    "over": "{{name}} ist jetzt an Position {{position}} von {{total}}.",
+    "dropped": "{{name}} an Position {{position}} von {{total}} abgelegt.",
+    "cancelled": "Verschieben abgebrochen. {{name}} bleibt an seinem Platz."
+  },
+  "library": {
+    "duplicate": "Duplizieren",
+    "duplicateStationConfirm": "Eine Kopie dieser Station erstellen? Sie übernimmt Texte, Ort, Tipps und Bild und gehört zunächst zu keiner Rallye.",
+    "duplicated": "Kopie erstellt",
+    "duplicateFailed": "Die Kopie konnte nicht erstellt werden.",
+    "stationArchived": "Station archiviert."
+  },
+  "saved": "Gespeichert.",
+  "unsaved": {
+    "title": "Änderungen verwerfen?",
+    "message": "Du hast Änderungen, die noch nicht gespeichert sind. Wenn du die Seite verlässt, gehen sie verloren.",
+    "leave": "Verwerfen und verlassen",
+    "stay": "Auf der Seite bleiben"
+  },
+  "imageRefused": {
+    "notDecodable": "Diese Datei ist kein lesbares Bild. Bitte wähle ein anderes Bild.",
+    "tooLarge": "Das Bild ist zu groß. Bitte wähle ein Bild mit geringerer Auflösung."
+  }
+}

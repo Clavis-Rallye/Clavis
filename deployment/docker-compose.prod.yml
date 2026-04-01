@@ -1,0 +1,239 @@
+# Production Compose: Clavis on shared services
+#
+# Two application services only: the API and the frontend. PostgreSQL, Garage,
+# and the reverse proxy are provided by the host (see deployment/README.md,
+# section "Shared services") and are NOT defined here.
+#
+# This stack file starts no image older than 0.9.0. With an older image the
+# empty settings LK_A_DAYS, LK_B_DAYS and LK_C_DAYS fail the settings parse and
+# the migration service exits 1.
+#
+# The images are ghcr.io/clavis-rallye/clavis-{api,frontend}:${IMAGE_TAG}. The
+# project publishes no images: build them on the host under that name, as
+# deployment/README.md, section "Shared services", shows. IMAGE_TAG in .env
+# names the tag of that build, for example 0.9.1. There is no tag "latest".
+#
+# Secrets come from a .env file next to this file. See deployment/README.md
+# and .env.example.
+
+services:
+  # FastAPI backend — HTTP + WebSocket
+  api:
+    image: ghcr.io/clavis-rallye/clavis-api:${IMAGE_TAG:?set IMAGE_TAG in .env to an image tag this host can reach, e.g. 0.9.0}
+    container_name: clavis-api
+    restart: unless-stopped
+    environment: &app_env
+      PYTHONPATH: /app
+      # Production by default (this is the prod compose). Drives JSON logging
+      # (vs dev's colored console) and the cookie `Secure` flag (HTTPS-only) —
+      # see app/logging.py + app/auth/tokens.py. A staging stack reusing this
+      # file overrides with ENVIRONMENT=staging in its stack env.
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      # postgresql+asyncpg://<user>:<password>@<host>:5432/<database>
+      DATABASE_URL: ${DATABASE_URL}
+      # Connections per API process: the pool and the overflow above it.
+      POOL_SIZE: ${POOL_SIZE:-10}
+      POOL_MAX_OVERFLOW: ${POOL_MAX_OVERFLOW:-20}
+      # Shared Garage (S3 API) on the host's backend_network. That
+      # network is internal-only and Garage speaks plain HTTP; public TLS is
+      # terminated at the reverse proxy. Forcing S3_SECURE=true would break startup against
+      # an HTTP endpoint. S3_REGION must equal the s3_region of the store's
+      # Garage configuration (us-east-1).
+      S3_ENDPOINT: ${S3_ENDPOINT:-clavis-garage:3900}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-clavis}
+      S3_SECURE: ${S3_SECURE:-false}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      HMAC_AUDIT_KEY: ${HMAC_AUDIT_KEY}
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-60}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      PASSWORD_CRITERIA_COUNT: ${PASSWORD_CRITERIA_COUNT:-3}
+      MAX_LOGIN_ATTEMPTS: ${MAX_LOGIN_ATTEMPTS:-5}
+      LOCKOUT_DURATION_MINUTES: ${LOCKOUT_DURATION_MINUTES:-15}
+      # Login attempts per client address. Needs FORWARDED_ALLOW_IPS, or every user shares one address.
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10/minute}
+      # Registrations per client address, checked before the password is hashed. Same FORWARDED_ALLOW_IPS need.
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-10/minute}
+      # Organization admins must set up a second factor before they work.
+      ENFORCE_ORG_ADMIN_TOTP: ${ENFORCE_ORG_ADMIN_TOTP:-true}
+      # true: anybody may register a new organization, not only the first one.
+      ALLOW_UNLIMITED_ORG_REGISTRATIONS: ${ALLOW_UNLIMITED_ORG_REGISTRATIONS:-false}
+      LOG_DIR: /var/log/clavis
+      ACCESS_LOG_RETENTION_DAYS: ${ACCESS_LOG_RETENTION_DAYS:-90}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-365}
+      APP_LOG_RETENTION_DAYS: ${APP_LOG_RETENTION_DAYS:-90}
+      ERROR_LOG_RETENTION_DAYS: ${ERROR_LOG_RETENTION_DAYS:-90}
+      # Deletion periods in days after a run ends: the installation's default for
+      # every organization. Empty: the built-in period (LK_A 90, LK_B 90, LK_C 365,
+      # LK_H 365). An organization changes its own in its settings, tab
+      # "Löschfristen". See .env.example for what each class deletes.
+      LK_A_DAYS: ${LK_A_DAYS:-}
+      LK_B_DAYS: ${LK_B_DAYS:-}
+      LK_C_DAYS: ${LK_C_DAYS:-}
+      LK_H_DAYS: ${LK_H_DAYS:-}
+      # A run without activity for this many days counts as abandoned, and its guests are deleted.
+      ABANDONED_RUN_DAYS: ${ABANDONED_RUN_DAYS:-60}
+      # How many days a backup can still hold deleted data. The lower bound of every
+      # deletion period, and the stated backup period until the operator saves one
+      # in the operator console. Match it to the backup job.
+      BACKUP_ROTATION_DAYS: ${BACKUP_ROTATION_DAYS:-30}
+      # How long a published result link stays open, restarted at every publish.
+      RESULT_LINK_DAYS: ${RESULT_LINK_DAYS:-90}
+      # Upload limits in MB. The reverse proxy must accept a request of this size.
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      MAX_VIDEO_FILE_SIZE_MB: ${MAX_VIDEO_FILE_SIZE_MB:-100}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Clavis}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN}
+      # Instance-wide product name: app shell, title, headlines, mail signature.
+      BRAND_NAME: ${BRAND_NAME:-Clavis}
+      # Address search: the outside service, its URL and the operator's contact.
+      GEOCODER_UPSTREAM: ${GEOCODER_UPSTREAM:-none}
+      GEOCODER_UPSTREAM_URL: ${GEOCODER_UPSTREAM_URL:-}
+      GEOCODER_CONTACT: ${GEOCODER_CONTACT:-}
+      # Feedback module for test sessions. Off in production.
+      QA_FEEDBACK_ENABLED: ${QA_FEEDBACK_ENABLED:-false}
+      QA_FEEDBACK_TOKEN: ${QA_FEEDBACK_TOKEN:-}
+      QA_FEEDBACK_RETENTION_DAYS: ${QA_FEEDBACK_RETENTION_DAYS:-30}
+      QA_FEEDBACK_NOTE_RATE_LIMIT: ${QA_FEEDBACK_NOTE_RATE_LIMIT:-120/minute}
+      # Where the station map starts, and the Overpass API of the place import. Empty: the defaults.
+      GEOCODER_MAP_CENTRE: ${GEOCODER_MAP_CENTRE:-}
+      GEOCODER_OVERPASS_URL: ${GEOCODER_OVERPASS_URL:-}
+      # The tile server of both maps and its attribution. Empty: the defaults.
+      GEOCODER_MAP_TILE_URL: ${MAP_TILE_URL:-}
+      GEOCODER_MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+      # Transactional email. The app sends only with SMTP_HOST and
+      # MAIL_FROM_ADDRESS set. Otherwise it logs each message instead, and says
+      # so at start. It never fails to start over mail.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-ssl}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-20}
+      # The sender address the mail server accepts, and a mailbox a person reads.
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Clavis}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      # Absolute origin for links in mail and the result link, never taken from a
+      # request header. Empty: WEBAUTHN_ORIGIN, the one public origin. Set it only
+      # when the links must point at another origin.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      INVITATION_EXPIRY_DAYS: ${INVITATION_EXPIRY_DAYS:-7}
+      # The API takes the client address from X-Forwarded-For only for a request from these
+      # addresses: the reverse proxy on proxy_network. The default is the subnet that
+      # deployment/README.md creates for proxy_network. Set the address of your proxy, or the
+      # subnet of your proxy network. The proxy must replace X-Forwarded-For with the address
+      # it sees. Never "*": then any client chooses its own address.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.18.0.0/16}
+    volumes:
+      - clavis_logs:/var/log/clavis
+    networks:
+      backend:
+      proxy:
+        # Pinned: Nginx Proxy Manager resolves `clavis-api` once at startup and caches the IP,
+        # so a redeploy that moves the container 502s every /api/* request
+        # until nginx is reloaded by hand. A proxy that resolves the name at each
+        # request does not need the pin, see deployment/README.md.
+        ipv4_address: 172.18.0.30
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-shot database migration. Runs `alembic upgrade head`, then exits; the
+  # API gates on it (depends_on: service_completed_successfully above). On a
+  # redeploy with a new IMAGE_TAG this container is recreated and re-runs.
+  # It uses the api image and the same env (alembic's env.py imports the app
+  # settings, so the full env must be present). Showing as "exited" in a
+  # container manager is expected — not an error.
+  migrate:
+    image: ghcr.io/clavis-rallye/clavis-api:${IMAGE_TAG:?set IMAGE_TAG in .env to an image tag this host can reach, e.g. 0.9.0}
+    container_name: clavis-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment: *app_env
+    # One-shot inherits the API image's HEALTHCHECK and exits before it can ever
+    # turn healthy — disable it so monitoring doesn't count a permanent "unhealthy".
+    healthcheck:
+      disable: true
+    networks:
+      - backend
+    restart: "no"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # React frontend — nginx serving the production build
+  frontend:
+    image: ghcr.io/clavis-rallye/clavis-frontend:${IMAGE_TAG:?set IMAGE_TAG in .env to an image tag this host can reach, e.g. 0.9.0}
+    container_name: clavis-web
+    restart: unless-stopped
+    # The tile server of both maps: the API hands its URL to the
+    # browser, and nginx fills the CSP with the origin of it.
+    environment:
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+    networks:
+      proxy:
+        # Pinned for the same reason as clavis-api above.
+        ipv4_address: 172.18.0.31
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Both networks are created by the host (see deployment/README.md).
+# The deploy joins them; it never creates them. Missing network => deploy
+# fails fast.
+networks:
+  backend:
+    external: true
+    name: backend_network
+  proxy:
+    external: true
+    name: proxy_network
+
+volumes:
+  clavis_logs:
+    name: clavis-logs

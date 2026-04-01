@@ -1,0 +1,390 @@
+{
+  "dashboard": {
+    "auditEvents": {
+      "challenge_created": "Aufgabe erstellt",
+      "challenge_updated": "Aufgabe geändert",
+      "challenge_deleted": "Aufgabe gelöscht",
+      "challenge_restored": "Aufgabe wiederhergestellt",
+      "challenge_permanently_deleted": "Aufgabe endgültig gelöscht",
+      "station_created": "Station erstellt",
+      "station_updated": "Station geändert",
+      "station_deleted": "Station gelöscht",
+      "station_restored": "Station wiederhergestellt",
+      "station_permanently_deleted": "Station endgültig gelöscht",
+      "station_title_image_set": "Stationsbild gesetzt",
+      "station_title_image_removed": "Stationsbild entfernt",
+      "rallye_created": "Rallye erstellt",
+      "rallye_updated": "Rallye geändert",
+      "rallye_deleted": "Rallye gelöscht",
+      "rallye_restored": "Rallye wiederhergestellt",
+      "rallye_permanently_deleted": "Rallye endgültig gelöscht",
+      "rallye_duplicated": "Rallye dupliziert",
+      "rallye_station_linked": "Station zur Rallye hinzugefügt",
+      "rallye_station_unlinked": "Station aus Rallye entfernt",
+      "rallye_stations_reordered": "Stationsreihenfolge geändert",
+      "rallye_station_challenge_linked": "Aufgabe zur Station hinzugefügt",
+      "rallye_station_challenge_unlinked": "Aufgabe aus Station entfernt",
+      "rallye_station_challenges_reordered": "Aufgabenreihenfolge geändert",
+      "user_created": "Person angelegt",
+      "user_updated": "Person geändert",
+      "user_deleted": "Person gelöscht",
+      "user_restored": "Person wiederhergestellt",
+      "user_role_changed": "Rolle geändert",
+      "user_locked": "Konto gesperrt",
+      "user_login": "Anmeldung",
+      "user_logout": "Abmeldung",
+      "user_login_failed": "Anmeldung fehlgeschlagen",
+      "user_invited": "Person eingeladen",
+      "user_invitation_accepted": "Einladung angenommen",
+      "user_invitation_resent": "Einladung erneut gesendet",
+      "user_invitation_revoked": "Einladung zurückgezogen",
+      "user_password_reset_sent": "Passwort-Reset gesendet",
+      "organization_created": "Organisation erstellt",
+      "organization_updated": "Organisation geändert",
+      "organization_deleted": "Organisation gelöscht",
+      "config_changed": "Konfiguration geändert",
+      "mail_test_sent": "Test-E-Mail gesendet",
+      "data_deletion_requested": "Datenlöschung beantragt",
+      "retention_swept": "Aufbewahrung bereinigt",
+      "custom_event": "Eigenes Ereignis",
+      "run": {
+        "created": "Lauf erstellt",
+        "updated": "Lauf geändert",
+        "deleted": "Lauf gelöscht",
+        "scheduled": "Lauf geplant",
+        "started": "Lauf gestartet",
+        "paused": "Lauf pausiert",
+        "resumed": "Lauf fortgesetzt",
+        "ended": "Lauf beendet",
+        "auto_start_blocked": "Automatischer Start verhindert",
+        "results_published": "Ergebnis veröffentlicht",
+        "results_revoked": "Ergebnis-Link zurückgezogen"
+      },
+      "team": {
+        "created": "Team erstellt",
+        "joined": "Team beigetreten",
+        "left": "Team verlassen",
+        "renamed": "Team umbenannt",
+        "member_removed": "Teammitglied entfernt",
+        "member_moved": "Mitglied in anderes Team verschoben"
+      },
+      "submission": {
+        "created": "Antwort eingereicht",
+        "replaced": "Antwort ersetzt"
+      },
+      "score": {
+        "created": "Bewertung erstellt",
+        "updated": "Bewertung geändert",
+        "reopened": "Bewertung erneut geöffnet"
+      },
+      "feedback": {
+        "submitted": "Feedback abgegeben"
+      },
+      "chat": {
+        "coordinator_requested": "Hilfe angefragt",
+        "coordinator_left": "Spielleitung hat den Chat verlassen",
+        "coordinator_joined": "Spielleitung im Team-Chat"
+      },
+      "chat_message": {
+        "sent": "Chat-Nachricht gesendet"
+      },
+      "feed_event": {
+        "announcement_created": "Mitteilung erstellt"
+      },
+      "file": {
+        "uploaded": "Datei hochgeladen",
+        "served": "Datei abgerufen"
+      },
+      "media": {
+        "uploaded": "Medium hochgeladen"
+      },
+      "org": {
+        "media_purged": "Medien bereinigt"
+      },
+      "challenge_duplicated": "Aufgabe dupliziert",
+      "station_duplicated": "Station dupliziert",
+      "rallye_station_copied": "Station in der Rallye kopiert",
+      "rallye_challenge_copied": "Aufgabe in der Rallye kopiert",
+      "user_deactivated": "Person deaktiviert",
+      "demo_content": {
+        "loaded": "Demo-Inhalte geladen"
+      }
+    }
+  },
+  "logs": {
+    "title": "Protokoll",
+    "expand": "Details anzeigen",
+    "collapse": "Details ausblenden",
+    "filters": {
+      "category": "Kategorie",
+      "allCategories": "Alle Kategorien",
+      "fromDate": "Von",
+      "toDate": "Bis",
+      "search": "Suche",
+      "searchPlaceholder": "Ereignis, Akteur oder Ziel …",
+      "eventType": "Ereignistyp",
+      "eventTypePlaceholder": "z. B. user_login",
+      "apply": "Anwenden",
+      "reset": "Zurücksetzen"
+    },
+    "table": {
+      "timestamp": "Zeitstempel",
+      "category": "Kategorie",
+      "event": "Ereignis",
+      "actor": "Akteur",
+      "target": "Ziel",
+      "requestId": "Anfrage-ID",
+      "integrityHash": "Integritätshash"
+    },
+    "categories": {
+      "audit": "Audit",
+      "app": "Anwendung",
+      "error": "Fehler",
+      "access": "Zugriff"
+    },
+    "export": "Als CSV exportieren",
+    "exportHint": "Lädt alle Einträge, die zu den Filtern passen, für den ganzen Zeitraum, die ältesten zuerst.",
+    "autoRefresh": "Auto-Aktualisierung",
+    "empty": "Keine Einträge gefunden.",
+    "loading": "Wird geladen …",
+    "tableLabel": "Audit-Protokolleinträge"
+  },
+  "coordinatorRequest": {
+    "buttonLabel": "Hilfe anfordern",
+    "pendingLabel": "Hilfeanfrage läuft",
+    "confirmMessage": "Soll die Spielleitung zu eurem Team gerufen werden? Die Spielleitung kann euren Chat dann mitlesen und euch helfen.",
+    "success": "Die Spielleitung wurde benachrichtigt.",
+    "teamRequestedHelp": "{{teamName}} bittet um Unterstützung",
+    "teamsRequesting": "Teams mit offenen Hilfsanfragen"
+  },
+  "users": {
+    "title": "Personen",
+    "createButton": "Person anlegen",
+    "table": {
+      "name": "Name",
+      "email": "E-Mail",
+      "role": "Rolle",
+      "status": "Status",
+      "twoFactor": "2FA",
+      "lastLogin": "Letzter Login",
+      "actions": "Aktionen"
+    },
+    "filter": {
+      "allRoles": "Alle Rollen",
+      "allStatuses": "Alle Status",
+      "searchPlaceholder": "Name oder E-Mail …",
+      "searchLabel": "Person suchen",
+      "showDeleted": "Gelöschte anzeigen"
+    },
+    "roles": {
+      "guest": "Gast",
+      "participant": "Teilnehmende",
+      "coordinator": "Spielleitung",
+      "creator": "Erstellung",
+      "org_admin": "Verwaltung"
+    },
+    "status": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "deleted": "Gelöscht",
+      "anonymized": "Anonymisiert"
+    },
+    "twoFactor": {
+      "enabled": "Ja",
+      "disabled": "Nein"
+    },
+    "lastLoginNever": "Nie",
+    "actions": {
+      "edit": "Bearbeiten",
+      "activate": "Aktivieren",
+      "deactivate": "Deaktivieren",
+      "delete": "Löschen",
+      "selfDisabled": "Du kannst dein eigenes Konto hier nicht bearbeiten, deaktivieren oder löschen. Nutze dafür dein Profil.",
+      "restore": "Wiederherstellen"
+    },
+    "create": {
+      "title": "Person anlegen",
+      "emailLabel": "E-Mail",
+      "displayNameLabel": "Anzeigename",
+      "passwordLabel": "Passwort",
+      "roleLabel": "Rolle",
+      "submitButton": "Anlegen",
+      "success": "Person wurde erfolgreich angelegt."
+    },
+    "edit": {
+      "title": "Person bearbeiten",
+      "displayNameLabel": "Anzeigename",
+      "roleLabel": "Rolle",
+      "activeLabel": "Aktiv",
+      "submitButton": "Speichern",
+      "success": "Person wurde aktualisiert.",
+      "roleChangeTitle": "Rolle ändern",
+      "roleChangeMessage": "Soll die Rolle von {{name}} wirklich von „{{oldRole}}“ auf „{{newRole}}“ geändert werden?",
+      "emailLabel": "E-Mail",
+      "guestHint": "Gäste können sich nur selbst zu einem Konto hochstufen."
+    },
+    "delete": {
+      "title": "Person löschen",
+      "message": "Dadurch werden alle Daten von {{name}} sofort dauerhaft anonymisiert. Das lässt sich nicht rückgängig machen.",
+      "success": "Person wurde gelöscht.",
+      "immediateLabel": "Sofort endgültig anonymisieren (DSGVO Art. 17, nicht widerrufbar)",
+      "successImmediate": "Person wurde endgültig anonymisiert",
+      "graceMessage": "{{name}} wird deaktiviert und gelöscht. Das Konto lässt sich 30 Tage lang wiederherstellen, danach werden die Daten endgültig anonymisiert. Ein wiederhergestelltes Konto bleibt deaktiviert, bis du es aktivierst."
+    },
+    "empty": "Keine Personen gefunden.",
+    "pagination": {
+      "of": "von"
+    },
+    "restore": {
+      "success": "{{name}} wurde wiederhergestellt. Das Konto ist noch deaktiviert. „Aktivieren“ in der Zeile schaltet die Anmeldung wieder frei.",
+      "anonymizedHint": "Bereits anonymisiert. Wiederherstellung nicht mehr möglich"
+    },
+    "capabilities": {
+      "title": "Was diese Rolle darf",
+      "allowed": "erlaubt",
+      "denied": "nicht erlaubt",
+      "joinRuns": "An Läufen teilnehmen",
+      "teamChat": "Team-Chat",
+      "controlRuns": "Läufe steuern",
+      "scoreSubmissions": "Einreichungen bewerten",
+      "seeStatistics": "Statistiken sehen",
+      "exportData": "Daten exportieren",
+      "manageContent": "Inhalte verwalten",
+      "manageUsers": "Personen verwalten",
+      "orgSettings": "Organisations-Einstellungen"
+    },
+    "inviteButton": "Person einladen",
+    "invite": {
+      "title": "Person einladen",
+      "intro": "Die eingeladene Person erhält eine E-Mail und legt ihr Passwort selbst fest. Du musst kein Passwort vergeben und keines weitergeben.",
+      "emailLabel": "E-Mail-Adresse",
+      "displayNameLabel": "Name (optional)",
+      "displayNameHelper": "Vorschlag für das Anmeldeformular. Die Person kann ihn ändern.",
+      "roleLabel": "Rolle",
+      "languageLabel": "Sprache der E-Mail",
+      "submitButton": "Einladung senden",
+      "success": "Einladung an {{email}} verschickt.",
+      "successNotDelivered": "Einladung für {{email}} angelegt, aber der Versand hat nicht geklappt. Prüfe die E-Mail-Einstellungen und sende sie danach erneut.",
+      "mailDisabled": "Auf dieser Installation ist kein E-Mail-Versand eingerichtet. Einladungen können angelegt, aber nicht zugestellt werden.",
+      "errors": {
+        "emailBelongsToActiveUser": "Diese E-Mail-Adresse gehört bereits zu einem aktiven Konto in dieser Organisation.",
+        "emailBelongsToUser": "Diese E-Mail-Adresse gehört bereits zu einem Konto.",
+        "emailBelongsToInactiveUser": "Diese E-Mail-Adresse gehört zu einem deaktivierten Konto in dieser Organisation.",
+        "emailBelongsToDeletedUser": "Diese E-Mail-Adresse gehört zu einem gelöschten Konto. Stelle dieses Konto wieder her: Schalter „Gelöschte anzeigen“ oben auf der Seite „Personen“, dann „Wiederherstellen“."
+      }
+    },
+    "invitations": {
+      "heading": "Offene Einladungen",
+      "pendingChip": "Eingeladen",
+      "invitedBy": "Eingeladen von {{name}}",
+      "expiresOn": "Gültig bis {{date}}",
+      "notDelivered": "Nicht zugestellt",
+      "resend": "Erneut senden",
+      "revoke": "Zurückziehen",
+      "resendSuccess": "Neue Einladung an {{email}} verschickt. Der alte Link gilt nicht mehr.",
+      "revokeTitle": "Einladung zurückziehen",
+      "revokeMessage": "Der Einladungslink für {{email}} wird sofort ungültig.",
+      "revokeSuccess": "Einladung für {{email}} zurückgezogen.",
+      "empty": "Keine offenen Einladungen."
+    },
+    "sendReset": {
+      "action": "Passwort-Link senden",
+      "title": "Passwort-Link senden",
+      "message": "{{name}} erhält eine E-Mail mit einem Link, um ein neues Passwort zu setzen. Du siehst dieses Passwort nicht.",
+      "success": "Passwort-Link an {{email}} verschickt.",
+      "noEmail": "Für dieses Konto ist keine E-Mail-Adresse hinterlegt."
+    },
+    "errors": {
+      "generic": "Das hat nicht geklappt. Bitte versuche es erneut."
+    },
+    "takeover": "Du hast die Verwaltung übernommen. Diese Konten sind jetzt deaktiviert: {{names}}."
+  },
+  "org": {
+    "title": "Organisations\u00ADeinstellungen",
+    "nameLabel": "Name",
+    "slugLabel": "Kurzname (unveränderlich)",
+    "save": "Speichern",
+    "success": "Einstellungen wurden gespeichert.",
+    "languagesLabel": "Inhaltssprachen",
+    "languagesHelp": "Sprachen, die in mehrsprachigen Inhaltsfeldern (Titel, Beschreibungen, Aufgaben) angeboten werden. Aus der Liste wählen oder einen beliebigen ISO-Code eingeben. Deutsch ist immer aktiv.",
+    "languagesAdd": "Sprache hinzufügen (ISO-Code eingeben, z. B. fr)",
+    "languagesRequired": "Immer aktiv:",
+    "tabs": {
+      "general": "Allgemein",
+      "legal": "Rechtliches",
+      "retention": "Löschfristen",
+      "media": "Medien",
+      "mail": "E-Mail"
+    },
+    "legal": {
+      "intro": "Hier kannst du die Rechtstexte deiner Organisation überschreiben. Felder, die leer bleiben, fallen auf den Text der Installation zurück.",
+      "imprint": "Impressum",
+      "privacy": "Datenschutz",
+      "accessibility": "Barrierefreiheit"
+    },
+    "retention": {
+      "intro": "Löschfristen für personenbezogene Daten (DSGVO-Löschklassen). Der tägliche Löschjob wendet diese Fristen automatisch an. Zahlen wie Teams, Antworten und Punkte bleiben für die Statistik erhalten.",
+      "daysLabel": "Frist (Tage)",
+      "bounds": "Zwischen {{min}} und {{max}} Tagen",
+      "reset": "Auf Standard zurücksetzen",
+      "source": {
+        "override": "Angepasst",
+        "instance": "Standard der Installation"
+      },
+      "classDesc": {
+        "LK_A": "Wie lange Gäste nach dem Ende eines Laufs noch ihr Ergebnis, die Rangliste und den Feedback-Bogen erreichen. Danach werden die Gastkonten gelöscht. In der Mitgliederliste der Teams steht dann statt des Namens „Gelöschtes Mitglied“. Die Zahl der Mitglieder bleibt erhalten.",
+        "LK_B": "Chat-Nachrichten & hochgeladene Medien (nach Lauf-Ende)",
+        "LK_C": "Nach dieser Frist ersetzt die App die Teamnamen durch „Team 1“, „Team 2“ und alle übrigen Namen in den Mitgliederlisten der Teams durch „Gelöschtes Mitglied“. Punkte und Ergebnisse bleiben erhalten.",
+        "LK_H": "Nach dieser Frist löscht die App den Inhalt von Text- und Quiz-Antworten, gescannte Codes, die Kommentare zur Bewertung und die Kommentare in den Rückmeldungen. Die Antworten selbst, die Punkte und die Bewertungen in den Rückmeldungen bleiben als Zahlen erhalten."
+      },
+      "className": {
+        "LK_A": "Gast-Zugang zu beendeten Läufen",
+        "LK_B": "Chat & Medien",
+        "LK_C": "Teamnamen & Namen der Mitglieder",
+        "LK_H": "Antworttexte & Kommentare"
+      },
+      "classCode": "Löschklasse {{code}}",
+      "backup": {
+        "title": "Datensicherungen",
+        "stated_one": "Eine Datensicherung der Installation kann gelöschte Daten noch {{count}} Tag lang enthalten. Den Wert legt der Betrieb der Installation fest.",
+        "stated_other": "Eine Datensicherung der Installation kann gelöschte Daten noch {{count}} Tage lang enthalten. Den Wert legt der Betrieb der Installation fest.",
+        "assumed_one": "Der Betrieb der Installation hat noch nicht angegeben, wie lange Datensicherungen gelöschte Daten enthalten. Die App nimmt {{count}} Tag an. Frag beim Betrieb nach, bevor du den Wert in deiner Datenschutzerklärung nennst.",
+        "assumed_other": "Der Betrieb der Installation hat noch nicht angegeben, wie lange Datensicherungen gelöschte Daten enthalten. Die App nimmt {{count}} Tage an. Frag beim Betrieb nach, bevor du den Wert in deiner Datenschutzerklärung nennst."
+      },
+      "privacyHint": "Die Vorlage für die Datenschutzerklärung übernimmt diese Fristen beim Einfügen. Wenn du eine Frist später änderst, passe auch deine Datenschutzerklärung an."
+    },
+    "media": {
+      "intro": "Gespeicherte Medien der Teilnehmenden dieser Organisation. Ein Bereinigen löscht alle Dateien eines Typs sofort, also vor Ablauf der Löschfrist für Chat und Medien. Das ist für den Fall, dass die Organisation ihre Löschpflicht früher erfüllen muss.",
+      "type": {
+        "photo": "Fotos",
+        "video": "Videos",
+        "audio": "Audiodateien"
+      },
+      "count_one": "{{count}} gespeichert",
+      "count_other": "{{count}} gespeichert",
+      "purgeButton": "{{type}} bereinigen",
+      "dialogTitle": "{{type}} bereinigen?",
+      "dialogWhat": "Alle gespeicherten {{type}} der Teilnehmenden dieser Organisation werden unwiderruflich gelöscht. Die Einreichungen bleiben erhalten und zeigen anstelle des Mediums „Medium entfernt“.",
+      "dialogScores": "Bewertungen, Punkte und Ranglisten bleiben unverändert.",
+      "dialogSlugLabel": "Kurzname der Organisation",
+      "dialogCancel": "Abbrechen",
+      "dialogConfirm": "Bereinigen",
+      "success_one": "{{count}} Datei gelöscht.",
+      "success_other": "{{count}} Dateien gelöscht."
+    },
+    "mail": {
+      "heading": "E-Mail-Versand",
+      "description": "Clavis verschickt Einladungen und Passwort-Links über den hinterlegten Mailserver. Mit einer Testnachricht prüfst du vor einer Veranstaltung, dass die Zustellung funktioniert.",
+      "enabled": "Aktiv. Absender: {{from}}",
+      "disabled": "Nicht eingerichtet. Einladungen und Passwort-Links werden nicht zugestellt.",
+      "replyTo": "Antworten gehen an {{address}}",
+      "testLabel": "Testnachricht senden an",
+      "testButton": "Testnachricht senden",
+      "testSuccess": "Testnachricht an {{email}} verschickt. Sie sollte in wenigen Sekunden ankommen. Schau sonst im Spam-Ordner nach.",
+      "testFailed": "Der Mailserver hat die Nachricht abgelehnt: {{error}}"
+    },
+    "autoStartLabel": "Läufe zur geplanten Startzeit automatisch starten",
+    "autoStartHelpOn": "Geplante Läufe starten zu ihrer Startzeit von selbst.",
+    "autoStartHelpOff": "Die Startzeit ist nur ein Plan, und die Spielleitung startet den Lauf von Hand."
+  }
+}

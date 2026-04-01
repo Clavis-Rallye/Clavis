@@ -1,0 +1,408 @@
+{
+  "rallye": {
+    "list": {
+      "title": "Rallyes",
+      "createButton": "Create rallye",
+      "filter": {
+        "all": "All",
+        "published": "Published",
+        "draft": "Draft",
+        "label": "Status"
+      },
+      "search": "Search rallyes",
+      "empty": "No rallyes created yet.",
+      "stationCount_one": "{{count}} station",
+      "stationCount_other": "{{count}} stations",
+      "table": {
+        "name": "Name",
+        "description": "Description",
+        "status": "Status",
+        "stations": "Stations",
+        "author": "Created by",
+        "actions": "Actions",
+        "open": "Open"
+      },
+      "exportCsv": "Export as CSV",
+      "exportCsvFilename": "rallyes-{{org}}.csv"
+    },
+    "create": {
+      "title": "New rallye",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "submit": "Create rallye",
+      "success": "Rallye created successfully"
+    },
+    "detail": {
+      "title": "Rallye",
+      "backToList": "Back to rallyes",
+      "editTitle": "Edit rallye",
+      "languagesHint": "Content languages are set in the organization settings.",
+      "languagesHintLink": "Go to settings",
+      "publishToggle": "Publishing",
+      "publish": "Publish",
+      "unpublish": "Unpublish",
+      "publishedLabel": "Published",
+      "publishConsequence": "While on, the coordination can create runs from this rallye.",
+      "unpublishConsequence": "While off, only creators and administrators can see the rallye. Running runs keep working on their frozen copy.",
+      "duplicateConfirm": "Create a copy of this rallye? The copy uses the same stations and tasks as the original: a change to one of them changes it in both rallyes. The copy is unpublished at first.",
+      "duplicate": "Duplicate",
+      "archive": "Archive",
+      "archiveConfirm": "Archive this rallye? An administrator can restore it via \"Show archived\".",
+      "duplicateSuccess": "Rallye duplicated successfully",
+      "publishedNow": "The rallye is published now.",
+      "unpublishedNow": "The rallye is no longer published."
+    }
+  },
+  "station": {
+    "image": {
+      "label": "Title image",
+      "none": "No title image set",
+      "upload": "Upload image",
+      "replace": "Replace image",
+      "remove": "Remove",
+      "previewAlt": "Station title image preview",
+      "saved": "The title image is saved."
+    },
+    "tips": {
+      "sectionTitle": "Tips & links (optional)",
+      "helper": "Participants see this content as a popup they can open from this station.",
+      "headerLabel": "Popup header",
+      "linkLabel": "Link {{index}}: label",
+      "urlLabel": "URL",
+      "urlInvalid": "The URL must start with http:// or https://.",
+      "addLink": "Add link",
+      "removeLink": "Remove link \"{{label}}\"",
+      "incomplete": {
+        "header": "The tips need a popup heading. Without it the station cannot be saved.",
+        "links": "The tips need at least one link. Add one or clear the heading.",
+        "label": "Every link needs a label.",
+        "url": "Every link needs a URL that starts with https:// or http://.",
+        "headerTooLong": "The popup heading is too long. It may have at most 2000 characters.",
+        "labelTooLong": "The label of a link is too long. It may have at most 200 characters."
+      }
+    },
+    "list": {
+      "title": "Stations",
+      "subtitle": "Adjust existing stations here globally.",
+      "addButton": "Add station",
+      "createButton": "Create station",
+      "search": "Search stations",
+      "empty": "No stations yet.",
+      "emptyHint": "Create your first station to get started.",
+      "noMatch": "No station matches this search.",
+      "metrics": {
+        "stations": "Stations",
+        "challenges": "Tasks",
+        "points": "Total points"
+      },
+      "rowMetrics": "{{challenges}} tasks · {{points}} pts",
+      "reorderHandle": "Reorder",
+      "table": {
+        "name": "Name",
+        "address": "Address",
+        "usage": "Used in",
+        "rallye": "Rallye",
+        "usageCount": "Uses",
+        "challenges": "Challenges",
+        "points": "Points",
+        "duration": "Duration (min)",
+        "author": "Created by",
+        "date": "Date",
+        "actions": "Actions",
+        "open": "Open",
+        "unused": "Not in use"
+      }
+    },
+    "create": {
+      "title": "New station",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "instructionsLabel": "Instructions",
+      "addressLabel": "Search address",
+      "addressFieldLabel": "Address",
+      "locationLabel": "Location",
+      "locationHint": "Search for an address, drag the pin on the map, or click to set the position.",
+      "locationHintNoSearch": "Drag the pin on the map, or click to set the position.",
+      "latitudeLabel": "Latitude",
+      "longitudeLabel": "Longitude",
+      "submit": "Create station"
+    },
+    "detail": {
+      "title": "Station",
+      "backToList": "Back to overview",
+      "backToRallye": "Back to rallye",
+      "titleImageFailed": "The station is saved. The title image could not be uploaded. Upload it again below.",
+      "editTitle": "Edit station",
+      "save": "Save",
+      "saveAcrossAll": "Update Across All Rallyes",
+      "usedInTitle": "Used in {{count}} rallye",
+      "usedInTitle_other": "Used in {{count}} rallyes",
+      "propagationNote": "Changes apply to every rallye that uses this station.",
+      "archive": "Archive",
+      "archiveConfirm": "Archive this station? An administrator can restore it via \"Show archived\".",
+      "archiveInUseConfirm_one": "This station is used in {{count}} rallye: {{rallyes}}. Archiving it removes it there. An administrator can restore it to the library via \"Show archived\", but not back into the rallye. Continue?",
+      "archiveInUseConfirm_other": "This station is used in {{count}} rallyes: {{rallyes}}. Archiving it removes it from all of them. An administrator can restore it to the library via \"Show archived\", but not back into those rallyes. Continue?",
+      "challengeListTitle": "Challenges",
+      "addChallenge": "Add challenge",
+      "unlinkChallenge": "Remove challenge",
+      "unlinkChallengeConfirm": "Remove this challenge from the station? The challenge stays in the library.",
+      "challengeReorderHandle": "Reorder challenges",
+      "created": "The station was created."
+    },
+    "addPopup": {
+      "title": "Add station",
+      "subtitle": "Choose how you would like to add a station to your rallye",
+      "createNew": "Create new station",
+      "createNewDesc": "Build a new station from scratch with custom challenges and settings",
+      "importExisting": "Use existing station",
+      "importExistingDesc": "Select from previously created stations or templates from your library"
+    },
+    "import": {
+      "title": "Use existing station",
+      "search": "Search stations",
+      "submit": "Add station",
+      "empty": "No stations in your library.",
+      "alreadyLinked": "Already added"
+    },
+    "location": {
+      "results": "Matches, please pick one",
+      "noResults": "No address found. Enter street and house number, or place the pin on the map.",
+      "failed": "Address search failed. Try again later or place the pin.",
+      "searchPending": "Address not chosen yet. Pick a suggestion, or press Enter and then pick a match.",
+      "coordinatesRequired": "The station has an address but no position on the map. Search the address and pick a match, or place the pin.",
+      "attribution": "Address search: © OpenStreetMap contributors{{services}}",
+      "resultCount_one": "{{count}} match. Use the arrow keys to pick it.",
+      "resultCount_other": "{{count}} matches. Use the arrow keys to pick one.",
+      "searchButton": "Search address",
+      "hintTypeahead": "Suggestions appear from two characters. Enter searches for the whole text.",
+      "hintSearch": "Enter a name or a street with house number, then press Enter or tap the magnifier.",
+      "service": {
+        "nominatim": "Nominatim",
+        "photon": "Photon"
+      },
+      "category": {
+        "station": "Railway station",
+        "stop": "Stop",
+        "authority": "Public authority",
+        "culture": "Culture",
+        "sight": "Sight",
+        "university": "University",
+        "school": "School",
+        "worship": "Place of worship",
+        "health": "Health",
+        "leisure": "Park and leisure",
+        "area": "Town or district",
+        "street": "Street",
+        "address": "Address",
+        "shop": "Shop",
+        "food": "Food and drink",
+        "lodging": "Lodging",
+        "nature": "Nature",
+        "building": "Building",
+        "other": ""
+      },
+      "widened": "Matches from other places",
+      "resultCountRegion_one": "{{count}} match in the region",
+      "resultCountRegion_other": "{{count}} matches in the region",
+      "resultCountOutside_one": "{{count}} match from other places",
+      "resultCountOutside_other": "{{count}} matches from other places",
+      "resultCountPick": "Use the arrow keys to pick one.",
+      "noSearch": "This installation has no address search. Place the pin on the map.",
+      "tilesUnavailable": "The map is not available right now."
+    }
+  },
+  "challenge": {
+    "types": {
+      "photo": "Photo",
+      "text": "Text",
+      "qr_scan": "QR code",
+      "quiz": "Quiz",
+      "creative": "Creative",
+      "audio": "Audio",
+      "video": "Video"
+    },
+    "list": {
+      "title": "Challenges",
+      "subtitle": "Adjust existing challenges here globally.",
+      "createButton": "Create challenge",
+      "search": "Search challenges",
+      "filter": {
+        "type": "Type"
+      },
+      "empty": "No challenges yet.",
+      "emptyHint": "Create your first challenge to get started.",
+      "noMatch": "No challenge matches this search or filter.",
+      "table": {
+        "name": "Name",
+        "usage": "Used in",
+        "station": "Station",
+        "rallye": "Rallye",
+        "usageCount": "Uses",
+        "points": "Points",
+        "type": "Type",
+        "duration": "Duration (min)",
+        "author": "Created by",
+        "date": "Date",
+        "actions": "Actions",
+        "open": "Open",
+        "unused": "Not in use"
+      }
+    },
+    "create": {
+      "title": "New challenge",
+      "selectType": "Select challenge type",
+      "titleLabel": "Title",
+      "instructionsLabel": "Instructions",
+      "scoringTitle": "Scoring",
+      "maxPoints": "Maximum points",
+      "durationLabel": "Estimated duration (min)",
+      "autoApprove": "Auto-approve",
+      "quizOptions": "Answer options",
+      "quizOptionLabel": "Option {{index}}",
+      "quizOptionAdd": "Add option",
+      "quizOptionRemove": "Remove option",
+      "correctOption": "Correct answer",
+      "correctOptionEmptyHint": "Add at least one answer option first.",
+      "expectedValue": "Expected QR value",
+      "expectedValueHint": "Scanned QR codes will be compared against this value.",
+      "submit": "Create challenge",
+      "solutionLabel": "Solution / reference answer (optional)",
+      "solutionHelp": "Visible to reviewers only. Participants never see this field.",
+      "success": "Challenge created."
+    },
+    "detail": {
+      "title": "Challenge",
+      "backToList": "Back to overview",
+      "editTitle": "Edit challenge",
+      "typeLabel": "Challenge type",
+      "typeChange": {
+        "title": "Change challenge type",
+        "intro": "The type changes from {{from}} to {{to}}.",
+        "discardedIntro": "These scoring settings are discarded:",
+        "nothingDiscarded": "The new type discards no scoring setting.",
+        "discarded": {
+          "options": "Answer options",
+          "correct_option": "Correct answer",
+          "expected_value": "Expected QR value",
+          "auto_approve": "Auto-approve"
+        },
+        "runsNote": "Runs that have already started keep their own copy of the challenge.",
+        "confirm": "Change type"
+      },
+      "save": "Save",
+      "saveAcrossAll": "Update Everywhere",
+      "propagationNote": "Changes apply to every station and rallye that uses this challenge.",
+      "usedInTitle": "Used in",
+      "usedInStations": "Stations: {{stations}}",
+      "usedInRallyes": "Rallyes: {{rallyes}}",
+      "archive": "Archive",
+      "archiveConfirm": "Archive this challenge? An administrator can restore it via \"Show archived\".",
+      "archiveInUseConfirm_one": "This task is used at {{count}} station: {{stations}}. Archiving it removes it there. An administrator can restore it to the library via \"Show archived\", but not back to the station. Continue?",
+      "archiveInUseConfirm_other": "This task is used at {{count}} stations: {{stations}}. Archiving it removes it everywhere. An administrator can restore it to the library via \"Show archived\", but not back to those stations. Continue?"
+    },
+    "import": {
+      "title": "Use existing challenge",
+      "search": "Search challenges",
+      "submit": "Add challenge",
+      "empty": "No challenges in your library.",
+      "alreadyLinked": "Already added",
+      "typeFilter": "Type",
+      "allTypes": "All types",
+      "relevant": "Used on this station"
+    },
+    "addPopup": {
+      "title": "Add challenge",
+      "subtitle": "Choose how you would like to add a challenge to the station",
+      "createNew": "Create new challenge",
+      "createNewDesc": "Build a new challenge from scratch",
+      "importExisting": "Use existing challenge",
+      "importExistingDesc": "Select from previously created challenges in your library"
+    }
+  },
+  "composition": {
+    "metrics": {
+      "stations": "Stations",
+      "challenges": "Challenges (total)",
+      "points": "Points (total)",
+      "duration": "Est. duration (min)"
+    },
+    "unlinkStation": "Remove station",
+    "unlinkStationConfirm": "Remove this station from the rallye? The station stays in the library.",
+    "stationsAndChallenges": "Stations & Challenges",
+    "toggleChallenges": "Show challenges",
+    "addChallenge": "Add Challenge",
+    "noChallenges": "No challenges yet",
+    "removeChallenge": "Remove challenge",
+    "removeChallengeConfirm": "Remove this challenge from the station? The challenge stays in the library.",
+    "challengeMetrics": "{{points}} pts · {{minutes}} min",
+    "colChallenges": "Challenges",
+    "colPoints": "Points",
+    "colTime": "Time in Min",
+    "editStation": "Edit station",
+    "taskLabel": "Task",
+    "toggleTask": "Show task text",
+    "sharedIn_one": "{{count}} rallye",
+    "sharedIn_other": "{{count}} rallyes",
+    "sharedTooltip_one": "Used in {{count}} rallye",
+    "sharedTooltip_other": "Used in {{count}} rallyes",
+    "editAsCopy": "Edit as a copy",
+    "copyFailed": "The copy could not be created.",
+    "editAsCopyConfirm": "This rallye gets its own copy of the station, which then opens. Other rallyes keep the original.",
+    "editAsCopyConfirmButton": "Create the copy",
+    "editChallenge": "Edit task",
+    "unlinkStationRunsNote": "Runs that have already started keep their copy."
+  },
+  "multilingual": {
+    "tab": {
+      "de": "German",
+      "en": "English",
+      "ar": "Arabic",
+      "uk": "Ukrainian"
+    },
+    "required": "*",
+    "optionalHint": "Optional",
+    "missingTranslation": "Missing",
+    "requiredHint": "Required: please fill in the German version."
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete"
+  },
+  "archive": {
+    "showArchived": "Show archived",
+    "archivedChip": "Archived",
+    "archive": "Archive",
+    "restore": "Restore",
+    "restoreError": "Restore failed.",
+    "deleteForever": "Delete permanently",
+    "deleteForeverTitle": "Delete permanently?",
+    "deleteForeverConfirm": "This content will be irreversibly deleted. This cannot be undone. Completed runs keep their copies."
+  },
+  "sortable": {
+    "instructions": "Press space or enter to pick up. Move with the arrow keys. Press space or enter to drop, escape to cancel.",
+    "pickedUp": "Picked up {{name}}, position {{position}} of {{total}}.",
+    "over": "{{name}} is now at position {{position}} of {{total}}.",
+    "dropped": "Dropped {{name}} at position {{position}} of {{total}}.",
+    "cancelled": "Move cancelled. {{name}} stays where it was."
+  },
+  "library": {
+    "duplicate": "Duplicate",
+    "duplicateStationConfirm": "Create a copy of this station? It takes over the texts, the location, the tips and the image and belongs to no rallye at first.",
+    "duplicated": "Copy created",
+    "duplicateFailed": "The copy could not be created.",
+    "stationArchived": "Station archived."
+  },
+  "saved": "Saved.",
+  "unsaved": {
+    "title": "Discard the changes?",
+    "message": "You have changes that are not saved yet. If you leave the page, they are lost.",
+    "leave": "Discard and leave",
+    "stay": "Stay on the page"
+  },
+  "imageRefused": {
+    "notDecodable": "This file is not a readable picture. Please choose another image.",
+    "tooLarge": "The image is too large. Please choose an image with a lower resolution."
+  }
+}
