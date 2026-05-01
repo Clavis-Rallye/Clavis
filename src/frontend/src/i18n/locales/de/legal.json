@@ -1,0 +1,28 @@
+{
+  "placeholderNotice": "Der Betreiber hat den endgültigen Text noch nicht veröffentlicht.",
+  "loadFailedNotice": "Der veröffentlichte Text konnte gerade nicht geladen werden. Angezeigt wird ein allgemeiner Platzhalter. Bitte lade die Seite später neu.",
+  "impressum": {
+    "title": "Impressum",
+    "intro": "Angaben gemäß § 5 DDG.",
+    "contactHeading": "Anbieter",
+    "contactBody": "Die Angaben zum Anbieter dieser Installation stehen noch aus.",
+    "responsibleHeading": "Verantwortlich für den Inhalt",
+    "responsibleBody": "Die Angaben nach § 18 Abs. 2 MStV stehen noch aus."
+  },
+  "privacy": {
+    "title": "Datenschutzerklärung",
+    "intro": "Die Verarbeitung deiner Daten in der {{brand}}-App erfolgt nach den Vorgaben der DSGVO.",
+    "dataHeading": "Welche Daten wir erheben",
+    "dataBody": "• Pflichtangaben beim Anmelden (Anzeigename, ggf. E-Mail)\n• Eingereichte Antworten und Medien während eines Laufs\n• Technische Logdaten zur Stabilität und Sicherheit (Auditlog)\nKeine Standortdaten werden im Hintergrund erhoben.",
+    "rightsHeading": "Deine Rechte",
+    "rightsBody": "Du hast jederzeit das Recht auf Auskunft, Berichtigung, Löschung oder Einschränkung der Verarbeitung deiner personenbezogenen Daten. Wende dich dafür an den Betreiber dieser Installation. Die Kontaktangaben des Betreibers stehen noch aus."
+  },
+  "accessibility": {
+    "title": "Erklärung zur Barrierefreiheit",
+    "intro": "Diese Erklärung gilt für die {{brand}}-Web-App. Wir arbeiten kontinuierlich an einer möglichst barrierearmen Anwendung.",
+    "statusHeading": "Status der Barrierefreiheit",
+    "statusBody": "Die App orientiert sich an den Anforderungen der EU-Richtlinie 2016/2102 und an WCAG 2.1 Level AA.",
+    "contactHeading": "Feedback und Kontakt",
+    "contactBody": "Wenn du auf Barrieren stößt, melde dich beim Betreiber dieser Installation. Die Kontaktangaben des Betreibers stehen noch aus."
+  }
+}

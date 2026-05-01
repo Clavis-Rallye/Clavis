@@ -1,0 +1,332 @@
+/**
+ * Design tokens: the colours, type, spacing, radii and elevation of the design.
+ */
+
+:root {
+  /* ==================== COLORS ==================== */
+
+  /* Primary (Blue) */
+  --color-primary-0: #000000;
+  --color-primary-10: #002378;
+  --color-primary-20: #00348D;
+  --color-primary-30: #0F3E99;
+  --color-primary-40: #1D47A4;
+  --color-primary-50: #244FAE;
+  --color-primary-60: #4D69B9;
+  --color-primary-70: #6E84C4;
+  --color-primary-80: #98A6D4;
+  --color-primary-90: #C1C9E5;
+  --color-primary-95: #E6E9F4;
+  --color-primary-99: #E9EBF2;
+  --color-primary-100: #FFFFFF;
+
+  /* Secondary (Yellow/Orange) */
+  --color-secondary-10: #F97C00;
+  --color-secondary-20: #FAA700;
+  --color-secondary-30: #FBC007;
+  --color-secondary-40: #FBD916;
+  --color-secondary-50: #F7E715;
+  --color-secondary-60: #F9EC46;
+  --color-secondary-70: #FCF16B;
+  --color-secondary-80: #FDF597;
+  --color-secondary-90: #FEF9C1;
+  --color-secondary-95: #FFFDE6;
+  --color-secondary-99: #FFFEF3;
+  --color-secondary-100: #FFFFFF;
+
+  /* Tertiary (Green) */
+  --color-tertiary-0: #000000;
+  --color-tertiary-10: #1A251A;
+  --color-tertiary-20: #4B644A;
+  --color-tertiary-30: #5B845B;
+  --color-tertiary-40: #649664;
+  --color-tertiary-50: #6FA870;
+  --color-tertiary-60: #79B87A;
+  --color-tertiary-70: #8AC38D;
+  --color-tertiary-80: #9ECEA1;
+  --color-tertiary-90: #B8DBBB;
+  --color-tertiary-95: #D3E9D5;
+  --color-tertiary-99: #EDF6EE;
+  --color-tertiary-100: #FFFFFF;
+
+  /* Error (Red) */
+  --color-error-0: #000000;
+  --color-error-10: #410E0B;
+  --color-error-20: #601410;
+  --color-error-30: #8C1D18;
+  --color-error-40: #B3261E;
+  --color-error-50: #DC362E;
+  --color-error-60: #E46962;
+  --color-error-70: #EC928E;
+  --color-error-80: #F2B8B5;
+  --color-error-90: #F9DEDC;
+  --color-error-95: #FCEEEE;
+  --color-error-99: #FFFBF9;
+  --color-error-100: #FFFFFF;
+
+  /* Neutral */
+  --color-neutral-0: #000000;
+  --color-neutral-10: #1D1B20;
+  --color-neutral-20: #322F35;
+  --color-neutral-40: #605D64;
+  --color-neutral-50: #79767D;
+  --color-neutral-60: #938F96;
+  --color-neutral-70: #AEA9B1;
+  --color-neutral-80: #CAC5CD;
+  --color-neutral-90: #E6E0E9;
+  --color-neutral-95: #F5EFF7;
+  --color-neutral-99: #FFFBFF;
+  --color-neutral-100: #FFFFFF;
+
+  /* Semantic Colors (M3 Schemes) - Light Mode */
+
+  /* Primary */
+  --color-primary: #6750A4;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #EADDFF;
+  --color-on-primary-container: #4F378A;
+
+  /* Secondary */
+  --color-secondary: #625B71;
+
+  /* Error */
+  --color-error: #B3261E;
+  --color-on-error: #FFFFFF;
+
+  /* Surface */
+  --color-surface: #FEF7FF;
+  --color-on-surface: #1D1B20;
+  --color-on-surface-variant: #49454F;
+  --color-surface-container-high: #ECE6F0;
+  --color-surface-container-highest: #E6E0E9;
+
+  /* Outline */
+  --color-outline: #79747E;
+  --color-outline-variant: #CAC4D0;
+
+  /* State Layers (with opacity) */
+  --color-state-primary-08: rgba(103, 80, 164, 0.08);
+  --color-state-primary-10: rgba(103, 80, 164, 0.10);
+  --color-state-on-surface-08: rgba(29, 27, 32, 0.08);
+  --color-state-on-surface-10: rgba(29, 27, 32, 0.10);
+  --color-state-on-surface-16: rgba(29, 27, 32, 0.16);
+  --color-state-on-surface-variant-08: rgba(73, 69, 79, 0.08);
+  --color-state-on-surface-variant-10: rgba(73, 69, 79, 0.10);
+  --color-state-error-08: rgba(179, 38, 30, 0.08);
+  --color-state-error-10: rgba(179, 38, 30, 0.10);
+  --color-state-surface-variant-10: rgba(231, 224, 236, 0.10);
+
+  /* Add-ons */
+  --color-section-background: #F5F5F5;
+
+  /* ==================== TYPOGRAPHY ==================== */
+
+  /* Font Families */
+  --font-family-primary: 'Noto Sans', sans-serif;
+  --font-family-secondary: 'Roboto', sans-serif;
+  --font-family-mono: 'Roboto Mono', monospace;
+
+  /* Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Headline */
+  --text-headline-large-size: 32px;
+  --text-headline-large-weight: 600;
+  --text-headline-large-line-height: 40px;
+  --text-headline-large-family: var(--font-family-primary);
+
+  --text-headline-medium-size: 28px;
+  --text-headline-medium-weight: 600;
+  --text-headline-medium-line-height: 36px;
+  --text-headline-medium-family: var(--font-family-primary);
+
+  --text-headline-small-size: 24px;
+  --text-headline-small-weight: 600;
+  --text-headline-small-line-height: 32px;
+  --text-headline-small-family: var(--font-family-secondary);
+
+  /* Title */
+  --text-title-large-size: 22px;
+  --text-title-large-weight: 400;
+  --text-title-large-line-height: 28px;
+  --text-title-large-family: var(--font-family-primary);
+
+  --text-title-medium-size: 16px;
+  --text-title-medium-weight: 500;
+  --text-title-medium-line-height: 24px;
+  --text-title-medium-family: var(--font-family-primary);
+
+  --text-title-small-size: 14px;
+  --text-title-small-weight: 500;
+  --text-title-small-line-height: 20px;
+  --text-title-small-family: var(--font-family-primary);
+
+  /* Label */
+  --text-label-large-size: 14px;
+  --text-label-large-weight: 500;
+  --text-label-large-line-height: 20px;
+  --text-label-large-family: var(--font-family-primary);
+
+  --text-label-medium-size: 12px;
+  --text-label-medium-weight: 500;
+  --text-label-medium-line-height: 16px;
+  --text-label-medium-family: var(--font-family-primary);
+
+  --text-label-small-size: 11px;
+  --text-label-small-weight: 500;
+  --text-label-small-line-height: 16px;
+  --text-label-small-family: var(--font-family-primary);
+
+  /* Body */
+  --text-body-large-size: 16px;
+  --text-body-large-weight: 400;
+  --text-body-large-line-height: 24px;
+  --text-body-large-family: var(--font-family-primary);
+
+  --text-body-medium-size: 14px;
+  --text-body-medium-weight: 400;
+  --text-body-medium-line-height: 20px;
+  --text-body-medium-family: var(--font-family-primary);
+
+  --text-body-small-size: 12px;
+  --text-body-small-weight: 400;
+  --text-body-small-line-height: 16px;
+  --text-body-small-family: var(--font-family-primary);
+
+  /* Link */
+  --text-link-large-size: 16px;
+  --text-link-large-weight: 400;
+  --text-link-large-line-height: 24px;
+  --text-link-large-family: var(--font-family-primary);
+
+  --text-link-medium-size: 14px;
+  --text-link-medium-weight: 400;
+  --text-link-medium-line-height: 20px;
+  --text-link-medium-family: var(--font-family-primary);
+
+  --text-link-small-size: 12px;
+  --text-link-small-weight: 400;
+  --text-link-small-line-height: 16px;
+  --text-link-small-family: var(--font-family-primary);
+
+  /* ==================== SPACING ==================== */
+
+  --spacing-base: 8px;
+  --spacing-1: 8px;
+  --spacing-2: 16px;
+  --spacing-3: 24px;
+  --spacing-4: 32px;
+  --spacing-5: 40px;
+  --spacing-6: 48px;
+  --spacing-8: 64px;
+  --spacing-10: 80px;
+
+  /* ==================== BORDER RADIUS ==================== */
+
+  --radius-none: 0;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-full: 9999px;
+
+  /* ==================== SHADOWS / ELEVATION ==================== */
+
+  --elevation-1: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --elevation-2: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --elevation-3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px rgba(0, 0, 0, 0.3);
+  --elevation-4: 0px 6px 10px 4px rgba(0, 0, 0, 0.15), 0px 2px 3px rgba(0, 0, 0, 0.3);
+  --elevation-5: 0px 8px 12px 6px rgba(0, 0, 0, 0.15), 0px 4px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ==================== UTILITY CLASSES ==================== */
+
+/* Typography */
+.text-headline-large {
+  font-family: var(--text-headline-large-family);
+  font-size: var(--text-headline-large-size);
+  font-weight: var(--text-headline-large-weight);
+  line-height: var(--text-headline-large-line-height);
+}
+
+.text-headline-medium {
+  font-family: var(--text-headline-medium-family);
+  font-size: var(--text-headline-medium-size);
+  font-weight: var(--text-headline-medium-weight);
+  line-height: var(--text-headline-medium-line-height);
+}
+
+.text-headline-small {
+  font-family: var(--text-headline-small-family);
+  font-size: var(--text-headline-small-size);
+  font-weight: var(--text-headline-small-weight);
+  line-height: var(--text-headline-small-line-height);
+}
+
+.text-title-large {
+  font-family: var(--text-title-large-family);
+  font-size: var(--text-title-large-size);
+  font-weight: var(--text-title-large-weight);
+  line-height: var(--text-title-large-line-height);
+}
+
+.text-title-medium {
+  font-family: var(--text-title-medium-family);
+  font-size: var(--text-title-medium-size);
+  font-weight: var(--text-title-medium-weight);
+  line-height: var(--text-title-medium-line-height);
+}
+
+.text-title-small {
+  font-family: var(--text-title-small-family);
+  font-size: var(--text-title-small-size);
+  font-weight: var(--text-title-small-weight);
+  line-height: var(--text-title-small-line-height);
+}
+
+.text-body-large {
+  font-family: var(--text-body-large-family);
+  font-size: var(--text-body-large-size);
+  font-weight: var(--text-body-large-weight);
+  line-height: var(--text-body-large-line-height);
+}
+
+.text-body-medium {
+  font-family: var(--text-body-medium-family);
+  font-size: var(--text-body-medium-size);
+  font-weight: var(--text-body-medium-weight);
+  line-height: var(--text-body-medium-line-height);
+}
+
+.text-body-small {
+  font-family: var(--text-body-small-family);
+  font-size: var(--text-body-small-size);
+  font-weight: var(--text-body-small-weight);
+  line-height: var(--text-body-small-line-height);
+}
+
+.text-label-large {
+  font-family: var(--text-label-large-family);
+  font-size: var(--text-label-large-size);
+  font-weight: var(--text-label-large-weight);
+  line-height: var(--text-label-large-line-height);
+}
+
+.text-label-medium {
+  font-family: var(--text-label-medium-family);
+  font-size: var(--text-label-medium-size);
+  font-weight: var(--text-label-medium-weight);
+  line-height: var(--text-label-medium-line-height);
+}
+
+.text-label-small {
+  font-family: var(--text-label-small-family);
+  font-size: var(--text-label-small-size);
+  font-weight: var(--text-label-small-weight);
+  line-height: var(--text-label-small-line-height);
+}

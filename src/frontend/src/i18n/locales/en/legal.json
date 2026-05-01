@@ -1,0 +1,28 @@
+{
+  "placeholderNotice": "The operator has not yet published the final text.",
+  "loadFailedNotice": "The published text could not be loaded just now. A general placeholder is shown. Please reload the page later.",
+  "impressum": {
+    "title": "Imprint",
+    "intro": "Information according to § 5 DDG.",
+    "contactHeading": "Provider",
+    "contactBody": "The details of the provider of this installation are still missing.",
+    "responsibleHeading": "Responsible for the content",
+    "responsibleBody": "The details according to § 18 (2) MStV are still missing."
+  },
+  "privacy": {
+    "title": "Privacy notice",
+    "intro": "Your data in the {{brand}} app is processed according to the GDPR.",
+    "dataHeading": "What data we collect",
+    "dataBody": "• Mandatory data on sign-up (display name, optionally email)\n• Submitted answers and media during a run\n• Technical log data for stability and security (audit log)\nWe do not collect background location data.",
+    "rightsHeading": "Your rights",
+    "rightsBody": "You have the right at any time to access, correction, deletion, or restriction of processing of your personal data. Contact the operator of this installation for that. The contact details of the operator are still missing."
+  },
+  "accessibility": {
+    "title": "Accessibility statement",
+    "intro": "This statement applies to the {{brand}} web app. We work continuously to keep the app accessible.",
+    "statusHeading": "Accessibility status",
+    "statusBody": "The app follows the requirements of EU Directive 2016/2102 and WCAG 2.1 Level AA.",
+    "contactHeading": "Feedback and contact",
+    "contactBody": "If you encounter accessibility barriers, contact the operator of this installation. The contact details of the operator are still missing."
+  }
+}
