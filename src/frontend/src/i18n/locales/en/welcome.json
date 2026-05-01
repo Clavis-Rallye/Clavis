@@ -1,0 +1,16 @@
+{
+  "headline": "Welcome to <brand>{{brand}}</brand>!",
+  "selectLanguagePrompt": "Select your preferred language to start:",
+  "continue": "Continue",
+  "progressAriaLabel": "Step {{current}} of {{total}}",
+  "helperLanguageChangeable": "You can later change your selection in your language settings.",
+  "rallyePrefix": "Run: ",
+  "rallyeLoading": "Loading rallye…",
+  "languageLabel": "Language",
+  "langOptionDe": "🇩🇪 Deutsch",
+  "langOptionEn": "🇬🇧 English",
+  "runNotStarted": "The run has not started yet. This page tells you as soon as the coordination starts it.",
+  "runStartsAt": "The run starts on {{when}}. This page tells you as soon as it is running.",
+  "runEnded": "This run has ended. You can no longer join.",
+  "runStarted": "The run has started. You can join now."
+}

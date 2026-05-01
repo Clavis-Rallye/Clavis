@@ -1,0 +1,16 @@
+{
+  "headline": "Willkommen bei <brand>{{brand}}</brand>!",
+  "selectLanguagePrompt": "Wähle deine bevorzugte Sprache zum Start:",
+  "continue": "Weiter",
+  "progressAriaLabel": "Schritt {{current}} von {{total}}",
+  "helperLanguageChangeable": "Du kannst deine Auswahl später in den Spracheinstellungen ändern.",
+  "rallyePrefix": "Lauf: ",
+  "rallyeLoading": "Rallye wird geladen…",
+  "languageLabel": "Sprache",
+  "langOptionDe": "🇩🇪 Deutsch",
+  "langOptionEn": "🇬🇧 English",
+  "runNotStarted": "Der Lauf hat noch nicht begonnen. Diese Seite sagt dir, sobald die Spielleitung ihn startet.",
+  "runStartsAt": "Der Lauf startet am {{when}}. Diese Seite sagt dir, sobald er läuft.",
+  "runEnded": "Dieser Lauf ist beendet. Du kannst nicht mehr beitreten.",
+  "runStarted": "Der Lauf hat begonnen. Du kannst jetzt beitreten."
+}

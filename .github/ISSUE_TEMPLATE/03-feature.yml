@@ -1,0 +1,38 @@
+name: Feature
+description: Request a new capability of Clavis — what it should do, why, and for whom
+title: "feat: "
+type: Feature
+labels: ["unconfirmed"]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What should Clavis do?
+      description: The new capability in a few sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why do you need it?
+      description: The problem it solves, or what cannot be done today.
+    validations:
+      required: true
+  - type: textarea
+    id: who
+    attributes:
+      label: Who is it for?
+      description: For example participants, coordinators, creators, organization admins or operators.
+    validations:
+      required: true
+  - type: textarea
+    id: oos
+    attributes:
+      label: Out of scope
+      description: What the request deliberately leaves out.
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      placeholder: |
+        - Related issue: #NN

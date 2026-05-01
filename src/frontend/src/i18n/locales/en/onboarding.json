@@ -1,0 +1,128 @@
+{
+  "find": {
+    "title": "Find Your Team",
+    "subtitle": "Are you starting a new team or joining an existing one?",
+    "createCard": {
+      "title": "Create a new Team",
+      "body": "Become the team lead and invite teammates."
+    },
+    "joinCard": {
+      "title": "Join an existing Team",
+      "body": "Use a code or scan a QR code shared by your team lead."
+    },
+    "selectPrompt": "Select an option to continue.",
+    "back": "Back",
+    "continue": "Continue"
+  },
+  "join": {
+    "title": "Join Your Team",
+    "body": "Scan your team's QR code or enter their code below to join.",
+    "rallyeLabel": "Rallye:",
+    "scanCta": "Scan QR Code",
+    "fallbackHint": "If that doesn't work, you can enter the code instead.",
+    "codeLabel": "Team code",
+    "codePlaceholder": "ABC123",
+    "submit": "Continue",
+    "submitTeam": "Join team",
+    "joining": "Joining…",
+    "back": "Back",
+    "errors": {
+      "not_team_code": "That is not a team code. Scan the QR code your team shows, or type the code.",
+      "not_found": "Code unknown. A typo?",
+      "full": "This team is full.",
+      "rate_limited": "Too many failed attempts. Please wait a minute.",
+      "not_started": "The rallye hasn't been started yet. Ask your coordinator to start the run, then try again.",
+      "paused": "The run is paused. Ask your coordinator to resume it, then try again.",
+      "ended": "This run has already ended, so you can't join a team anymore.",
+      "already_in_team": "You're already in a team in this run. To switch, please ask the coordination. Don't leave your team yourself: as a guest you can't get back into the run afterwards.",
+      "unknown": "Could not join this team. Please try again.",
+      "cameraDenied": "Camera access denied. Please enter the code manually.",
+      "cameraUnavailable": "The camera cannot be started right now. Please type the code instead.",
+      "scanHint": "If someone sent you a QR-code link, scanning it will take you straight to the correct rallye.",
+      "departed": "You left this run or were removed from your team, so you cannot join it again. Please contact the game lead.",
+      "org_archived": "This run is no longer available because its organization was archived."
+    }
+  },
+  "pickName": {
+    "title": "Pick a Team name together",
+    "membersHeading": "Your Team members are:",
+    "info": "You're setting your team name up for your group.",
+    "nameLabel": "Team Name",
+    "nameHelper": "Your Team Name will be visible to other players.",
+    "suggestionsTitle": "Team names you might like:",
+    "suggestions": [
+      "Speedy Foxes",
+      "Urban Explorers",
+      "Curious Crew",
+      "Augsburg Adventurers"
+    ],
+    "submit": "Start Rallye",
+    "back": "Back",
+    "errors": {
+      "forbidden": "This name can't be used. Try another team name.",
+      "taken": "This name is already taken in this run.",
+      "unknown": "Could not save this name. Please try again."
+    }
+  },
+  "pending": {
+    "title": "Pick a Team name together",
+    "membersHeading": "Your Team members are:",
+    "info": "Only your team member that created this team can enter the name for your group.",
+    "discussionPrompt": "Talk to your team lead. They pick the name.",
+    "spinnerLabel": "Team Name pending",
+    "back": "Back",
+    "submit": "Start Rallye",
+    "connectionLost": "Could not refresh the status. Please reload the page."
+  },
+  "invite": {
+    "title": "Invite Your Team",
+    "qrHelp": "Ask your team members to scan this QR code to join you.",
+    "codeFallback": "If scanning doesn't work, they can enter this code:",
+    "copyAria": "Copy team code",
+    "copied": "Code copied",
+    "footerHint": "Once all of your team members have joined, tap Continue.",
+    "back": "Back",
+    "continue": "Continue",
+    "retry": "Try again",
+    "errors": {
+      "lookupFailed": "We could not check whether you already have a team. Please try again.",
+      "not_started": "Ask the coordination to start the run.",
+      "paused": "Ask the coordination to resume the run.",
+      "ended": "This run has already ended, so you can't join a team anymore.",
+      "team_limit": "All teams for this run have already been formed. Join an existing team. The game lead will help you.",
+      "unknown": "Could not create the team. Please try again.",
+      "already_in_team": "You're already in a team in this run. To switch, please ask the coordination. Don't leave your team yourself: as a guest you can't get back into the run afterwards.",
+      "departed": "You left this run or were removed from your team, so you cannot join it again. Please contact the game lead.",
+      "org_archived": "This run is no longer available because its organization was archived."
+    },
+    "refusedTitle": {
+      "default": "Joining is not possible",
+      "not_started": "The run has not started yet",
+      "paused": "The run is paused",
+      "ended": "The run has ended",
+      "team_limit": "All teams are formed"
+    },
+    "waitsForRun": "Stay on this page. It moves on by itself as soon as the run is running.",
+    "joinExisting": "Join an existing team"
+  },
+  "waiting": {
+    "title": "You've joined the team!",
+    "subtitle": "Waiting for your teammates to join.",
+    "back": "Back"
+  },
+  "ready": {
+    "title": "Your Team is ready!",
+    "body": "Your Team is fully set up and ready to start.",
+    "back": "Back",
+    "startRallye": "Start Rallye"
+  },
+  "noRuns": {
+    "title": "Not in a run yet",
+    "body": "You take part in a run with the join code or link the coordination sends you. Enter your code here to join.",
+    "codeLabel": "Join code",
+    "submit": "Join",
+    "back": "Back to the start page",
+    "removed": "You are no longer in a team of your last run. The coordination may have removed you from the team. If this is a mistake, please talk to them."
+  },
+  "unnamedTeam": "Unnamed Team"
+}

@@ -1,0 +1,42 @@
+{
+  "headline": "Your profile",
+  "usernameLabel": "Display name",
+  "usernamePlaceholder": "e.g. Alex",
+  "usernameHelper": "2–32 characters. Shown to your team.",
+  "usernameError": {
+    "tooShort": "Please enter at least 2 characters.",
+    "reserved": "This name is reserved.",
+    "taken": "This name is already taken."
+  },
+  "emailLabel": "Email address",
+  "emailPlaceholder": "e.g. alex@example.com",
+  "emailError": {
+    "invalid": "Please enter a valid email address.",
+    "taken": "This email is already registered."
+  },
+  "passwordLabel": "Password",
+  "passwordPlaceholder": "At least 8 characters",
+  "passwordHelper": "At least 8 characters with upper, lower, digits and symbols.",
+  "passwordError": {
+    "tooWeak": "This password is too weak."
+  },
+  "passwordConfirmLabel": "Confirm password",
+  "passwordConfirmError": {
+    "mismatch": "Passwords do not match."
+  },
+  "guestToggleLabel": "Continue as guest",
+  "guestInfoBox": {
+    "body": "Your progress is stored in this browser only. Create an account to continue on other devices."
+  },
+  "submitting": "Submitting…",
+  "orgPicker": {
+    "headline": "Pick your organisation",
+    "subtitle": "This determines which rallye you'll join.",
+    "loading": "Loading organisations…",
+    "empty": "No organisation is set up here yet.",
+    "loadError": "The organisations could not be loaded. The server is not answering right now.",
+    "registrationFailed": "Registration failed. Please try again.",
+    "orgUnknown": "Organisation could not be determined. Please use a join code or pick an organisation.",
+    "orgNotFound": "Organisation not found. Please pick a different organisation."
+  }
+}

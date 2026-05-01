@@ -1,0 +1,128 @@
+{
+  "find": {
+    "title": "Finde dein Team",
+    "subtitle": "Möchtest du ein neues Team gründen oder einem bestehenden beitreten?",
+    "createCard": {
+      "title": "Neues Team erstellen",
+      "body": "Werde Team-Leitung und lade Mitspielende ein."
+    },
+    "joinCard": {
+      "title": "Bestehendem Team beitreten",
+      "body": "Verwende einen Code oder scanne den QR-Code deiner Team-Leitung."
+    },
+    "selectPrompt": "Wähle eine Option, um fortzufahren.",
+    "back": "Zurück",
+    "continue": "Weiter"
+  },
+  "join": {
+    "title": "Tritt deinem Team bei",
+    "body": "Scanne den QR-Code deines Teams oder gib den Code unten ein, um beizutreten.",
+    "rallyeLabel": "Rallye:",
+    "scanCta": "QR-Code scannen",
+    "fallbackHint": "Wenn das nicht klappt, kannst du den Code auch eingeben.",
+    "codeLabel": "Team-Code",
+    "codePlaceholder": "ABC123",
+    "submit": "Weiter",
+    "submitTeam": "Team beitreten",
+    "joining": "Tritt bei…",
+    "back": "Zurück",
+    "errors": {
+      "not_team_code": "Das ist kein Team-Code. Scanne den QR-Code, den dein Team zeigt, oder tippe den Code ein.",
+      "not_found": "Code unbekannt. Tippfehler?",
+      "full": "Dieses Team ist voll.",
+      "rate_limited": "Zu viele fehlgeschlagene Versuche. Bitte warte eine Minute.",
+      "not_started": "Die Rallye läuft noch nicht. Bitte die Spielleitung, den Lauf zu starten, und versuche es dann erneut.",
+      "paused": "Der Lauf ist pausiert. Bitte die Spielleitung, ihn fortzusetzen, und versuche es dann erneut.",
+      "ended": "Dieser Lauf ist bereits beendet, du kannst keinem Team mehr beitreten.",
+      "already_in_team": "Du bist in diesem Lauf schon in einem Team. Für einen Wechsel wende dich bitte an die Spielleitung. Verlasse dein Team nicht selbst: Als Gast kommst du sonst nicht mehr in den Lauf zurück.",
+      "unknown": "Beitritt fehlgeschlagen. Bitte versuche es erneut.",
+      "cameraDenied": "Kamera-Zugriff verweigert. Bitte gib den Code manuell ein.",
+      "cameraUnavailable": "Die Kamera lässt sich gerade nicht starten. Bitte gib den Code manuell ein.",
+      "scanHint": "Falls dir jemand einen QR-Code-Link geschickt hat, scann ihn. Er bringt dich automatisch zur richtigen Rallye.",
+      "departed": "Du hast diesen Lauf verlassen oder wurdest aus deinem Team entfernt und kannst ihm nicht erneut beitreten. Bitte wende dich an die Spielleitung.",
+      "org_archived": "Dieser Lauf ist nicht mehr verfügbar, weil seine Organisation archiviert wurde."
+    }
+  },
+  "pickName": {
+    "title": "Wähle gemeinsam mit deinem Team einen Team-Namen",
+    "membersHeading": "Dein Team:",
+    "info": "Du legst den Namen für dein Team fest.",
+    "nameLabel": "Team-Name",
+    "nameHelper": "Dein Team-Name ist für andere Spielende sichtbar.",
+    "suggestionsTitle": "Team-Namen-Vorschläge:",
+    "suggestions": [
+      "Schnelle Füchse",
+      "Stadtentdecker",
+      "Neugierige Crew",
+      "Augsburger Abenteurer"
+    ],
+    "submit": "Rallye starten",
+    "back": "Zurück",
+    "errors": {
+      "forbidden": "Dieser Name kann nicht verwendet werden. Bitte wähle einen anderen.",
+      "taken": "Dieser Name ist in diesem Lauf schon vergeben.",
+      "unknown": "Speichern fehlgeschlagen. Bitte versuche es erneut."
+    }
+  },
+  "pending": {
+    "title": "Wählt gemeinsam einen Team-Namen",
+    "membersHeading": "Dein Team:",
+    "info": "Nur das Team-Mitglied, das dieses Team erstellt hat, kann den Namen festlegen.",
+    "discussionPrompt": "Sprich mit deiner Team-Leitung. Sie wählt den Namen.",
+    "spinnerLabel": "Team-Name folgt",
+    "back": "Zurück",
+    "submit": "Rallye starten",
+    "connectionLost": "Status konnte nicht aktualisiert werden. Bitte lade die Seite neu."
+  },
+  "invite": {
+    "title": "Lade dein Team ein",
+    "qrHelp": "Lass deine Team-Mitglieder diesen QR-Code scannen, um beizutreten.",
+    "codeFallback": "Falls das Scannen nicht klappt, können sie diesen Code eingeben:",
+    "copyAria": "Team-Code kopieren",
+    "copied": "Code kopiert",
+    "footerHint": "Sobald alle Team-Mitglieder beigetreten sind, tippe auf Weiter.",
+    "back": "Zurück",
+    "continue": "Weiter",
+    "retry": "Erneut versuchen",
+    "errors": {
+      "lookupFailed": "Wir konnten nicht prüfen, ob du schon ein Team hast. Bitte versuche es erneut.",
+      "not_started": "Bitte die Spielleitung, den Lauf zu starten.",
+      "paused": "Bitte die Spielleitung, den Lauf fortzusetzen.",
+      "ended": "Dieser Lauf ist bereits beendet, du kannst keinem Team mehr beitreten.",
+      "team_limit": "Für diesen Lauf sind bereits alle Teams gebildet. Tritt einem bestehenden Team bei. Die Spielleitung hilft dir weiter.",
+      "unknown": "Team konnte nicht erstellt werden. Bitte versuche es erneut.",
+      "already_in_team": "Du bist in diesem Lauf schon in einem Team. Für einen Wechsel wende dich bitte an die Spielleitung. Verlasse dein Team nicht selbst: Als Gast kommst du sonst nicht mehr in den Lauf zurück.",
+      "departed": "Du hast diesen Lauf verlassen oder wurdest aus deinem Team entfernt und kannst ihm nicht erneut beitreten. Bitte wende dich an die Spielleitung.",
+      "org_archived": "Dieser Lauf ist nicht mehr verfügbar, weil seine Organisation archiviert wurde."
+    },
+    "refusedTitle": {
+      "default": "Beitritt nicht möglich",
+      "not_started": "Der Lauf hat noch nicht begonnen",
+      "paused": "Der Lauf ist pausiert",
+      "ended": "Der Lauf ist beendet",
+      "team_limit": "Alle Teams sind gebildet"
+    },
+    "waitsForRun": "Bleib auf dieser Seite. Sie geht von selbst weiter, sobald der Lauf läuft.",
+    "joinExisting": "Bestehendem Team beitreten"
+  },
+  "waiting": {
+    "title": "Du bist im Team!",
+    "subtitle": "Wir warten auf deine Mitspielenden.",
+    "back": "Zurück"
+  },
+  "ready": {
+    "title": "Dein Team ist startklar!",
+    "body": "Euer Team ist eingerichtet und bereit zu starten.",
+    "back": "Zurück",
+    "startRallye": "Rallye starten"
+  },
+  "noRuns": {
+    "title": "Noch in keinem Lauf",
+    "body": "An einem Lauf nimmst du mit dem Beitrittscode oder -link teil, den dir die Spielleitung schickt. Gib deinen Code hier ein, um beizutreten.",
+    "codeLabel": "Beitrittscode",
+    "submit": "Beitreten",
+    "back": "Zur Startseite",
+    "removed": "Du bist in deinem letzten Lauf in keinem Team mehr. Die Spielleitung hat dich vielleicht aus dem Team entfernt. Wenn das ein Irrtum ist, sprich sie an."
+  },
+  "unnamedTeam": "Unbenanntes Team"
+}

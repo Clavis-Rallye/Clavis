@@ -1,0 +1,42 @@
+{
+  "headline": "Dein Profil",
+  "usernameLabel": "Anzeigename",
+  "usernamePlaceholder": "z. B. Alex",
+  "usernameHelper": "2–32 Zeichen. Wird deinem Team angezeigt.",
+  "usernameError": {
+    "tooShort": "Bitte mindestens 2 Zeichen eingeben.",
+    "reserved": "Dieser Name ist reserviert.",
+    "taken": "Dieser Name ist bereits vergeben."
+  },
+  "emailLabel": "E-Mail-Adresse",
+  "emailPlaceholder": "z. B. alex@example.com",
+  "emailError": {
+    "invalid": "Bitte eine gültige E-Mail-Adresse eingeben.",
+    "taken": "Diese E-Mail-Adresse ist bereits registriert."
+  },
+  "passwordLabel": "Passwort",
+  "passwordPlaceholder": "Mindestens 8 Zeichen",
+  "passwordHelper": "Mindestens 8 Zeichen mit Groß-, Kleinbuchstaben, Zahlen und Sonderzeichen.",
+  "passwordError": {
+    "tooWeak": "Dieses Passwort ist zu schwach."
+  },
+  "passwordConfirmLabel": "Passwort bestätigen",
+  "passwordConfirmError": {
+    "mismatch": "Die Passwörter stimmen nicht überein."
+  },
+  "guestToggleLabel": "Als Gast fortfahren",
+  "guestInfoBox": {
+    "body": "Dein Fortschritt wird nur in diesem Browser gespeichert. Lege ein Konto an, um auf weiteren Geräten weiterzumachen."
+  },
+  "submitting": "Wird verarbeitet…",
+  "orgPicker": {
+    "headline": "Wähle deine Organisation",
+    "subtitle": "Das legt fest, an welcher Rallye du teilnimmst.",
+    "loading": "Lade Organisationen…",
+    "empty": "Hier ist noch keine Organisation eingerichtet.",
+    "loadError": "Die Organisationen konnten nicht geladen werden. Der Server antwortet gerade nicht.",
+    "registrationFailed": "Registrierung fehlgeschlagen. Bitte erneut versuchen.",
+    "orgUnknown": "Organisation konnte nicht ermittelt werden. Bitte über einen Beitrittscode kommen oder eine Organisation auswählen.",
+    "orgNotFound": "Organisation nicht gefunden. Bitte eine andere Organisation auswählen."
+  }
+}

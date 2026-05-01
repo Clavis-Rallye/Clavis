@@ -1,0 +1,24 @@
+name: Documentation
+description: Documentation change, new docs page, or docs error
+title: "docs: "
+type: Task
+labels: ["unconfirmed", "documentation"]
+body:
+  - type: textarea
+    id: where
+    attributes:
+      label: Which docs?
+      description: Path / file / URL of the affected docs (or "to be created").
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What should be changed or added?
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why?
+      description: What was outdated, misleading, or missing?

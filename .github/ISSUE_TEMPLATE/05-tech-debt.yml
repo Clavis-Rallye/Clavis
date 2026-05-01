@@ -1,0 +1,27 @@
+name: Tech Debt
+description: Internal cleanup — refactoring, dependencies, CI polish, no direct user value
+title: "chore: "
+type: Task
+labels: ["unconfirmed"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What is the debt?
+      description: Which code / setup is messy, outdated, or fragile?
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk / cost if untouched
+      description: What happens if we don't clean this up?
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Proposed solution
+      description: What would the refactor / cleanup look like?
+    validations:
+      required: true

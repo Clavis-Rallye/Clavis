@@ -1,0 +1,32 @@
+name: Enhancement
+description: Improvement to an existing feature (small scope)
+title: "enhancement: "
+type: Feature
+labels: ["unconfirmed"]
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: What exists today
+      description: Which feature should be improved, and how does it behave currently?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed improvement
+      description: What should change concretely?
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale / user value
+      description: Why is this worth doing? Who benefits?
+    validations:
+      required: true
+  - type: textarea
+    id: oos
+    attributes:
+      label: Out of scope (initial)
+      description: What is deliberately NOT included, to avoid scope creep.
