@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Clavis Netz-Log</title>
+<!--
+  Minimal network log. Start probes our API every few seconds and appends one
+  compact line per check. Stop halts the probes. Copy puts the log on the clipboard.
+
+  It shows, from the user's own browser, whether requests reach our server (OK)
+  or are blocked upstream (BLOCKIERT / KEINE ANTWORT) while a static file of the
+  same server still loads. That pattern proves a filter in the network, such as
+  a web filter that lets pages through and blocks the API calls.
+
+  The page contacts this server only. The control is a static file of this
+  server plus the browser's own online flag.
+-->
+<style>
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:#0f1115; color:#e6e6e6; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 10px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  button { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid #3a3f4b; background:#222630; color:#e6e6e6; cursor:pointer; }
+  button.go { background:#1b7f3b; border-color:#1b7f3b; color:#fff; }
+  button.stop { background:#b3261e; border-color:#b3261e; color:#fff; }
+  button:disabled { opacity:.4; cursor:default; }
+  #log { background:#0a0c10; border:1px solid #2a2e38; border-radius:8px; padding:10px; height:62vh;
+         overflow:auto; white-space:pre; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; line-height:1.55; }
+  .hint { color:#8a90a0; font-size:12px; margin-top:8px; }
+  .ok { color:#5ad17f; } .bad { color:#ff6b6b; } .dim { color:#8a90a0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Clavis – Netzwerk-Log</h1>
+  <div class="bar">
+    <button id="start" class="go">▶ Log starten</button>
+    <button id="stop" class="stop" disabled>⏹ Log beenden</button>
+    <button id="copy">⧉ In Zwischenablage kopieren</button>
+  </div>
+  <div id="log" class="dim">„Log starten" klicken, im anderen Tab den Fehler auslösen, zurückkommen, „Log beenden" + kopieren.</div>
+  <div class="hint">Diese Seite offen lassen. Sie prüft alle paar Sekunden, ob die App-Anfragen unseren Server erreichen.</div>
+</div>
+<script>
+(function () {
+  var logEl = document.getElementById('log'),
+      startB = document.getElementById('start'),
+      stopB  = document.getElementById('stop'),
+      copyB  = document.getElementById('copy');
+  var timer = null, started = false, lines = [];
+
+  function ts() { return new Date().toTimeString().slice(0, 8); }
+  function pad(s, n) { s = String(s); return s + ' '.repeat(Math.max(0, n - s.length)); }
+  function add(text, cls) {
+    lines.push(text);
+    var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text + '\n';
+    logEl.appendChild(s); logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Probe one of our endpoints. Cache-busted so a service worker can't mask a
+  // block with a stale 200. "OK" = reached our server with the expected status.
+  async function probe(label, path, expect) {
+    var url = location.origin + path + (path.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
+    var t0 = performance.now(), ctrl = new AbortController(), to = setTimeout(function () { ctrl.abort(); }, 8000);
+    try {
+      var r = await fetch(url, { cache: 'no-store', credentials: 'include', signal: ctrl.signal });
+      var ms = Math.round(performance.now() - t0);
+      var srv = (r.headers.get('server') || '').toLowerCase();
+      var ours = srv.indexOf('openresty') >= 0 || srv.indexOf('uvicorn') >= 0;
+      var ok = expect.indexOf(r.status) >= 0 && (ours || srv === '');
+      add(ts() + '  ' + pad(label, 9) + pad(r.status, 5) + (ok ? 'OK' : 'BLOCKIERT') + '  (' + (srv || 'kein Server-Header') + ', ' + ms + ' ms)', ok ? 'ok' : 'bad');
+    } catch (e) {
+      add(ts() + '  ' + pad(label, 9) + pad('--', 5) + 'KEINE ANTWORT  (' + (e.name === 'AbortError' ? 'Timeout' : 'blockiert/abgebrochen') + ')', 'bad');
+    } finally { clearTimeout(to); }
+  }
+
+  // Control: does a static file of this same server still load? "statisch OK"
+  // beside a blocked API line means the network lets pages through and filters
+  // the API calls. Both failing, with the browser online, means the whole
+  // domain is blocked. navigator.onLine is the browser's own view of the
+  // connection and needs no request.
+  async function control() {
+    await probe('statisch', '/netcheck.html', [200]);
+    if (navigator.onLine === false) {
+      add(ts() + '  ' + pad('browser', 9) + 'OFFLINE (der Browser meldet: keine Netzwerkverbindung)', 'bad');
+    }
+  }
+
+  async function round() {
+    await probe('health', '/api/health', [200]);
+    await probe('me', '/api/auth/me', [200, 401]);
+    await control();
+  }
+
+  function start() {
+    if (started) return; started = true; lines = []; logEl.textContent = ''; logEl.className = '';
+    add('=== Clavis Netz-Log · ' + new Date().toISOString() + ' ===', 'dim');
+    add('Browser: ' + navigator.userAgent, 'dim'); add('', 'dim');
+    startB.disabled = true; stopB.disabled = false;
+    round(); timer = setInterval(round, 4000);
+  }
+  function stop() {
+    if (!started) return; started = false; clearInterval(timer);
+    add('', 'dim'); add('=== Log beendet ' + ts() + ' ===', 'dim');
+    startB.disabled = false; stopB.disabled = true;
+  }
+  async function copy() {
+    var txt = lines.join('\n');
+    try { await navigator.clipboard.writeText(txt); copyB.textContent = '✓ kopiert'; }
+    catch (e) {
+      var r = document.createRange(); r.selectNode(logEl);
+      getSelection().removeAllRanges(); getSelection().addRange(r); copyB.textContent = 'bitte Strg+C';
+    }
+    setTimeout(function () { copyB.textContent = '⧉ In Zwischenablage kopieren'; }, 2500);
+  }
+
+  startB.onclick = start; stopB.onclick = stop; copyB.onclick = copy;
+})();
+</script>
+</body>
+</html>
