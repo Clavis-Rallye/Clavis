@@ -1,0 +1,17 @@
+{
+  // CI dependency-vulnerability gate. Fail on moderate or higher severity.
+  "moderate": true,
+
+  // Only audit production dependencies. Build and test packages (PostCSS,
+  // Vite, Vitest, Playwright, vite-plugin-pwa, …) never reach the served
+  // bundle, so their advisories don't expose users.
+  "skip-dev": true,
+
+  // Documented, code-reviewed exceptions. Every entry MUST carry a rationale
+  // and a tracking issue, and be removed as soon as a real fix is available.
+  //
+  // The list is empty on purpose. An allowlist is a debt register, not
+  // furniture. Give each entry an exit condition, for example "remove once a
+  // patched version ships".
+  "allowlist": []
+}

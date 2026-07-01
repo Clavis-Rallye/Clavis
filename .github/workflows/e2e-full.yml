@@ -1,0 +1,287 @@
+name: E2E full
+
+# The FULL Playwright suite — the non-gating second tier of the two-tier
+# E2E model. The lean @smoke subset gates PRs in ci.yml; this
+# workflow keeps the complete coverage running:
+#   - nightly on main, but only when new commits exist (guard job below)
+#   - on every pushed release tag (v*), after the tag exists, so the full
+#     suite also runs on the tree of each release
+#   - on demand via workflow_dispatch
+# A red run here opens an investigation. It blocks no merge and no release.
+
+on:
+  schedule:
+    # 03:17 UTC. The time is NOT a defence against a runner being reclaimed
+    # mid-run: there is no safe hour to move to. A runner can be reclaimed at
+    # any time, and a job that happens to be running dies with
+    # "The runner has received a shutdown signal". Shifting the cron would only
+    # move the dice, so the defence lives in the `report` job below: it tells an
+    # aborted runner apart from a failing test and re-runs instead of filing a bug.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # On scheduled runs, skip the expensive stack when main hasn't moved since
+  # the last nightly — no new commits, nothing new to test. Tag pushes and
+  # manual dispatches always run. Exception: never skip on top of a red
+  # nightly — a skipped night reports "success", which would mask a
+  # deterministically broken test; a red suite must re-run until it is green
+  # again.
+  guard:
+    name: New commits since last nightly?
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "non-schedule trigger — always run"
+            exit 0
+          fi
+          COUNT=$(git log --since="24 hours ago" --oneline | wc -l)
+          echo "commits in the last 24h: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # No new commits — but only skip if the previous completed
+          # scheduled run was green. (This in-progress run is excluded
+          # by status=completed.)
+          LAST=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/e2e-full.yml/runs?event=schedule&status=completed&per_page=1" \
+            --jq '.workflow_runs[0].conclusion // "none"')
+          echo "previous scheduled run conclusion: $LAST"
+          if [ "$LAST" = "success" ]; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "main unchanged + last nightly green — skipping the full suite tonight"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "last nightly was not green — re-running despite no new commits"
+          fi
+
+  e2e-full:
+    name: E2E full shard ${{ matrix.shard }}/2
+    runs-on: ubuntu-latest
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
+    # No concurrency group: GitHub cancels the OLDER pending job in a group
+    # whenever a newer one queues — with max-parallel:1, shard 2 always
+    # waits and would be cancelled by any job arriving in the same group.
+    # Within-run serialization comes from max-parallel;
+    # cross-run overlap (nightly vs release tag) is rare and stack
+    # isolation keeps it correct, merely slower.
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dev dependencies (incl. @playwright/test)
+        working-directory: src/frontend
+        run: npm ci
+
+      # webkit is needed by the `webkit-iphone` project (a11y scans); the
+      # smoke job in ci.yml installs chromium only.
+      - name: Install Playwright Chromium + WebKit + system deps
+        working-directory: src/frontend
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Isolate this job's stack (project name, container suffix, ports)
+        run: |
+          SUFFIX="e2e-${GITHUB_RUN_ID}-${{ matrix.shard }}"
+          BASE=$(( 10000 + (GITHUB_RUN_ID % 5000) * 10 + ${{ matrix.shard }} * 5 ))
+          {
+            echo "COMPOSE_PROJECT_NAME=clavis-${SUFFIX}"
+            echo "STACK_SUFFIX=-${SUFFIX}"
+            echo "CLAVIS_HTTP_PORT=${BASE}"
+            echo "CLAVIS_HTTPS_PORT=$(( BASE + 1 ))"
+            echo "CLAVIS_API_PORT=$(( BASE + 2 ))"
+            echo "CLAVIS_FRONTEND_PORT=$(( BASE + 3 ))"
+            echo "CLAVIS_S3_PORT=$(( BASE + 4 ))"
+            echo "E2E_BASE_URL=http://localhost:${BASE}"
+            echo "CLAVIS_DEV_API_ORIGIN=http://localhost:${BASE}"
+          } >> "$GITHUB_ENV"
+
+      - name: Clean stale E2E stacks (crashed runs)
+        run: |
+          for c in $(docker ps -aq --filter "name=-e2e-"); do
+            created=$(docker inspect -f '{{.Created}}' "$c")
+            if [ "$(date -d "$created" +%s)" -lt "$(date -d '3 hours ago' +%s)" ]; then
+              proj=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")
+              docker rm -f "$c" || true
+              [ -n "$proj" ] && docker compose -p "$proj" down -v --remove-orphans 2>/dev/null || true
+            fi
+          done
+
+      - name: Bring up dev stack (build + wait for healthchecks)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --wait
+
+      - name: Run database migrations
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T api alembic upgrade head
+
+      - name: Smoke check ingress
+        run: |
+          curl -fsS "${E2E_BASE_URL}/api/health"
+          curl -fsS -o /dev/null "${E2E_BASE_URL}/"
+
+      - name: Run Playwright tests (full suite)
+        working-directory: src/frontend
+        run: npx playwright test --reporter=list --shard=${{ matrix.shard }}/2
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-full-report-shard-${{ matrix.shard }}
+          path: src/frontend/playwright-report
+          retention-days: 7
+
+      - name: Upload trace + video artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-full-test-results-shard-${{ matrix.shard }}
+          path: src/frontend/test-results
+          retention-days: 7
+
+      - name: Dump docker logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=400
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
+
+  # The two-tier model says a red full run "opens an investigation, not a merge
+  # block". The checks are non-required by design, so a failure that reports
+  # nowhere reports to nobody: the suite can stay red for days and carry real
+  # regressions to production unnoticed. This job is where a red run reports.
+  #
+  # The report is a job summary, one per red run. It opens no issue and
+  # comments on none: an issue that opens itself every night the suite is red
+  # does not belong in a public repository. Whoever looks at the run reads it.
+  report:
+    name: Report a red run
+    runs-on: ubuntu-latest
+    needs: e2e-full
+    if: failure() && needs.e2e-full.result == 'failure'
+    permissions:
+      contents: read
+      actions: write          # read the failed jobs' logs, and re-dispatch on abort
+    steps:
+      # Not every red run is a red test. A runner can be reclaimed (see the
+      # schedule comment); when one is recycled mid-run, every job on it dies with
+      # "The runner has received a shutdown signal" and the run reports failure
+      # even though nothing failed. Without this triage the summary fills with
+      # noise, which is how a real regression gets lost in it.
+      #
+      # A run killed that way carries no verdict at all — not "passed", not
+      # "failed" — so the answer is to run it again, not to investigate it.
+      #
+      # Log fetch is curl, not `gh api`: gh refuses to emit a body containing
+      # terminal escape sequences (it wants --allow-escape-sequences, whose
+      # availability depends on the gh build on the runner image). Playwright's
+      # list reporter is full of them. curl follows the redirect to the log blob
+      # and has no such opinion.
+      - name: Was this an aborted runner rather than a failing test?
+        id: triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          ABORTED=false
+          for JOB_ID in $(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --paginate \
+                            --jq '.jobs[] | select(.conclusion=="failure") | .id'); do
+            if curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+                 "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" \
+                 | grep -qF 'received a shutdown signal'; then
+              echo "job $JOB_ID died with a runner shutdown"
+              ABORTED=true
+            fi
+          done
+          echo "aborted=$ABORTED" >> "$GITHUB_OUTPUT"
+
+      # Retry exactly once, and only for the nightly. The retry arrives as
+      # workflow_dispatch, so if IT is aborted too this step cannot fire again —
+      # that is what bounds the loop, rather than a counter we would have to carry.
+      - name: Re-run once after an aborted runner
+        if: steps.triage.outputs.aborted == 'true' && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run e2e-full.yml --repo "$REPO" --ref main
+          {
+            echo "## Runner aborted — re-running"
+            echo
+            echo "A job ended with \`The runner has received a shutdown signal\`: the runner"
+            echo "was reclaimed mid-run, which is not a test result. The full suite has been"
+            echo "dispatched again; nothing needs to be done for this run."
+            echo
+            echo "If that retry is aborted as well, it stops there — a dispatched run does not"
+            echo "re-dispatch itself. The next nightly picks it up regardless, because the guard"
+            echo "never skips on top of a non-green night."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Note the aborted run (no retry — not the nightly)
+        if: steps.triage.outputs.aborted == 'true' && github.event_name != 'schedule'
+        run: |
+          {
+            echo "## Runner aborted — not a test result"
+            echo
+            echo "A job ended with \`The runner has received a shutdown signal\`. This run was"
+            echo "not the nightly, so it is not re-dispatched automatically — re-run it by hand"
+            echo "if the result mattered."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write the red-run summary
+        if: steps.triage.outputs.aborted != 'true'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## E2E full is red"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Run | $RUN_URL |"
+            echo "| Commit | \`${SHA:0:7}\` |"
+            echo "| Trigger | \`$TRIGGER\` |"
+            echo
+            echo "Failing tests are in the run log; traces and videos are attached to it as artifacts (7-day retention — pull them before they expire)."
+            echo
+            echo "**Before making a red test green, decide which it is.** A red test can be a real regression whose guard was deleted, a stale assertion after an intended change, or a CI-only timing failure that passes locally. Only the second one is a test problem."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,32 @@
+# Code owners: the security-critical surface of the app.
+#
+# The scope is narrow on purpose: only paths where a silent change can weaken
+# authentication, authorization, session handling, secrets or the transport
+# security headers. GitHub asks the code owner to review a pull request that
+# touches one of them. This file enforces nothing by itself: the review is
+# required only when the repository's ruleset turns on code owner review.
+
+# --- Authentication, sessions, tokens, TOTP, password + reset flows
+/src/backend/app/auth/                @AaronKokal
+/src/backend/app/routers/auth.py      @AaronKokal
+/src/backend/app/routers/me.py        @AaronKokal
+
+# --- Authorization surface: org bootstrap + membership are privilege boundaries
+/src/backend/app/routers/organizations.py  @AaronKokal
+
+# --- Secrets, JWT config, auth feature flags (e.g. enforce_org_admin_totp)
+/src/backend/app/config.py            @AaronKokal
+
+# --- App wiring: CSP + security headers, exception handlers, middleware stack
+/src/backend/app/main.py              @AaronKokal
+/src/backend/app/exceptions.py        @AaronKokal
+/src/backend/app/middleware/          @AaronKokal
+
+# --- Frontend security surface: security headers + the auth-routing interceptor
+/src/frontend/nginx.conf              @AaronKokal
+/src/frontend/src/api/client.ts       @AaronKokal
+
+# --- Supply chain: a workflow change decides what CI runs and with which permissions
+/.github/workflows/                   @AaronKokal
+/.github/scripts/                     @AaronKokal
+/.github/CODEOWNERS                   @AaronKokal
