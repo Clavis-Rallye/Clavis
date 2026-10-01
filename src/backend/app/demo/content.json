@@ -1,0 +1,178 @@
+{
+  "rallye": {
+    "title": {
+      "de": "Clavis-Demo: Augsburger Altstadt",
+      "en": "Clavis demo: Augsburg old town"
+    },
+    "description": {
+      "de": "Eine kurze Runde durch die Altstadt mit allen Aufgabentypen von Clavis. Dauer etwa 45 Minuten.",
+      "en": "A short walk through the old town with every challenge type of Clavis. About 45 minutes."
+    },
+    "stations": [
+      {
+        "title": {
+          "de": "Rathausplatz",
+          "en": "Town hall square"
+        },
+        "description": {
+          "de": "Das Herz der Altstadt. Vor dem Rathaus steht der Augustusbrunnen, benannt nach dem römischen Kaiser, unter dem Augsburg gegründet wurde.",
+          "en": "The heart of the old town. In front of the town hall stands the Augustus Fountain, named after the Roman emperor under whom Augsburg was founded."
+        },
+        "address": "Rathausplatz 2, 86150 Augsburg",
+        "location_lat": 48.3687,
+        "location_lng": 10.8987,
+        "challenges": [
+          {
+            "challenge_type": "photo",
+            "title": {
+              "de": "Teamfoto am Augustusbrunnen",
+              "en": "Team photo at the Augustus Fountain"
+            },
+            "instructions": {
+              "de": "Macht ein Foto von eurem ganzen Team vor dem Augustusbrunnen.",
+              "en": "Take a photo of your whole team in front of the Augustus Fountain."
+            },
+            "scoring_rules": {
+              "max_points": 10
+            },
+            "time_estimate_minutes": 5
+          },
+          {
+            "challenge_type": "text",
+            "title": {
+              "de": "Stellt euch vor",
+              "en": "Introduce yourselves"
+            },
+            "instructions": {
+              "de": "Schreibt in zwei Sätzen, wer in eurem Team ist und woher ihr kommt.",
+              "en": "Write two sentences about who is in your team and where you come from."
+            },
+            "scoring_rules": {
+              "max_points": 10
+            },
+            "time_estimate_minutes": 5
+          }
+        ]
+      },
+      {
+        "title": {
+          "de": "Perlachturm",
+          "en": "Perlach Tower"
+        },
+        "description": {
+          "de": "Der Perlachturm steht direkt neben dem Rathaus. Er begann im 10. Jahrhundert als Wachturm.",
+          "en": "The Perlach Tower stands right next to the town hall. It began in the 10th century as a watchtower."
+        },
+        "address": "Rathausplatz, 86150 Augsburg",
+        "location_lat": 48.3692,
+        "location_lng": 10.8983,
+        "challenges": [
+          {
+            "challenge_type": "quiz",
+            "title": {
+              "de": "Wie hoch ist der Perlachturm?",
+              "en": "How tall is the Perlach Tower?"
+            },
+            "instructions": {
+              "de": "Wählt eine Antwort.",
+              "en": "Choose one answer."
+            },
+            "scoring_rules": {
+              "max_points": 10,
+              "auto_approve": true,
+              "options": ["50 m", "70 m", "90 m"],
+              "correct_option": "70 m"
+            },
+            "time_estimate_minutes": 5,
+            "suggested_solution": "70 m"
+          },
+          {
+            "challenge_type": "quiz",
+            "title": {
+              "de": "Der Feiertag, den nur Augsburg hat",
+              "en": "The holiday only Augsburg has"
+            },
+            "instructions": {
+              "de": "An welchem Tag feiert Augsburg das Hohe Friedensfest, einen Feiertag nur in dieser Stadt?",
+              "en": "On which day does Augsburg celebrate the Hohes Friedensfest, a public holiday only in this city?"
+            },
+            "scoring_rules": {
+              "max_points": 10,
+              "auto_approve": true,
+              "options": ["8.8.", "3.10.", "1.11."],
+              "correct_option": "8.8."
+            },
+            "time_estimate_minutes": 5,
+            "suggested_solution": "8.8. (8 August)"
+          }
+        ]
+      },
+      {
+        "title": {
+          "de": "Fuggerei",
+          "en": "Fuggerei"
+        },
+        "description": {
+          "de": "Die älteste Sozialsiedlung der Welt, die noch bewohnt ist.",
+          "en": "The oldest social housing settlement in the world that is still inhabited."
+        },
+        "address": "Fuggerei, 86152 Augsburg",
+        "location_lat": 48.3688,
+        "location_lng": 10.9041,
+        "challenges": [
+          {
+            "challenge_type": "quiz",
+            "title": {
+              "de": "Wann wurde die Fuggerei gestiftet?",
+              "en": "When was the Fuggerei founded?"
+            },
+            "instructions": {
+              "de": "Jakob Fugger hat die Fuggerei gestiftet. In welchem Jahr?",
+              "en": "Jakob Fugger founded the Fuggerei. In which year?"
+            },
+            "scoring_rules": {
+              "max_points": 10,
+              "auto_approve": true,
+              "options": ["1521", "1648", "1806"],
+              "correct_option": "1521"
+            },
+            "time_estimate_minutes": 5,
+            "suggested_solution": "1521"
+          },
+          {
+            "challenge_type": "photo",
+            "title": {
+              "de": "Ein gutes Zuhause",
+              "en": "A good home"
+            },
+            "instructions": {
+              "de": "Die Jahresmiete in der Fuggerei beträgt bis heute 0,88 Euro. Zeigt mit einem Foto, was für euch ein gutes Zuhause ausmacht. Klappt das Foto nicht, beschreibt es in ein paar Sätzen.",
+              "en": "The annual rent in the Fuggerei is still 0.88 euro. Show with a photo what makes a good home for you. If the photo does not work, describe it in a few sentences."
+            },
+            "scoring_rules": {
+              "max_points": 20
+            },
+            "time_estimate_minutes": 10
+          },
+          {
+            "challenge_type": "qr_scan",
+            "title": {
+              "de": "Ziel erreicht",
+              "en": "Finish reached"
+            },
+            "instructions": {
+              "de": "Scannt den QR-Code, den euch die Spielleitung zeigt.",
+              "en": "Scan the QR code that the organizers show you."
+            },
+            "scoring_rules": {
+              "max_points": 10,
+              "auto_approve": true,
+              "expected_value": "CLAVIS-DEMO-ZIEL"
+            },
+            "time_estimate_minutes": 5
+          }
+        ]
+      }
+    ]
+  }
+}

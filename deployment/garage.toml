@@ -1,0 +1,22 @@
+# Garage configuration: the App's S3 store in every stack of this repo. The
+# standalone server (deployment/standalone), the dev/E2E compose stack and the
+# test stores of the Makefile and CI mount it. The shared-services layout uses
+# the store of its host. No secrets live here: the RPC secret and the default
+# key pair arrive as GARAGE_* environment variables.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+rpc_bind_addr = "[::]:3901"
+# Single node: the advertised RPC address matters only to the node itself.
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+# Must equal the API's S3_REGION (default us-east-1). Without a region the S3
+# client asks the store for the bucket region before its first signed request,
+# and a mismatch fails with AuthorizationHeaderMalformed.
+s3_region = "us-east-1"
+api_bind_addr = "[::]:3900"
+
+[admin]
+api_bind_addr = "[::]:3903"

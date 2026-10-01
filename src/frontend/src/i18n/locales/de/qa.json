@@ -1,0 +1,73 @@
+{
+  "bar": {
+    "label": "Feedback-Leiste für die Testsitzung"
+  },
+  "step": {
+    "none": "Kein Schritt",
+    "do": "Tun",
+    "expect": "Erwartet",
+    "needs": "Vorher"
+  },
+  "actions": {
+    "ok": "OK, der Schritt passt",
+    "skip": "Schritt überspringen",
+    "note": "Notiz schreiben",
+    "expand": "Leiste ausklappen",
+    "collapse": "Leiste einklappen",
+    "send": "Notiz senden",
+    "point": "Auf Element zeigen",
+    "pointCancel": "Zeigen abbrechen",
+    "removeTarget": "Element entfernen",
+    "dockTop": "Nach oben",
+    "dockBottom": "Nach unten",
+    "hide": "Ausblenden",
+    "hideHint": "Zurück mit ?qa=on in der Adresse",
+    "back": "Zurück zum vorigen Schritt",
+    "answer": "Antworten",
+    "goto": "Zum Block springen"
+  },
+  "field": {
+    "label": "Notiz",
+    "placeholder": "Was siehst du, was stört dich?",
+    "help": "Beim Überspringen gilt der Text als Grund.",
+    "answerLabel": "Antwort an den Assistenten"
+  },
+  "pointing": {
+    "hint": "Klicke oder tippe auf ein Element. Esc bricht ab."
+  },
+  "toast": {
+    "ok": "OK gespeichert",
+    "skip": "Überspringen gespeichert",
+    "note": "Notiz gespeichert",
+    "queued": "Kein Netz. Die Notiz wartet und wird nachgesendet.",
+    "failed": "Nicht gespeichert (Fehler {{status}}).",
+    "back": "Zurück gemeldet",
+    "goto": "Weiter bei {{step}}",
+    "end": "Ende des Plans erreicht",
+    "start": "Das ist schon der erste Schritt",
+    "ended": "Die Sitzung ist beendet"
+  },
+  "blocks": {
+    "label": "Blöcke, ein Tipp springt zum Anfang"
+  },
+  "message": {
+    "label": "Frage vom Assistenten"
+  },
+  "role": {
+    "youAre": "Du bist: {{role}}",
+    "mismatch": "Braucht: {{needs}} · Du bist: {{you}}",
+    "names": {
+      "operator": "Betreiber",
+      "org_admin": "Verwaltung",
+      "creator": "Erstellung",
+      "coordinator": "Spielleitung",
+      "participant": "Teilnehmende",
+      "guest": "Gast",
+      "signed_out": "abgemeldet"
+    }
+  },
+  "device": {
+    "phone": "Auf dem Handy ausführen",
+    "desktop": "Am Desktop ausführen"
+  }
+}

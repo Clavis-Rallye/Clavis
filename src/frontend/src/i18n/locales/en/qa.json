@@ -1,0 +1,73 @@
+{
+  "bar": {
+    "label": "Feedback bar for the test session"
+  },
+  "step": {
+    "none": "No step",
+    "do": "Do",
+    "expect": "Expect",
+    "needs": "Before"
+  },
+  "actions": {
+    "ok": "OK, the step passes",
+    "skip": "Skip the step",
+    "note": "Write a note",
+    "expand": "Expand the bar",
+    "collapse": "Collapse the bar",
+    "send": "Send note",
+    "point": "Point at an element",
+    "pointCancel": "Cancel pointing",
+    "removeTarget": "Remove the element",
+    "dockTop": "Move to the top",
+    "dockBottom": "Move to the bottom",
+    "hide": "Hide",
+    "hideHint": "Bring it back with ?qa=on in the address",
+    "back": "Back to the previous step",
+    "answer": "Answer",
+    "goto": "Jump to the block"
+  },
+  "field": {
+    "label": "Note",
+    "placeholder": "What do you see, what bothers you?",
+    "help": "On skip, the text is the reason.",
+    "answerLabel": "Answer to the assistant"
+  },
+  "pointing": {
+    "hint": "Click or tap an element. Esc cancels."
+  },
+  "toast": {
+    "ok": "OK saved",
+    "skip": "Skip saved",
+    "note": "Note saved",
+    "queued": "No network. The note waits and is sent later.",
+    "failed": "Not saved (error {{status}}).",
+    "back": "Back reported",
+    "goto": "Now at {{step}}",
+    "end": "End of the plan",
+    "start": "This is already the first step",
+    "ended": "The session has ended"
+  },
+  "blocks": {
+    "label": "Blocks, a tap jumps to the start"
+  },
+  "message": {
+    "label": "Question from the assistant"
+  },
+  "role": {
+    "youAre": "You are: {{role}}",
+    "mismatch": "Needs: {{needs}} · You are: {{you}}",
+    "names": {
+      "operator": "Operator",
+      "org_admin": "Admin",
+      "creator": "Creator",
+      "coordinator": "Coordinator",
+      "participant": "Participant",
+      "guest": "Guest",
+      "signed_out": "signed out"
+    }
+  },
+  "device": {
+    "phone": "Do this on the phone",
+    "desktop": "Do this on the desktop"
+  }
+}
