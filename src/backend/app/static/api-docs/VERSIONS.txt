@@ -1,0 +1,3 @@
+Fetched by scripts/update-api-docs-assets.sh from registry.npmjs.org.
+swagger-ui-dist 5.34.1 (Apache-2.0): swagger-ui/
+redoc 2.5.4 (MIT): redoc/, with the Redocly logo address emptied

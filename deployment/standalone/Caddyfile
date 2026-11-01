@@ -1,0 +1,36 @@
+# Caddy configuration of the standalone server (docker-compose.yml in this folder).
+#
+# CLAVIS_SITE is CLAVIS_DOMAIN from .env unless .env sets CLAVIS_SITE itself.
+# - A domain name, for example rallye.example.org: Caddy gets a certificate
+#   from Let's Encrypt on the first request, renews it on its own, and
+#   redirects HTTP to HTTPS. The DNS record of the domain must point at this
+#   server, and ports 80 and 443 must be reachable from the internet.
+# - :80, behind a reverse proxy of your own that terminates TLS: Caddy serves
+#   plain HTTP. Set CLAVIS_TRUSTED_PROXIES to the address range of that proxy,
+#   for example private_ranges, so the API sees the address of the browser.
+#
+# Caddy's TLS defaults are TLS 1.2 and 1.3 with forward-secret AEAD ciphers.
+# The frontend and the API set their own Content-Security-Policy and the other
+# security headers. This file adds HSTS only.
+
+{
+	servers {
+		trusted_proxies static {$CLAVIS_TRUSTED_PROXIES}
+	}
+}
+
+{$CLAVIS_SITE} {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	# The QR scanner needs the camera. Recording an answer may need the microphone.
+	header Permissions-Policy "geolocation=(self), microphone=(self), camera=(self)"
+
+	# The API, including the WebSocket upgrade of the live coordination.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy frontend:80
+	}
+}

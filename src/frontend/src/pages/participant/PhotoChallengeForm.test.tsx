@@ -1,0 +1,282 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route, Outlet } from 'react-router';
+import ChallengeView from './ChallengeView';
+import { AuthContext } from '../../auth/AuthContext';
+import apiClient, { ApiError } from '../../api/client';
+import { uploadFile } from '../../api/files';
+
+vi.mock('../../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api/client')>();
+  return {
+    ...actual,
+    default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  };
+});
+
+vi.mock('../../api/files', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/files')>()),
+  uploadFile: vi.fn(),
+}));
+
+// The real Photo form inside the real task page, because the error is spoken by
+// the form and by the page together. A unit test cannot hear, so these tests check
+// the structure that would make a screen reader speak twice: the error text has one
+// announcing path, the focus is not on BODY, and the answer stays in the form.
+// Only a failed send heard with a screen reader (NVDA) proves it.
+const authUser = {
+  id: 'u1',
+  email: 'participant@example.com',
+  display_name: 'Teilnehmer',
+  role: 'participant' as const,
+  organization_id: 'org-1',
+  organization_slug: 'test-org',
+};
+
+const challenge = {
+  id: 'ch-1',
+  organization_id: 'org-1',
+  run_id: 'run-1',
+  run_station_id: 's-1',
+  source_challenge_id: null,
+  challenge_type: 'photo',
+  title: { de: 'Rätselaufgabe' },
+  instructions: { de: 'Löse das Rätsel.' },
+  scoring_rules: { max_points: 10 },
+  sort_order: 0,
+};
+
+const teammateAnswer = {
+  id: 'sub-1',
+  organization_id: 'org-1',
+  run_id: 'run-1',
+  team_id: 'team-1',
+  run_challenge_id: 'ch-1',
+  content: { text: 'Antwort des Teams' },
+  submitted_at: '2026-01-01T00:00:00Z',
+  is_scored: false,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+const page = (items: unknown[]) => ({ data: { items, total: items.length, skip: 0, limit: 100 } });
+
+const mockLoad = () => {
+  vi.mocked(apiClient.get)
+    .mockResolvedValueOnce(page([challenge]))
+    .mockResolvedValueOnce(page([]))
+    // Anything later, such as the re-read after a refusal: still no answer.
+    .mockResolvedValue(page([]));
+};
+
+const renderView = () =>
+  render(
+    <MemoryRouter initialEntries={['/runs/run-1/participant/stations/s-1/challenges/ch-1']}>
+      <AuthContext.Provider
+        value={{
+          user: authUser,
+          isAuthenticated: true,
+          isLoading: false,
+          login: vi.fn(),
+          logout: vi.fn(),
+          checkAuth: vi.fn(),
+          needsTwoFactorSetup: () => false,
+        }}
+      >
+        <Routes>
+          <Route path="/runs/:runId/participant" element={<Outlet context={{ run: null }} />}>
+            <Route path="stations/:stationId/challenges/:challengeId" element={<ChallengeView />} />
+          </Route>
+        </Routes>
+      </AuthContext.Provider>
+    </MemoryRouter>,
+  );
+
+const GENERIC = 'Die Antwort konnte nicht gesendet werden. Bitte versuche es erneut.';
+const SEND = { name: 'Antwort senden' };
+const NOTICE = 'Deine Antwort wurde nicht gesendet';
+
+// The live-region selector that the failed-send suites share.
+const LIVE = '[role="alert"], [role="status"], [role="log"], [aria-live]';
+
+const liveHolders = (text: string) =>
+  Array.from(document.querySelectorAll(LIVE)).filter(
+    (el) => el.getAttribute('aria-live') !== 'off' && (el.textContent ?? '').includes(text),
+  );
+
+const expectSpokenOnce = (text: string) => {
+  const focused = document.activeElement as HTMLElement;
+  // The focus does not rest on BODY.
+  expect(focused).not.toBe(document.body);
+  const live = liveHolders(text);
+  if ((focused.textContent ?? '').includes(text)) {
+    // Focus path: no live element holds the same text.
+    expect(live).toHaveLength(0);
+  } else {
+    // Live path: one live element holds it, and the focus is neither in nor around it.
+    expect(live).toHaveLength(1);
+    expect(focused.contains(live[0])).toBe(false);
+    expect(live[0].contains(focused)).toBe(false);
+  }
+};
+
+const states: Array<{ name: string; error: () => unknown; text: string }> = [
+  { name: 'no answer from the server (status 0)', error: () => new ApiError(0, 'Network Error'), text: GENERIC },
+  {
+    name: '4xx RUN_PAUSED',
+    error: () => new ApiError(409, 'paused', 'RUN_PAUSED'),
+    text: 'Der Lauf ist gerade pausiert. Bitte sendet eure Antwort, sobald es weitergeht.',
+  },
+  {
+    name: '4xx RUN_ENDED',
+    error: () => new ApiError(409, 'ended', 'RUN_ENDED'),
+    text: 'Der Lauf ist beendet. Es können keine Antworten mehr gesendet werden.',
+  },
+  { name: 'uncoded 422', error: () => new ApiError(422, 'Antwort ungültig'), text: 'Antwort ungültig' },
+  { name: '5xx', error: () => new ApiError(503, 'Service Unavailable'), text: GENERIC },
+  { name: 'an error that is not an ApiError', error: () => new Error('boom'), text: 'Error: boom' },
+  {
+    name: '4xx IMAGE_TOO_LARGE',
+    error: () => new ApiError(413, 'too large', 'IMAGE_TOO_LARGE'),
+    text: 'Das Foto ist zu groß. Bitte nimm es mit geringerer Auflösung auf.',
+  },
+];
+
+// The refusal after which a teammate's answer is shown instead of the form.
+const TEAMMATE_REFUSAL = () => new ApiError(422, 'dup', 'TEAM_ALREADY_SUBMITTED');
+
+const photo = new File(['img'], 'foto.jpg', { type: 'image/jpeg' });
+const fill = async () => {
+  await screen.findByRole('button', { name: 'Aus Galerie wählen' });
+  const [, galleryInput] = document.querySelectorAll('input[type="file"]');
+  await userEvent.upload(galleryInput as HTMLInputElement, photo);
+};
+const expectAnswerStays = () => {
+  // The preview shows the picked photo.
+  expect(screen.getByRole('img', { name: 'Vorschau' })).toBeInTheDocument();
+};
+
+describe('Photo task: a failed send', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(uploadFile).mockResolvedValue({
+      object_key: 'org-1/run-1/team-1/foto.jpg',
+      url: 'https://example.com/presigned',
+      content_type: 'image/jpeg',
+      size: 3,
+    });
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-photo-url');
+    globalThis.URL.revokeObjectURL = vi.fn();
+  });
+
+  it.each(states)('$name: spoken once, focus not on BODY, answer stays', async ({ error, text }) => {
+    mockLoad();
+    vi.mocked(apiClient.post).mockRejectedValueOnce(error());
+    renderView();
+
+    await fill();
+    await userEvent.click(await screen.findByRole('button', SEND));
+
+    await screen.findAllByText(text);
+    await screen.findByRole('button', SEND);
+    expectSpokenOnce(text);
+    expectAnswerStays();
+    // A retry needs no new input.
+    expect(screen.getByRole('button', SEND)).toBeEnabled();
+  });
+
+  // The view reloads and shows the team's answer with the person's own input.
+  // The form is gone then, so the focus lands on the notice.
+  it('TEAM_ALREADY_SUBMITTED: the team answer and the own input show, spoken once, focus not on BODY', async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(page([challenge]))
+      .mockResolvedValueOnce(page([]))
+      .mockResolvedValue(page([teammateAnswer]));
+    vi.mocked(apiClient.post).mockRejectedValueOnce(TEAMMATE_REFUSAL());
+    renderView();
+
+    await fill();
+    await userEvent.click(await screen.findByRole('button', SEND));
+
+    await screen.findByText(NOTICE);
+    await waitFor(() => expect(screen.queryByRole('button', SEND)).not.toBeInTheDocument());
+    expect(screen.getByText('Antwort des Teams')).toBeInTheDocument();
+    expectSpokenOnce(NOTICE);
+  });
+
+  // The upload fails before the answer is sent: the picked photo stays, and the
+  // error has one path, as after a failed answer.
+  it.each(states)('$name, at the upload: spoken once, focus not on BODY, photo stays', async ({ error, text }) => {
+    mockLoad();
+    vi.mocked(uploadFile).mockRejectedValueOnce(error());
+    renderView();
+
+    await fill();
+    await userEvent.click(await screen.findByRole('button', SEND));
+
+    await screen.findAllByText(text);
+    await screen.findByRole('button', SEND);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expectSpokenOnce(text);
+    expectAnswerStays();
+
+    // The retry sends the same file again, without a new pick.
+    await userEvent.click(screen.getByRole('button', SEND));
+    await waitFor(() => expect(uploadFile).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(uploadFile).mock.calls[1][2]).toBe(photo);
+  });
+
+
+  it('keeps the focus on the send button during the request, and a second press or Enter sends nothing', async () => {
+    mockLoad();
+    let reject!: (e: unknown) => void;
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((_, r) => {
+        reject = r;
+      }) as never,
+    );
+    renderView();
+
+    await fill();
+    await userEvent.click(await screen.findByRole('button', SEND));
+    const pending = await screen.findByRole('button', { name: 'Wird gesendet…' });
+    expect(document.activeElement).not.toBe(document.body);
+    // The button is not natively disabled, so the focus stays on it.
+    expect(pending).not.toBeDisabled();
+    expect(pending).toHaveAttribute('aria-disabled', 'true');
+    expect(pending).toHaveFocus();
+
+    await userEvent.click(pending);
+    await userEvent.keyboard('{Enter}');
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(pending).toHaveFocus();
+
+    await act(async () => reject(new ApiError(0, 'Network Error')));
+    await screen.findAllByText(GENERIC);
+    expectSpokenOnce(GENERIC);
+  });
+
+  it('refuses a press between the result and the next render', async () => {
+    mockLoad();
+    let reject!: (e: unknown) => void;
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((_, r) => {
+        reject = r;
+      }) as never,
+    );
+    renderView();
+
+    await fill();
+    await userEvent.click(await screen.findByRole('button', SEND));
+    const pending = await screen.findByRole('button', { name: 'Wird gesendet…' });
+
+    // The rejection has been handled, React has not rendered the result yet.
+    reject(new ApiError(0, 'Network Error'));
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    fireEvent.click(pending);
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    await screen.findAllByText(GENERIC);
+  });
+});

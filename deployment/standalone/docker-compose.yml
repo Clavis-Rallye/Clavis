@@ -1,0 +1,215 @@
+# Clavis on one server: database, object store, API, frontend and a reverse
+# proxy with automatic HTTPS. Nothing else needs to exist on the server except
+# Docker. The images are built from this checkout.
+#
+#   cd deployment/standalone
+#   ./init-env.sh rallye.example.org     # writes .env with fresh secrets
+#   docker compose up -d --build --wait
+#
+# deployment/README.md describes the whole installation and the first steps.
+#
+# deployment/docker-compose.prod.yml is the other layout: it uses the PostgreSQL,
+# the object store and the reverse proxy of a host that runs several services.
+# This file does not depend on that file.
+
+name: clavis
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# The API and the database migration get the same settings. Every line of .env
+# reaches the API (env_file below), so any setting of the API may go into .env.
+# The lines here connect the services with each other and win over .env.
+x-api-environment: &api-environment
+  ENVIRONMENT: production
+  DATABASE_URL: postgresql+asyncpg://clavis:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/clavis
+  S3_ENDPOINT: garage:3900
+  S3_BUCKET: clavis
+  S3_SECURE: "false"
+  # Must equal s3_region in ../garage.toml.
+  S3_REGION: us-east-1
+  LOG_DIR: /var/log/clavis
+  # The one public origin. Browsers and the links in mail use it.
+  WEBAUTHN_RP_ID: ${CLAVIS_DOMAIN:?set CLAVIS_DOMAIN in .env}
+  WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Clavis}
+  WEBAUTHN_ORIGIN: ${CLAVIS_ORIGIN:-https://${CLAVIS_DOMAIN}}
+  CORS_ORIGINS: ${CLAVIS_ORIGIN:-https://${CLAVIS_DOMAIN}}
+  PUBLIC_BASE_URL: ${CLAVIS_ORIGIN:-https://${CLAVIS_DOMAIN}}
+  # The API takes the client address from X-Forwarded-For only for a request
+  # from the web network, both its subnets, where Caddy is. Caddy replaces the
+  # header with the address it sees, unless CLAVIS_TRUSTED_PROXIES names a proxy
+  # in front of it. Never "*": then any client chooses its own address.
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-${CLAVIS_WEB_SUBNET:-172.16.238.0/24},${CLAVIS_WEB_SUBNET_V6:-fd00:172:16:238::/64}}
+  # Registrations per client address, checked before the password is hashed.
+  REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-10/minute}
+  # No search text leaves the server until the operator picks a service.
+  GEOCODER_UPSTREAM: ${GEOCODER_UPSTREAM:-none}
+  # The tile server of both maps and its attribution. Empty: the defaults.
+  GEOCODER_MAP_TILE_URL: ${MAP_TILE_URL:-}
+  GEOCODER_MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clavis
+      POSTGRES_USER: clavis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clavis -d clavis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+  # Garage, an S3-compatible object store for photos, videos and audio. It
+  # creates the bucket and the key pair from .env at its first start.
+  garage:
+    image: dxflrs/garage:v2.4.1
+    restart: unless-stopped
+    command: /garage server --single-node --default-bucket
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET in .env}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      GARAGE_DEFAULT_BUCKET: clavis
+    volumes:
+      - ../garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+  api:
+    build:
+      context: ../../src/backend
+    restart: unless-stopped
+    # Migrate the database to the current schema, then serve. An update needs
+    # no separate migration step. A failed migration stops the API, and
+    # `docker compose logs api` shows why.
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    env_file: .env
+    environment: *api-environment
+    volumes:
+      - api_logs:/var/log/clavis
+    networks:
+      - backend
+      - web
+    depends_on:
+      db:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *logging
+
+  frontend:
+    build:
+      context: ../../src/frontend
+      args:
+        # Empty: the browser calls the API on its own origin.
+        VITE_API_URL: ""
+    restart: unless-stopped
+    # The tile server of both maps: the API hands its URL to the
+    # browser, and nginx fills the CSP with the origin of it.
+    environment:
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+    networks:
+      - web
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *logging
+
+  # Caddy, the only service with published ports. It gets and renews the TLS
+  # certificate for CLAVIS_DOMAIN, routes /api/* to the API and everything else
+  # to the frontend.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      CLAVIS_SITE: ${CLAVIS_SITE:-${CLAVIS_DOMAIN}}
+      CLAVIS_TRUSTED_PROXIES: ${CLAVIS_TRUSTED_PROXIES:-127.0.0.1/32}
+    ports:
+      - "${CLAVIS_HTTP_PORT:-80}:80"
+      - "${CLAVIS_HTTPS_PORT:-443}:443"
+      - "${CLAVIS_HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      # The admin endpoint answers once Caddy has loaded its configuration.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+networks:
+  # The database and the object store have no way out of the server.
+  backend:
+    internal: true
+  # Fixed subnets, so that FORWARDED_ALLOW_IPS of the API can name them. The
+  # IPv4 default lies outside Docker's default address pools, and the IPv6
+  # default is a private range. If `up` stops with "Pool overlaps with other one
+  # on this address space", another network on this host holds one of them:
+  # set CLAVIS_WEB_SUBNET or CLAVIS_WEB_SUBNET_V6 in .env.
+  # IPv6 on this network lets Docker pass an IPv6 visitor to Caddy with its own
+  # address, as it does for IPv4. Without it, Docker's proxy takes every IPv6
+  # connection, and all IPv6 visitors share the gateway's address in the audit
+  # and in every limit. A host without IPv6, or a Docker before 27, starts the
+  # same and behaves as before.
+  web:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: ${CLAVIS_WEB_SUBNET:-172.16.238.0/24}
+        - subnet: ${CLAVIS_WEB_SUBNET_V6:-fd00:172:16:238::/64}
+
+# The data of the installation. A backup covers db_data and the two garage
+# volumes, see deployment/README.md.
+volumes:
+  db_data:
+  garage_meta:
+  garage_data:
+  api_logs:
+  caddy_data:
+  caddy_config:

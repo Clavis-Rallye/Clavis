@@ -1,0 +1,32 @@
+name: DCO
+# Every commit of a pull request carries the sign-off of its author. The check runs the workflow and
+# the script of the base branch (pull_request_target) and reads the pull request only through the
+# API, so no code of a pull request runs here, and a fork cannot change the check it is judged by.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: dco-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  signoff:
+    name: DCO / sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The check passes its own cases
+        run: python3 .github/scripts/check-signoff.py --self-test
+      - name: Every commit carries the sign-off of its author
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
+        run: gh api "repos/$REPO/pulls/$PR/commits" --paginate --jq '.[]' | python3 .github/scripts/check-signoff.py
