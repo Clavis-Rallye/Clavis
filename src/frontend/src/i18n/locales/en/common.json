@@ -153,7 +153,8 @@
     "toolbar": "Formatting",
     "linkAddressLabel": "Address of the link",
     "linkAddressHint": "For example https://www.example.org",
-    "linkAddressInvalid": "That is not a web address. It starts with https:// or is an address like example.org or name@example.org."
+    "linkAddressInvalid": "That is not a web address. It starts with https:// or is an address like example.org or name@example.org.",
+    "moreTools": "More tools"
   },
   "loading": "Loading …",
   "legalLinks": {

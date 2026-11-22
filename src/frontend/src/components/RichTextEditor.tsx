@@ -1,16 +1,7 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Box, Divider, IconButton, Stack, Tooltip } from '@mui/material';
-import FormatBoldIcon from '@mui/icons-material/FormatBold';
-import FormatItalicIcon from '@mui/icons-material/FormatItalic';
-import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlined';
-import TitleIcon from '@mui/icons-material/Title';
-import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
-import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import LinkIcon from '@mui/icons-material/Link';
-import LinkOffIcon from '@mui/icons-material/LinkOff';
-import ImageIcon from '@mui/icons-material/Image';
-import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { Alert, Box } from '@mui/material';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -20,6 +11,7 @@ import { onOrgMediaRefused } from '../api/media';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextLinkDialog from './RichTextLinkDialog';
+import RichTextToolbar from './RichTextToolbar';
 
 interface RichTextEditorProps {
   /** Current document as HTML. Legacy plain text is converted on the way in. */
@@ -49,7 +41,7 @@ interface RichTextEditorProps {
 }
 
 /**
- * TipTap-based rich-text editor with an 8-button toolbar:
+ * TipTap-based rich-text editor. The toolbar is `RichTextToolbar`:
  *   B · I · U · H · 1. ordered · • unordered · 🔗 link · 🖼 image
  *
  * Output is HTML. Render the same HTML on the consumer side via
@@ -91,6 +83,12 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       setImageDialogRound((round) => round + 1);
     });
   }, [imageDialogOpen]);
+
+  const openLinkDialog = useCallback(() => setLinkDialogOpen(true), []);
+  const openImageDialog = useCallback(() => {
+    setImageRefusal(null);
+    setImageDialogOpen(true);
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -154,7 +152,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         border: 1,
         borderColor: error ? 'error.main' : 'divider',
         borderRadius: 1.5,
-        overflow: 'hidden',
+        // `clip` and not `hidden`: the rounded corners still clip, but the frame
+        // is no scroll container, so the toolbar can stay in view (sticky).
+        overflow: 'clip',
         bgcolor: disabled ? 'action.disabledBackground' : 'background.paper',
         opacity: disabled ? 0.6 : 1,
         // The focus frame matches the other outlined fields (theme.ts: #1D47A4,
@@ -166,107 +166,14 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         },
       }}
     >
-      <Stack
-        direction="row"
-        spacing={0.25}
-        role="toolbar"
-        aria-label={ariaLabel ? `${ariaLabel}: ${t('richTextEditor.toolbar')}` : t('richTextEditor.toolbar')}
-        sx={{
-          px: 1,
-          py: 0.5,
-          borderBottom: 1,
-          borderColor: 'divider',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.bold')}
-          active={editor.isActive('bold')}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          <FormatBoldIcon fontSize="small" />
-        </ToolbarButton>
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.italic')}
-          active={editor.isActive('italic')}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          <FormatItalicIcon fontSize="small" />
-        </ToolbarButton>
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.underline')}
-          active={editor.isActive('underline')}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-        >
-          <FormatUnderlinedIcon fontSize="small" />
-        </ToolbarButton>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.75 }} />
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.heading')}
-          active={editor.isActive('heading', { level: 2 })}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        >
-          <TitleIcon fontSize="small" />
-        </ToolbarButton>
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.numberedList')}
-          active={editor.isActive('orderedList')}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        >
-          <FormatListNumberedIcon fontSize="small" />
-        </ToolbarButton>
-        <ToolbarButton
-          editor={editor}
-          label={t('richTextEditor.bulletList')}
-          active={editor.isActive('bulletList')}
-          disabled={disabled}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        >
-          <FormatListBulletedIcon fontSize="small" />
-        </ToolbarButton>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.75 }} />
-        <ToolbarButton
-          editor={editor}
-          label={editor.isActive('link') ? t('richTextEditor.removeLink') : t('richTextEditor.addLink')}
-          active={editor.isActive('link')}
-          disabled={disabled}
-          onClick={() => {
-            if (editor.isActive('link')) {
-              editor.chain().focus().unsetLink().run();
-              return;
-            }
-            // The editor's own dialog asks for the address and checks it.
-            setLinkDialogOpen(true);
-          }}
-        >
-          {editor.isActive('link') ? <LinkOffIcon fontSize="small" /> : <LinkIcon fontSize="small" />}
-        </ToolbarButton>
-        {mediaOrg && (
-          <ToolbarButton
-            editor={editor}
-            label={t('richTextEditor.image')}
-            active={editor.isActive('image')}
-            disabled={disabled}
-            onClick={() => {
-              setImageRefusal(null);
-              setImageDialogOpen(true);
-            }}
-          >
-            <ImageIcon fontSize="small" />
-          </ToolbarButton>
-        )}
-      </Stack>
+      <RichTextToolbar
+        editor={editor}
+        disabled={disabled}
+        allowImages={Boolean(mediaOrg)}
+        onOpenLink={openLinkDialog}
+        onOpenImage={openImageDialog}
+        editorLabel={ariaLabel}
+      />
       {imageRefusal && (
         <Alert severity="error" sx={{ borderRadius: 0 }}>
           {t(imageRefusal)}
@@ -339,40 +246,5 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     </Box>
   );
 };
-
-interface ToolbarButtonProps {
-  editor: Editor;
-  label: string;
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}
-
-const ToolbarButton: React.FC<ToolbarButtonProps> = ({
-  label,
-  active,
-  disabled = false,
-  onClick,
-  children,
-}) => (
-  <Tooltip title={label}>
-    <span>
-      <IconButton
-        size="small"
-        aria-label={label}
-        aria-pressed={active}
-        disabled={disabled}
-        onClick={onClick}
-        sx={{
-          color: active ? 'primary.main' : 'text.secondary',
-          bgcolor: active ? 'action.selected' : 'transparent',
-        }}
-      >
-        {children}
-      </IconButton>
-    </span>
-  </Tooltip>
-);
 
 export default RichTextEditor;
