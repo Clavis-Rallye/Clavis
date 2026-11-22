@@ -191,7 +191,9 @@
     "tableRemoveColumn": "Spalte löschen",
     "tableHeaderRow": "Kopfzeile",
     "tableRemove": "Tabelle löschen",
-    "selectionMenu": "Auswahl formatieren"
+    "selectionMenu": "Auswahl formatieren",
+    "pasteImagesLeftOut_one": "{{count}} Bild wurde nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.",
+    "pasteImagesLeftOut_other": "{{count}} Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein."
   },
   "loading": "Wird geladen …",
   "legalLinks": {

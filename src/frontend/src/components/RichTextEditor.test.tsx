@@ -1,13 +1,14 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import RichTextEditor from './RichTextEditor';
 import { AuthContext } from '../auth/AuthContext';
 import i18n from '../i18n';
 import apiClient, { ApiError } from '../api/client';
+import { WEB_PASTE_HTML, WORD_PASTE_HTML } from '../utils/pasteFixtures';
 
 // ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
 const emptyRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
@@ -226,6 +227,85 @@ describe('RichTextEditor', () => {
     // The second pixel is an inset shadow, so the border box keeps its size
     // and nothing shifts when the focus enters.
     expect(frameCss).toMatch(/:focus-within[^{]*\{[^}]*box-shadow:\s*inset 0 0 0 1px #1D47A4/i);
+  });
+
+  // Pasted HTML is cleaned before the editor reads it: what shows in the
+  // editor is what will be stored.
+  describe('pasting', () => {
+    const paste = (box: HTMLElement, data: { html?: string; text?: string }) => {
+      fireEvent.paste(box, {
+        clipboardData: {
+          getData: (type: string) => (type === 'text/html' ? data.html ?? '' : type === 'text/plain' ? data.text ?? '' : ''),
+          types: [data.html ? 'text/html' : '', data.text ? 'text/plain' : ''].filter(Boolean),
+          files: [],
+          items: [],
+        },
+      });
+    };
+
+    const setup = async () => {
+      const onChange = vi.fn();
+      render(<RichTextEditor value="" onChange={onChange} ariaLabel="Beschreibung" orgSlug="stadt" />);
+      const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+      return { box, onChange, lastHtml: () => onChange.mock.calls.at(-1)?.[0] as string };
+    };
+
+    it('turns the Word sample into the editor\'s list, formatting and table', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { html: WORD_PASTE_HTML, text: 'Aus Word: Treffpunkt' });
+      await waitFor(() => expect(box.querySelector('table')).not.toBeNull());
+      expect(lastHtml()).toBe(
+        '<p><strong>Aus Word: Treffpunkt</strong></p>' +
+          '<ul><li><p>Word-Punkt eins</p></li><li><p>Word-Punkt zwei</p></li></ul>' +
+          '<p><em>Kursiv aus Word</em> und gelb markiert</p>' +
+          '<table><tbody><tr><td><p>Zelle 1</p></td><td><p>Zelle 2</p></td></tr></tbody></table>' +
+          // The editor keeps a paragraph after a table to write in.
+          '<p></p>',
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('says how many images it left out, can be closed and goes away on the next paste', async () => {
+      const user = userEvent.setup();
+      const { box, lastHtml } = await setup();
+      paste(box, { html: WEB_PASTE_HTML });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        '1 Bild wurde nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.',
+      );
+      expect(box.querySelector('img')).toBeNull();
+      expect(lastHtml()).toContain('<h2>Aus dem Web: Öffnungszeiten</h2>');
+      expect(lastHtml()).not.toContain('<img');
+
+      await user.click(within(screen.getByRole('alert')).getByRole('button'));
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+
+      paste(box, { html: `${WEB_PASTE_HTML}<img src="https://example.org/b.jpg"><img src="https://example.org/c.jpg">` });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        '3 Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.',
+      );
+      paste(box, { text: 'nur Text' });
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    });
+
+    it('says it in English', async () => {
+      await i18n.changeLanguage('en');
+      try {
+        const { box } = await setup();
+        paste(box, { html: WEB_PASTE_HTML });
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          '1 image was left out. Add images with the image button.',
+        );
+      } finally {
+        await i18n.changeLanguage('de');
+      }
+    });
+
+    it('pastes plain text as before', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { text: 'Nur ein Satz' });
+      await waitFor(() => expect(lastHtml()).toBe('<p>Nur ein Satz</p>'));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
   });
 
   describe('code and code blocks are off', () => {

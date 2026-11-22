@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Box } from '@mui/material';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -7,6 +7,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import { AuthContext } from '../auth/AuthContext';
 import { onOrgMediaRefused } from '../api/media';
+import { cleanPastedHtml } from '../utils/cleanPastedHtml';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
@@ -75,6 +76,11 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   // gives the image dialog a fresh state after a refusal.
   const [imageRefusal, setImageRefusal] = useState<string | null>(null);
   const [imageDialogRound, setImageDialogRound] = useState(0);
+  // Images the last paste left out. The paste cleaner runs inside ProseMirror's
+  // paste, far from React state, so it writes the count to this ref and the
+  // paste handler, which runs later in the same paste, moves it into state.
+  const pastedImagesLeftOut = useRef(0);
+  const [pasteImagesLeftOut, setPasteImagesLeftOut] = useState(0);
 
   // The image dialog shows one generic message for every failed upload. A coded
   // refusal (no readable picture, too large) is no reason to try the same file
@@ -120,6 +126,29 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     content: toEditorHtml(value),
     editable: !disabled,
     editorProps: {
+      // Word, Google Docs and web pages put their markup on the clipboard. It is
+      // cleaned to the contract before the editor reads it, so a paste shows what
+      // will be stored. Plain text never passes here.
+      transformPastedHTML: (html) => {
+        const cleaned = cleanPastedHtml(html);
+        pastedImagesLeftOut.current = cleaned.imagesLeftOut;
+        return cleaned.html;
+      },
+      handleDOMEvents: {
+        // A count left by a drop or by a paste that failed must not show up on
+        // the next paste: every paste starts at zero.
+        paste: () => {
+          pastedImagesLeftOut.current = 0;
+          return false;
+        },
+      },
+      // Runs after the transform of the same paste, also for a paste of plain
+      // text (count 0), which closes the note of the paste before.
+      handlePaste: () => {
+        setPasteImagesLeftOut(pastedImagesLeftOut.current);
+        pastedImagesLeftOut.current = 0;
+        return false;
+      },
       // Alt+F10 moves the focus into the menu of the selected image, or of the
       // table the cursor is in. Without a menu the key keeps its meaning.
       handleKeyDown: (view, event) => {
@@ -194,6 +223,11 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       {imageRefusal && (
         <Alert severity="error" sx={{ borderRadius: 0 }}>
           {t(imageRefusal)}
+        </Alert>
+      )}
+      {pasteImagesLeftOut > 0 && (
+        <Alert severity="info" sx={{ borderRadius: 0 }} onClose={() => setPasteImagesLeftOut(0)}>
+          {t('richTextEditor.pasteImagesLeftOut', { count: pasteImagesLeftOut })}
         </Alert>
       )}
       <Box

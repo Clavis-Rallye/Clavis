@@ -191,7 +191,9 @@
     "tableRemoveColumn": "Delete column",
     "tableHeaderRow": "Header row",
     "tableRemove": "Delete table",
-    "selectionMenu": "Format selection"
+    "selectionMenu": "Format selection",
+    "pasteImagesLeftOut_one": "{{count}} image was left out. Add images with the image button.",
+    "pasteImagesLeftOut_other": "{{count}} images were left out. Add images with the image button."
   },
   "loading": "Loading …",
   "legalLinks": {
