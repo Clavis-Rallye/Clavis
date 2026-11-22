@@ -67,14 +67,20 @@ const InstanceLegal: React.FC = () => {
     try {
       // InstanceLegalUpdateRequest (api/types.ts) does not list the backup
       // period, so the body type adds it here.
-      const body: InstanceLegalUpdateRequest & { backup_retention_days: number | null } = {
-        legal_imprint: toNull(legalImprint),
-        legal_privacy: toNull(legalPrivacy),
-        legal_accessibility: toNull(legalAccessibility),
-        // A number in the field is the operator's statement, also when it equals
-        // the default. An empty field states nothing (null).
-        backup_retention_days: backupDays.trim() === '' ? null : Number(backupDays),
-      };
+      const body: InstanceLegalUpdateRequest & { backup_retention_days?: number | null } = {};
+      // Only a value that differs from the one the page loaded is sent. A
+      // stored text the operator did not touch is not rewritten, and the route
+      // keeps an omitted field as it is.
+      if (legalImprint !== (saved?.legal_imprint ?? '')) body.legal_imprint = toNull(legalImprint);
+      if (legalPrivacy !== (saved?.legal_privacy ?? '')) body.legal_privacy = toNull(legalPrivacy);
+      if (legalAccessibility !== (saved?.legal_accessibility ?? '')) {
+        body.legal_accessibility = toNull(legalAccessibility);
+      }
+      // A number the operator changes is their statement, also when it equals
+      // the default. An empty field states nothing (null).
+      if (saved && backupDays !== String(saved.backup_retention_days)) {
+        body.backup_retention_days = backupDays.trim() === '' ? null : Number(backupDays);
+      }
       const updated = await updateInstanceLegal(body);
       setSaved(updated);
       setLegalImprint(updated.legal_imprint ?? '');

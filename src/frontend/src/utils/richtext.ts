@@ -43,10 +43,46 @@ export function plainTextToHtml(text: string): string {
     .join('');
 }
 
+const H1_OPEN_RE = /<h1(?=[\s/>])/gi;
+const H1_CLOSE_RE = /<\/h1\s*>/gi;
+const PRE_BLOCK_RE = /<pre(?=[\s/>])[^>]*>([\s\S]*?)(?:<\/pre\s*>|$)/gi;
+const BR_TAG_RE = /<br(?=[\s/>])[^>]*>/gi;
+const ANY_TAG_RE = /<\/?[a-z][^>]*>/gi;
+const CODE_TAG_RE = /<\/?code(?=[\s/>])[^>]*>/gi;
+const BLANK_LINE_RE = /\n(?:[ \t]*\n)+/;
+
+/** A `pre` block as paragraphs: only its text, a blank line starts a paragraph, a line break is `<br>`. */
+function preToParagraphs(_block: string, content: string): string {
+  const text = content
+    .replace(BR_TAG_RE, '\n')
+    .replace(ANY_TAG_RE, '')
+    .replace(/\r\n?/g, '\n');
+  return text
+    .split(BLANK_LINE_RE)
+    .map((chunk) => chunk.replace(/^\n+|\n+$/g, ''))
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => `<p>${chunk.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+/**
+ * Legal texts written before the server filtered rich text can hold `h1`, `pre`
+ * and `code`. Map them to what the editor has: `h1` to `h2`, a `pre` block to
+ * paragraphs and `code` to plain text. The server does the same in
+ * `sanitize_html`, so no word is lost and none ends up outside a block.
+ */
+function mapLegacyElements(html: string): string {
+  return html
+    .replace(H1_OPEN_RE, '<h2')
+    .replace(H1_CLOSE_RE, '</h2>')
+    .replace(PRE_BLOCK_RE, preToParagraphs)
+    .replace(CODE_TAG_RE, '');
+}
+
 /** Either the document as is, or the legacy plain text converted, ready for the editor. */
 export function toEditorHtml(value: string | null | undefined): string {
   if (!value) return '';
-  return isHtml(value) ? value : plainTextToHtml(value);
+  return isHtml(value) ? mapLegacyElements(value) : plainTextToHtml(value);
 }
 
 /**

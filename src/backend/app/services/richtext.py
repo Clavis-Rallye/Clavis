@@ -13,6 +13,11 @@ The allowlist is written once, in ``src/frontend/src/utils/richTextContract.json
 The constants below follow that file, and the frontend renderer follows it too. A test
 compares the constants with the file, so the two filters cannot drift apart.
 
+Legal texts written before this filter existed can hold ``h1``, ``pre`` and ``code``. Those three
+are mapped before ``nh3`` cleans, so no word is lost and none ends up outside a block: ``h1`` becomes
+``h2``, a ``pre`` block becomes paragraphs (a blank line starts a new paragraph, a single line break
+becomes ``br``) and ``code`` becomes plain text. The frontend does the same in ``toEditorHtml``.
+
 Plain text without a tag passes unchanged, so a text written before the editor
 existed keeps its line breaks.
 """
@@ -86,6 +91,13 @@ _NH3_ATTRIBUTE_VALUES: dict[str, dict[str, set[str]]] = {
 }
 
 _HAS_TAG = re.compile(r"<[a-z][\s\S]*>", re.IGNORECASE)
+_H1_OPEN = re.compile(r"<h1(?=[\s/>])", re.IGNORECASE)
+_H1_CLOSE = re.compile(r"</h1\s*>", re.IGNORECASE)
+_PRE_BLOCK = re.compile(r"<pre(?=[\s/>])[^>]*>([\s\S]*?)(?:</pre\s*>|\Z)", re.IGNORECASE)
+_BR_TAG = re.compile(r"<br(?=[\s/>])[^>]*>", re.IGNORECASE)
+_ANY_TAG = re.compile(r"</?[a-z][^>]*>", re.IGNORECASE)
+_CODE_TAG = re.compile(r"</?code(?=[\s/>])[^>]*>", re.IGNORECASE)
+_BLANK_LINE = re.compile(r"\n(?:[ \t]*\n)+")
 _IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 _SRC_ATTR = re.compile(r"""\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
 
@@ -203,12 +215,30 @@ def is_html(text: str) -> bool:
     return bool(_HAS_TAG.search(text))
 
 
+def _pre_to_paragraphs(match: re.Match[str]) -> str:
+    """A ``pre`` block as paragraphs: only its text, a blank line starts a paragraph, a line break is ``br``."""
+    text = _ANY_TAG.sub("", _BR_TAG.sub("\n", match.group(1))).replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs: list[str] = []
+    for chunk in _BLANK_LINE.split(text):
+        chunk = chunk.strip("\n")
+        if chunk.strip():
+            paragraphs.append(f"<p>{chunk.replace(chr(10), '<br>')}</p>")
+    return "".join(paragraphs)
+
+
+def map_legacy_elements(html: str) -> str:
+    """Map ``h1``, ``pre`` and ``code`` of an old document to ``h2``, paragraphs and plain text."""
+    html = _H1_CLOSE.sub("</h2>", _H1_OPEN.sub("<h2", html))
+    html = _PRE_BLOCK.sub(_pre_to_paragraphs, html)
+    return _CODE_TAG.sub("", html)
+
+
 def sanitize_html(html: str, media_prefix: str) -> str:
     """Return ``html`` reduced to the editor's allowlist, with images only under ``media_prefix``."""
     if not html or not is_html(html):
         return html
     cleaned = nh3.clean(
-        html,
+        map_legacy_elements(html),
         tags=ALLOWED_TAGS,
         attributes=_NH3_ATTRIBUTES,
         tag_attribute_values=_NH3_ATTRIBUTE_VALUES,

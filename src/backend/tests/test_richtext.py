@@ -1,6 +1,7 @@
 """Server-side sanitising of rich text."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -112,12 +113,16 @@ def _load_corpus_091() -> dict[str, Any]:
 CORPUS_091 = _load_corpus_091()
 
 
-# Release 0.9.1 removed the blockquote tag and kept its text. The editor now has quotes, so the
-# filter keeps the element. Every other part of the output is the recorded one.
+# Release 0.9.1 removed the blockquote tag and kept its text, and it removed ``h1``, ``pre`` and
+# ``code`` the same way, which left text outside any block. The editor now has quotes, and the
+# filter maps ``h1`` to ``h2``, a ``pre`` block to paragraphs and ``code`` to plain text before it
+# cleans. The output of the key below changes by design; every other key stays as recorded.
 CHANGED_BY_THE_NEW_EDITOR: dict[str, str] = {
-    # The quote of this document is a blockquote now and stays one; the rest equals the 0.9.1 output.
+    # Same words as the 0.9.1 output, but in blocks: the title is an h2, the preformatted lines are
+    # one paragraph with a line break, the code is plain text, and the quote stays a blockquote.
     "legacyServerUnfiltered": (
-        "Alter TitelZeile eins\nZeile zwei<p>Ein Aufruf wie ls -l im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>"
+        "<h2>Alter Titel</h2><p>Zeile eins<br>Zeile zwei</p>"
+        "<p>Ein Aufruf wie ls -l im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>"
     ),
 }
 
@@ -129,11 +134,15 @@ def test_release_091_corpus_is_sanitised_as_recorded(key: str) -> None:
     assert sanitize_html(document["input"], CORPUS_091["media_prefix"]) == expected
 
 
-def test_changed_pins_differ_from_the_recording_only_by_the_kept_blockquote() -> None:
+def _visible_text(html: str) -> str:
+    return re.sub(r"<[^>]+>", "", html.replace("<br>", "\n"))
+
+
+def test_changed_pins_keep_every_word_of_the_recording() -> None:
     for key, expected in CHANGED_BY_THE_NEW_EDITOR.items():
         recorded = CORPUS_091["documents"][key]["sanitized"]
         assert expected != recorded
-        assert expected.replace("<blockquote>", "").replace("</blockquote>", "") == recorded
+        assert _visible_text(expected) == _visible_text(recorded)
 
 
 def test_release_091_corpus_is_complete() -> None:
@@ -305,3 +314,52 @@ def test_table_attributes_outside_the_contract_are_removed_and_the_cells_stay() 
         '<table class="x"><tbody><tr><td colspan="2" rowspan="2" style="x" align="center">a</td></tr></tbody></table>'
     )
     assert sanitize_html(html, PREFIX) == "<table><tbody><tr><td>a</td></tr></tbody></table>"
+
+
+# Old legal texts: ``h1``, ``pre`` and ``code`` become what the editor has. The frontend does the same
+# in ``toEditorHtml``; the two literals below are the same pair as in ``richtext.test.ts``.
+
+LEGACY_LEGAL_DOCUMENT = (
+    "<h1>Impressum</h1><pre><code>Musterstraße 1\n86150 Augsburg\n\nTelefon 0821 0000</code></pre>"
+    "<p>Ein Aufruf wie <code>ls -l</code> im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>"
+)
+LEGACY_LEGAL_MAPPED = (
+    "<h2>Impressum</h2><p>Musterstraße 1<br>86150 Augsburg</p><p>Telefon 0821 0000</p>"
+    "<p>Ein Aufruf wie ls -l im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>"
+)
+
+
+def test_legacy_legal_document_is_mapped_to_the_editor_blocks() -> None:
+    assert sanitize_html(LEGACY_LEGAL_DOCUMENT, PREFIX) == LEGACY_LEGAL_MAPPED
+
+
+def test_h1_keeps_its_inline_markup_as_h2() -> None:
+    assert sanitize_html("<h1>Neu <em>hier</em></h1>", PREFIX) == "<h2>Neu <em>hier</em></h2>"
+
+
+def test_pre_keeps_only_its_text() -> None:
+    assert sanitize_html("<pre>Eins <strong>zwei</strong>\ndrei</pre>", PREFIX) == "<p>Eins zwei<br>drei</p>"
+
+
+def test_pre_keeps_special_characters_as_escaped_text() -> None:
+    assert sanitize_html("<pre>a &lt; b &amp;&amp; c &gt; d</pre>", PREFIX) == "<p>a &lt; b &amp;&amp; c &gt; d</p>"
+    assert sanitize_html("<pre>&lt;script&gt;alert(1)&lt;/script&gt;</pre>", PREFIX) == (
+        "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>"
+    )
+
+
+def test_pre_blank_lines_with_spaces_start_a_new_paragraph() -> None:
+    assert sanitize_html("<pre>Eins\n  \nZwei\r\nDrei</pre>", PREFIX) == "<p>Eins</p><p>Zwei<br>Drei</p>"
+
+
+def test_empty_pre_leaves_no_block() -> None:
+    assert sanitize_html("<p>Davor</p><pre>\n</pre><p>Danach</p>", PREFIX) == "<p>Davor</p><p>Danach</p>"
+
+
+def test_code_is_plain_text() -> None:
+    assert sanitize_html("<p>Nutze <code>ls -l</code> hier.</p>", PREFIX) == "<p>Nutze ls -l hier.</p>"
+
+
+def test_document_without_the_three_tags_is_not_changed_by_the_mapping() -> None:
+    document = "<h2>Titel</h2><p>Text<br>Zeile</p><blockquote><p>Zitat</p></blockquote>"
+    assert sanitize_html(document, PREFIX) == document
