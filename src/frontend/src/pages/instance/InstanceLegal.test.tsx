@@ -177,18 +177,25 @@ describe('InstanceLegal', () => {
     expect(privacy).toHaveTextContent('Gastkonten: 90 Tage nach dem Ende des Laufs');
   });
 
-  it('does not send the backup period while the field still shows the loaded value', async () => {
+  it('sends the backup period when the field still shows the default, and the page then says it is stated', async () => {
     mockAuthenticated(emptyLegalResponse);
-    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: emptyLegalResponse });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: { ...emptyLegalResponse, backup_retention_days: 30, backup_retention_source: 'instance' },
+    });
     renderPage();
     const field = await screen.findByRole('spinbutton', { name: 'Aufbewahrung der Datensicherungen (Tage)' });
     expect(field).toHaveValue(30);
+    expect(screen.getByText(/Noch nicht angegeben/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
-    await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {}));
-    expect(await screen.findByText('Die Rechtstexte wurden gespeichert.')).toBeInTheDocument();
-    expect(screen.getByText(/Noch nicht angegeben/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
+        backup_retention_days: 30,
+      }),
+    );
+    expect(await screen.findByText(/Von dir angegeben/)).toBeInTheDocument();
+    expect(screen.queryByText(/Noch nicht angegeben/)).not.toBeInTheDocument();
   });
 
   it('sends null for an empty backup field, and the page then says nothing is stated', async () => {
@@ -261,7 +268,7 @@ describe('InstanceLegal', () => {
     expect(privacy).not.toHaveTextContent('FOSSGIS');
   });
 
-  it('saving with nothing changed sends an empty body', async () => {
+  it('saving with nothing changed sends only the backup period', async () => {
     mockAuthenticated(emptyLegalResponse);
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: emptyLegalResponse });
     renderPage();
@@ -270,7 +277,7 @@ describe('InstanceLegal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     await waitFor(() =>
-      expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {}),
+      expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', { backup_retention_days: 30 }),
     );
     await waitFor(() =>
       expect(screen.getByText('Die Rechtstexte wurden gespeichert.')).toBeInTheDocument(),
@@ -363,6 +370,8 @@ describe('InstanceLegal', () => {
               sources: [...defaultMap.address_search_sources],
             },
           }),
+          // The field showed the default at "Speichern": that number is sent.
+          backup_retention_days: 30,
         }),
       );
     });
@@ -460,7 +469,7 @@ describe('InstanceLegal', () => {
 
       await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
       const body = vi.mocked(apiClient.put).mock.calls[0][1] as Record<string, unknown>;
-      expect(Object.keys(body)).toEqual(['legal_imprint']);
+      expect(Object.keys(body).sort()).toEqual(['backup_retention_days', 'legal_imprint']);
       expect(body.legal_imprint).toEqual(legalTemplate('imprint'));
     });
 
@@ -478,7 +487,7 @@ describe('InstanceLegal', () => {
 
       await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
       const body = vi.mocked(apiClient.put).mock.calls[0][1] as Record<string, unknown>;
-      expect(Object.keys(body)).toEqual(['legal_privacy']);
+      expect(Object.keys(body).sort()).toEqual(['backup_retention_days', 'legal_privacy']);
     });
   });
 

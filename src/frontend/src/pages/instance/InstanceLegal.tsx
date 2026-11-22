@@ -76,11 +76,9 @@ const InstanceLegal: React.FC = () => {
       if (legalAccessibility !== (saved?.legal_accessibility ?? '')) {
         body.legal_accessibility = toNull(legalAccessibility);
       }
-      // A number the operator changes is their statement, also when it equals
+      // A number in the field is the operator's statement, also when it equals
       // the default. An empty field states nothing (null).
-      if (saved && backupDays !== String(saved.backup_retention_days)) {
-        body.backup_retention_days = backupDays.trim() === '' ? null : Number(backupDays);
-      }
+      body.backup_retention_days = backupDays.trim() === '' ? null : Number(backupDays);
       const updated = await updateInstanceLegal(body);
       setSaved(updated);
       setLegalImprint(updated.legal_imprint ?? '');
