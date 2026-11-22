@@ -154,7 +154,15 @@
     "linkAddressLabel": "Address of the link",
     "linkAddressHint": "For example https://www.example.org",
     "linkAddressInvalid": "That is not a web address. It starts with https:// or is an address like example.org or name@example.org.",
-    "moreTools": "More tools"
+    "moreTools": "More tools",
+    "undo": "Undo",
+    "redo": "Redo",
+    "textStyle": "Text style",
+    "textStyleNormal": "Normal text",
+    "textStyleSubheading": "Subheading",
+    "strike": "Strikethrough",
+    "quote": "Quote",
+    "divider": "Divider"
   },
   "loading": "Loading …",
   "legalLinks": {

@@ -9,6 +9,13 @@ import { AuthContext } from '../auth/AuthContext';
 import i18n from '../i18n';
 import apiClient, { ApiError } from '../api/client';
 
+// ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
+const emptyRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
+Range.prototype.getClientRects = emptyRects as unknown as Range['getClientRects'];
+Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
+Element.prototype.getClientRects = emptyRects as unknown as Element['getClientRects'];
+document.elementFromPoint = () => null;
+
 const LazyRichTextEditor = lazy(() => Promise.resolve({ default: RichTextEditor }));
 
 const orgUser = {
@@ -219,5 +226,42 @@ describe('RichTextEditor', () => {
     // The second pixel is an inset shadow, so the border box keeps its size
     // and nothing shifts when the focus enters.
     expect(frameCss).toMatch(/:focus-within[^{]*\{[^}]*box-shadow:\s*inset 0 0 0 1px #1D47A4/i);
+  });
+
+  describe('code and code blocks are off', () => {
+    const typeInto = async (keys: string) => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<RichTextEditor value="" onChange={onChange} ariaLabel="Beschreibung" orgSlug="stadt" />);
+      const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+      await user.click(box);
+      await user.keyboard(keys);
+      return { box, onChange, user };
+    };
+
+    it('keeps a word between backticks as plain text', async () => {
+      const { box } = await typeInto('so `ls` ok');
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('so `ls` ok');
+    });
+
+    it('keeps three backticks and a space as plain text', async () => {
+      const { box } = await typeInto('```{ }x');
+      expect(box.querySelector('pre')).toBeNull();
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('``` x');
+    });
+
+    it('makes nothing of Mod+E', async () => {
+      const { box } = await typeInto('wort{Control>}e{/Control}x');
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('wortx');
+    });
+
+    it('makes nothing of Mod+Alt+C', async () => {
+      const { box } = await typeInto('wort{Control>}{Alt>}c{/Alt}{/Control}');
+      expect(box.querySelector('pre')).toBeNull();
+      expect(box.querySelector('code')).toBeNull();
+    });
   });
 });

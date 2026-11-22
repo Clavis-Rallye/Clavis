@@ -42,7 +42,7 @@ interface RichTextEditorProps {
 
 /**
  * TipTap-based rich-text editor. The toolbar is `RichTextToolbar`:
- *   B · I · U · H · 1. ordered · • unordered · 🔗 link · 🖼 image
+ *   undo · redo · text style · B · I · U · S · 1. ordered · • unordered · quote · 🔗 link · 🖼 image · divider
  *
  * Output is HTML. Render the same HTML on the consumer side via
  * the `<SafeHtml />` component (DOMPurify-sanitised) — never with
@@ -94,6 +94,10 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
+        // Code and code blocks are not part of the contract: no shortcut and no
+        // typed shortcut (backticks) makes them.
+        code: false,
+        codeBlock: false,
         link: false,
         underline: false,
       }),
@@ -191,6 +195,22 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
             '& h2': { margin: '0.5em 0 0.25em', fontSize: '1.4em' },
             '& h3': { margin: '0.5em 0 0.25em', fontSize: '1.2em' },
             '& ul, & ol': { paddingLeft: '1.5em', margin: '0 0 0.75em' },
+            '& blockquote': {
+              margin: '0 0 0.75em',
+              paddingLeft: '1em',
+              borderLeft: '3px solid',
+              borderLeftColor: 'divider',
+              color: 'text.secondary',
+            },
+            '& hr': {
+              border: 'none',
+              borderTop: '1px solid',
+              borderTopColor: 'divider',
+              margin: '1em 0',
+            },
+            '& hr.ProseMirror-selectednode': {
+              borderTopColor: 'primary.main',
+            },
             '& a': { color: 'primary.main', textDecoration: 'underline' },
             '& img': {
               display: 'block',

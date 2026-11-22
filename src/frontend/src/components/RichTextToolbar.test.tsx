@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
-import { useEditor } from '@tiptap/react';
+import { useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import RichTextEditor from './RichTextEditor';
 import RichTextToolbar, { type ToolDefinition } from './RichTextToolbar';
@@ -17,7 +17,7 @@ document.elementFromPoint = () => null;
 
 // jsdom has no layout. The mock reports the width the test sets, as the
 // toolbar's own content width, the moment the toolbar starts to observe.
-let reportedWidth = 600;
+let reportedWidth = 800;
 
 class MockResizeObserver {
   private readonly callback: ResizeObserverCallback;
@@ -58,20 +58,25 @@ describe('RichTextToolbar', () => {
   });
 
   describe('the toolbar pattern', () => {
-    it('is a horizontal toolbar with its label and keeps the eight tools in order', async () => {
+    it('is a horizontal toolbar with its label and keeps the tools in order', async () => {
       renderEditor();
       const toolbar = await screen.findByRole('toolbar', { name: 'Beschreibung: Formatierung' });
       expect(toolbar).toHaveAttribute('aria-orientation', 'horizontal');
       const names = Array.from(toolbar.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'));
       expect(names).toEqual([
+        'Rückgängig',
+        'Wiederholen',
+        'Textart: Normaler Text',
         'Fett',
         'Kursiv',
         'Unterstrichen',
-        'Überschrift',
+        'Durchgestrichen',
         'Nummerierte Liste',
         'Aufzählung',
+        'Zitat',
         'Link einfügen',
         'Bild einfügen',
+        'Trennlinie',
       ]);
     });
 
@@ -80,34 +85,34 @@ describe('RichTextToolbar', () => {
       const toolbar = await screen.findByRole('toolbar');
       const buttons = Array.from(toolbar.querySelectorAll('button'));
       expect(buttons.filter((b) => b.tabIndex === 0)).toHaveLength(1);
-      expect(buttons[0]).toHaveAttribute('tabindex', '0');
-      expect(buttons.slice(1).every((b) => b.getAttribute('tabindex') === '-1')).toBe(true);
+      // Undo and redo are disabled in a fresh text: the first control that can be used is the tab stop.
+      expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveAttribute('tabindex', '0');
     });
 
     it('moves with the arrow keys, Home and End, and wraps around', async () => {
       const user = userEvent.setup();
       renderEditor();
       await screen.findByRole('toolbar');
+      const style = screen.getByRole('button', { name: 'Textart: Normaler Text' });
       const bold = screen.getByRole('button', { name: 'Fett' });
-      const italic = screen.getByRole('button', { name: 'Kursiv' });
-      const image = screen.getByRole('button', { name: 'Bild einfügen' });
+      const divider = screen.getByRole('button', { name: 'Trennlinie' });
 
       await user.tab();
-      expect(bold).toHaveFocus();
-      await user.keyboard('{ArrowRight}');
-      expect(italic).toHaveFocus();
-      expect(italic).toHaveAttribute('tabindex', '0');
-      expect(bold).toHaveAttribute('tabindex', '-1');
-      await user.keyboard('{ArrowLeft}');
-      expect(bold).toHaveFocus();
-      await user.keyboard('{ArrowLeft}');
-      expect(image).toHaveFocus();
+      expect(style).toHaveFocus();
       await user.keyboard('{ArrowRight}');
       expect(bold).toHaveFocus();
+      expect(bold).toHaveAttribute('tabindex', '0');
+      expect(style).toHaveAttribute('tabindex', '-1');
+      await user.keyboard('{ArrowLeft}');
+      expect(style).toHaveFocus();
+      await user.keyboard('{ArrowLeft}');
+      expect(divider).toHaveFocus();
+      await user.keyboard('{ArrowRight}');
+      expect(style).toHaveFocus();
       await user.keyboard('{End}');
-      expect(image).toHaveFocus();
+      expect(divider).toHaveFocus();
       await user.keyboard('{Home}');
-      expect(bold).toHaveFocus();
+      expect(style).toHaveFocus();
     });
 
     it('leaves the toolbar into the text with Tab and returns to the last control with Shift+Tab', async () => {
@@ -115,7 +120,7 @@ describe('RichTextToolbar', () => {
       renderEditor();
       const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
       await user.tab();
-      await user.keyboard('{ArrowRight}{ArrowRight}');
+      await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
       expect(screen.getByRole('button', { name: 'Unterstrichen' })).toHaveFocus();
       await user.tab();
       expect(box).toHaveFocus();
@@ -189,17 +194,183 @@ describe('RichTextToolbar', () => {
     });
   });
 
+  describe('undo and redo', () => {
+    it('are disabled while there is nothing to undo or redo, and the arrow keys skip them', async () => {
+      const user = userEvent.setup();
+      renderEditor();
+      await screen.findByRole('toolbar');
+      expect(screen.getByRole('button', { name: 'Rückgängig' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Wiederholen' })).toBeDisabled();
+      await user.tab();
+      expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveFocus();
+      await user.keyboard('{ArrowLeft}');
+      expect(screen.getByRole('button', { name: 'Trennlinie' })).toHaveFocus();
+      await user.keyboard('{Home}');
+      expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveFocus();
+    });
+
+    it('undo takes the last change back and redo brings it again', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      await user.click(screen.getByRole('button', { name: 'Aufzählung' }));
+      const undo = screen.getByRole('button', { name: 'Rückgängig' });
+      await waitFor(() => expect(undo).toBeEnabled());
+      expect(screen.getByRole('button', { name: 'Wiederholen' })).toBeDisabled();
+
+      await user.click(undo);
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^<p>Hallo<\/p>/)));
+      await waitFor(() => expect(undo).toBeDisabled());
+      const redo = screen.getByRole('button', { name: 'Wiederholen' });
+      expect(redo).toBeEnabled();
+
+      await user.click(redo);
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining('<ul>')));
+      await waitFor(() => expect(redo).toBeDisabled());
+    });
+  });
+
+  describe('the text style menu', () => {
+    it('shows the style at the cursor as its visible text and opens three choices', async () => {
+      const user = userEvent.setup();
+      renderEditor();
+      await screen.findByRole('toolbar');
+      const control = screen.getByRole('button', { name: 'Textart: Normaler Text' });
+      expect(control).toHaveTextContent('Normaler Text');
+      expect(control).toHaveAttribute('aria-haspopup', 'menu');
+
+      await user.click(control);
+      const menu = await screen.findByRole('menu', { name: 'Textart' });
+      const choices = within(menu).getAllByRole('menuitemradio');
+      expect(choices.map((c) => c.textContent)).toEqual(['Normaler Text', 'Überschrift', 'Zwischenüberschrift']);
+      expect(choices.map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+    });
+
+    it('sets a heading and a subheading, and the control follows the cursor', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      await user.click(screen.getByRole('button', { name: /^Textart/ }));
+      await user.click(await screen.findByRole('menuitemradio', { name: 'Überschrift' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^<h2>Hallo<\/h2>/)));
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+      expect(screen.getByRole('button', { name: 'Textart: Überschrift' })).toHaveTextContent('Überschrift');
+
+      await user.click(screen.getByRole('button', { name: /^Textart/ }));
+      expect(await screen.findByRole('menuitemradio', { name: 'Überschrift' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+      await user.click(screen.getByRole('menuitemradio', { name: 'Zwischenüberschrift' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^<h3>Hallo<\/h3>/)));
+      expect(await screen.findByRole('button', { name: 'Textart: Zwischenüberschrift' })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /^Textart/ }));
+      await user.click(await screen.findByRole('menuitemradio', { name: 'Normaler Text' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^<p>Hallo<\/p>/)));
+    });
+
+    it('shows a heading of the document at the cursor', async () => {
+      renderEditor({ value: '<h3>Titel</h3><p>Text</p>' });
+      await screen.findByRole('toolbar');
+      expect(screen.getByRole('button', { name: 'Textart: Zwischenüberschrift' })).toBeInTheDocument();
+    });
+
+    it('closes with Escape and gives the focus back to the control', async () => {
+      const user = userEvent.setup();
+      renderEditor();
+      await screen.findByRole('toolbar');
+      const control = screen.getByRole('button', { name: /^Textart/ });
+      await user.click(control);
+      await screen.findByRole('menu');
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+      expect(control).toHaveFocus();
+    });
+
+    it('is named in English', async () => {
+      await i18n.changeLanguage('en');
+      renderEditor();
+      expect(await screen.findByRole('button', { name: 'Text style: Normal text' })).toBeInTheDocument();
+    });
+
+    it('has no accessibility violations with the menu open', async () => {
+      const user = userEvent.setup();
+      const { baseElement } = renderEditor();
+      await screen.findByRole('toolbar');
+      await user.click(screen.getByRole('button', { name: /^Textart/ }));
+      await screen.findByRole('menu');
+      const results = await axe(baseElement, {
+        rules: { region: { enabled: false }, 'aria-hidden-focus': { enabled: false } },
+      });
+      expect(results).toHaveNoViolations();
+    });
+  });
+
+  describe('strike-through, quote and divider', () => {
+    it('shows strike-through and quote with aria-pressed and sets them', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      const strike = screen.getByRole('button', { name: 'Durchgestrichen' });
+      const quote = screen.getByRole('button', { name: 'Zitat' });
+      expect(strike).toHaveAttribute('aria-pressed', 'false');
+      expect(quote).toHaveAttribute('aria-pressed', 'false');
+
+      await user.click(quote);
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^<blockquote><p>Hallo<\/p><\/blockquote>/)));
+      await waitFor(() => expect(quote).toHaveAttribute('aria-pressed', 'true'));
+
+      await user.click(strike);
+      await waitFor(() => expect(strike).toHaveAttribute('aria-pressed', 'true'));
+    });
+
+    it('strikes the selected text through', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      const { container } = renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      const element = container.querySelector('.ProseMirror') as HTMLElement & { editor: Editor };
+      element.editor.commands.selectAll();
+      await user.click(screen.getByRole('button', { name: 'Durchgestrichen' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('<p><s>Hallo</s></p>'));
+    });
+
+    it('inserts a divider', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      const divider = screen.getByRole('button', { name: 'Trennlinie' });
+      expect(divider).not.toHaveAttribute('aria-pressed');
+      await user.click(divider);
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining('<hr>')));
+    });
+
+    it('names the new tools in English', async () => {
+      await i18n.changeLanguage('en');
+      renderEditor();
+      await screen.findByRole('toolbar');
+      for (const name of ['Undo', 'Redo', 'Strikethrough', 'Quote', 'Divider']) {
+        expect(screen.getByRole('button', { name })).toBeInTheDocument();
+      }
+    });
+  });
+
   describe('a narrow toolbar', () => {
     it('shows all tools and no more menu when they fit', async () => {
-      withWidth(600);
+      withWidth(800);
       renderEditor();
       await screen.findByRole('toolbar');
       expect(screen.queryByRole('button', { name: 'Weitere Werkzeuge' })).not.toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: /./ })).toHaveLength(8);
+      expect(screen.getAllByRole('button', { name: /./ })).toHaveLength(13);
     });
 
-    it('moves the tools that do not fit into a more menu with the same labels', async () => {
-      withWidth(100);
+    it('moves the tools that do not fit into a more menu with the same labels, from the end of the list', async () => {
+      withWidth(300);
       const user = userEvent.setup();
       renderEditor();
       await screen.findByRole('toolbar');
@@ -210,19 +381,13 @@ describe('RichTextToolbar', () => {
 
       await user.click(more);
       const menu = await screen.findByRole('menu', { name: 'Weitere Werkzeuge' });
-      const items = Array.from(menu.querySelectorAll('[role="menuitemcheckbox"]')).map((i) => i.textContent);
-      expect(items).toEqual([
-        'Überschrift',
-        'Nummerierte Liste',
-        'Aufzählung',
-        'Link einfügen',
-        'Bild einfügen',
-      ]);
-      expect(screen.getByRole('menuitemcheckbox', { name: 'Aufzählung' })).toHaveAttribute('aria-checked', 'false');
+      const items = Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((i) => i.textContent);
+      expect(items).toEqual(['Zitat', 'Link einfügen', 'Bild einfügen', 'Trennlinie']);
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Zitat' })).toHaveAttribute('aria-checked', 'false');
     });
 
     it('runs a tool from the menu, shows its state and closes the menu', async () => {
-      withWidth(100);
+      withWidth(200);
       const user = userEvent.setup();
       const onChange = vi.fn();
       renderEditor({ onChange });
@@ -239,8 +404,37 @@ describe('RichTextToolbar', () => {
       );
     });
 
-    it('opens the image dialog from the menu', async () => {
+    it('puts the text style choices in the more menu when even they do not fit, as radio items', async () => {
       withWidth(100);
+      const user = userEvent.setup();
+      renderEditor();
+      await screen.findByRole('toolbar');
+      expect(screen.queryByRole('button', { name: /^Textart/ })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: 'Weitere Werkzeuge' }));
+      const menu = await screen.findByRole('menu', { name: 'Weitere Werkzeuge' });
+      expect(within(menu).getByRole('menuitemradio', { name: 'Normaler Text' })).toHaveAttribute('aria-checked', 'true');
+      await user.click(within(menu).getByRole('menuitemradio', { name: 'Zwischenüberschrift' }));
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: 'Weitere Werkzeuge' }));
+      expect(await screen.findByRole('menuitemradio', { name: 'Zwischenüberschrift' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+    });
+
+    it('runs the plain action of the menu: the divider', async () => {
+      withWidth(300);
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange });
+      await screen.findByRole('toolbar');
+      await user.click(await screen.findByRole('button', { name: 'Weitere Werkzeuge' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Trennlinie' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining('<hr>')));
+    });
+
+    it('opens the image dialog from the menu', async () => {
+      withWidth(200);
       const user = userEvent.setup();
       renderEditor();
       await screen.findByRole('toolbar');
@@ -257,7 +451,7 @@ describe('RichTextToolbar', () => {
           callbacks.push(cb);
         }
       }
-      reportedWidth = 600;
+      reportedWidth = 800;
       vi.stubGlobal('ResizeObserver', Capturing);
       renderEditor();
       await screen.findByRole('toolbar');
@@ -270,14 +464,14 @@ describe('RichTextToolbar', () => {
       expect(screen.getByRole('button', { name: 'Weitere Werkzeuge' })).toBeInTheDocument();
       act(() => {
         callbacks.forEach((cb) =>
-          cb([{ contentRect: { width: 600 } } as unknown as ResizeObserverEntry], {} as ResizeObserver),
+          cb([{ contentRect: { width: 800 } } as unknown as ResizeObserverEntry], {} as ResizeObserver),
         );
       });
       expect(screen.queryByRole('button', { name: 'Weitere Werkzeuge' })).not.toBeInTheDocument();
     });
 
     it('keeps the more control in the arrow order and reaches it with End', async () => {
-      withWidth(100);
+      withWidth(200);
       const user = userEvent.setup();
       renderEditor();
       await screen.findByRole('toolbar');
@@ -286,7 +480,7 @@ describe('RichTextToolbar', () => {
       await user.keyboard('{End}');
       expect(more).toHaveFocus();
       await user.keyboard('{ArrowRight}');
-      expect(screen.getByRole('button', { name: 'Fett' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveFocus();
     });
 
     it('names the more control in English', async () => {
