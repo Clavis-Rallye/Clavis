@@ -27,6 +27,7 @@ import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import ImageIcon from '@mui/icons-material/Image';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useEditorState, type Editor } from '@tiptap/react';
 
@@ -218,6 +219,15 @@ const buildToolbarTools = ({ t, allowImages, onOpenLink, onOpenImage, onOpenImag
     label: () => t('richTextEditor.divider'),
     icon: () => <HorizontalRuleIcon fontSize="small" />,
     run: (editor) => editor.chain().focus().setHorizontalRule().run(),
+  });
+  tools.push({
+    id: 'table',
+    group: 4,
+    label: () => t('richTextEditor.table'),
+    icon: () => <TableChartIcon fontSize="small" />,
+    // A table in a table cell is not offered: the tables stay simple.
+    isDisabled: (editor) => editor.isActive('table'),
+    run: (editor) => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   });
   return tools;
 };

@@ -180,7 +180,8 @@
     "imageRemove": "Bild entfernen",
     "imageEdit": "Bild bearbeiten",
     "imageSave": "Speichern",
-    "imageResize": "Bildgröße ziehen"
+    "imageResize": "Bildgröße ziehen",
+    "table": "Tabelle einfügen"
   },
   "loading": "Wird geladen …",
   "legalLinks": {

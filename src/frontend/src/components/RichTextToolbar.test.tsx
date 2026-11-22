@@ -77,6 +77,7 @@ describe('RichTextToolbar', () => {
         'Link einfügen',
         'Bild einfügen',
         'Trennlinie',
+        'Tabelle einfügen',
       ]);
     });
 
@@ -95,7 +96,7 @@ describe('RichTextToolbar', () => {
       await screen.findByRole('toolbar');
       const style = screen.getByRole('button', { name: 'Textart: Normaler Text' });
       const bold = screen.getByRole('button', { name: 'Fett' });
-      const divider = screen.getByRole('button', { name: 'Trennlinie' });
+      const last = screen.getByRole('button', { name: 'Tabelle einfügen' });
 
       await user.tab();
       expect(style).toHaveFocus();
@@ -106,11 +107,11 @@ describe('RichTextToolbar', () => {
       await user.keyboard('{ArrowLeft}');
       expect(style).toHaveFocus();
       await user.keyboard('{ArrowLeft}');
-      expect(divider).toHaveFocus();
+      expect(last).toHaveFocus();
       await user.keyboard('{ArrowRight}');
       expect(style).toHaveFocus();
       await user.keyboard('{End}');
-      expect(divider).toHaveFocus();
+      expect(last).toHaveFocus();
       await user.keyboard('{Home}');
       expect(style).toHaveFocus();
     });
@@ -204,7 +205,7 @@ describe('RichTextToolbar', () => {
       await user.tab();
       expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveFocus();
       await user.keyboard('{ArrowLeft}');
-      expect(screen.getByRole('button', { name: 'Trennlinie' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Tabelle einfügen' })).toHaveFocus();
       await user.keyboard('{Home}');
       expect(screen.getByRole('button', { name: 'Textart: Normaler Text' })).toHaveFocus();
     });
@@ -350,6 +351,13 @@ describe('RichTextToolbar', () => {
       await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining('<hr>')));
     });
 
+    it('names the table tool in English', async () => {
+      await i18n.changeLanguage('en');
+      renderEditor();
+      await screen.findByRole('toolbar');
+      expect(screen.getByRole('button', { name: 'Insert table' })).toBeInTheDocument();
+    });
+
     it('names the new tools in English', async () => {
       await i18n.changeLanguage('en');
       renderEditor();
@@ -366,7 +374,7 @@ describe('RichTextToolbar', () => {
       renderEditor();
       await screen.findByRole('toolbar');
       expect(screen.queryByRole('button', { name: 'Weitere Werkzeuge' })).not.toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: /./ })).toHaveLength(13);
+      expect(screen.getAllByRole('button', { name: /./ })).toHaveLength(14);
     });
 
     it('moves the tools that do not fit into a more menu with the same labels, from the end of the list', async () => {
@@ -382,7 +390,7 @@ describe('RichTextToolbar', () => {
       await user.click(more);
       const menu = await screen.findByRole('menu', { name: 'Weitere Werkzeuge' });
       const items = Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((i) => i.textContent);
-      expect(items).toEqual(['Zitat', 'Link einfügen', 'Bild einfügen', 'Trennlinie']);
+      expect(items).toEqual(['Zitat', 'Link einfügen', 'Bild einfügen', 'Trennlinie', 'Tabelle einfügen']);
       expect(screen.getByRole('menuitemcheckbox', { name: 'Zitat' })).toHaveAttribute('aria-checked', 'false');
     });
 
@@ -536,6 +544,83 @@ describe('RichTextToolbar', () => {
       const outside = css.replace(/@media \(pointer:\s*coarse\)\s*\{[\s\S]*/, '');
       expect(outside).not.toMatch(/\bheight:\s*40px/);
       expect(toolbar.querySelector('button')).not.toBeNull();
+    });
+  });
+
+  describe('tables', () => {
+    const TABLE =
+      '<table><tbody><tr><th><p></p></th><th><p></p></th><th><p></p></th></tr>' +
+      '<tr><td><p></p></td><td><p></p></td><td><p></p></td></tr>' +
+      '<tr><td><p></p></td><td><p></p></td><td><p></p></td></tr></tbody></table>';
+
+    it('inserts a table of three columns and three rows with a header row, and no row more', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange, value: '' });
+      await screen.findByRole('toolbar');
+      const button = screen.getByRole('button', { name: 'Tabelle einfügen' });
+      expect(button).not.toHaveAttribute('aria-pressed');
+      await user.click(button);
+      await waitFor(() => expect(onChange).toHaveBeenCalled());
+      const html = onChange.mock.calls[onChange.mock.calls.length - 1][0] as string;
+      expect(html.startsWith(TABLE)).toBe(true);
+      expect(html).not.toMatch(/style|colgroup|class|colspan|rowspan|colwidth|align/);
+    });
+
+    it('does not offer a table inside a table', async () => {
+      renderEditor({ value: TABLE });
+      await screen.findByRole('toolbar');
+      const textbox = screen.getByRole('textbox', { name: 'Beschreibung' });
+      const editor = (textbox as HTMLElement & { editor: Editor }).editor;
+      act(() => {
+        editor.commands.setTextSelection(3);
+      });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Tabelle einfügen' })).toBeDisabled());
+    });
+
+    it('leaves the table with Tab in the last cell and returns with Shift+Tab in the first', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ value: `<p>Davor</p>${TABLE}<p>Danach</p>`, onChange });
+      await screen.findByRole('toolbar');
+      const textbox = screen.getByRole('textbox', { name: 'Beschreibung' }) as HTMLElement & { editor: Editor };
+      const { editor } = textbox;
+      let first = 0;
+      let last = 0;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'tableHeader' && first === 0) first = pos;
+        if (node.type.name === 'tableCell') last = pos;
+      });
+      act(() => {
+        textbox.focus();
+        editor.commands.setTextSelection(last + 2);
+      });
+      expect(textbox).toHaveFocus();
+      expect(editor.isActive('table')).toBe(true);
+      await user.keyboard('{Tab}');
+      expect(editor.isActive('table')).toBe(false);
+      expect(editor.state.selection.$from.parent.textContent).toBe('Danach');
+      expect(onChange).not.toHaveBeenCalled();
+
+      act(() => {
+        editor.commands.setTextSelection(first + 2);
+      });
+      await user.keyboard('{Shift>}{Tab}{/Shift}');
+      expect(editor.isActive('table')).toBe(false);
+      expect(editor.state.selection.$from.parent.textContent).toBe('Davor');
+      expect(textbox).toHaveFocus();
+    });
+
+    it('puts the table button into the more menu early on a narrow width', async () => {
+      withWidth(300);
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      renderEditor({ onChange, value: '' });
+      await screen.findByRole('toolbar');
+      expect(screen.queryByRole('button', { name: 'Tabelle einfügen' })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: 'Weitere Werkzeuge' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Tabelle einfügen' }));
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.stringContaining('<table><tbody><tr><th>')));
     });
   });
 });

@@ -11,7 +11,7 @@ import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
 import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImageSettingsDialog';
-import { richTextImage } from './richTextExtensions';
+import { richTextImage, richTextTableExtensions } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
 import RichTextToolbar from './RichTextToolbar';
 
@@ -44,7 +44,7 @@ interface RichTextEditorProps {
 
 /**
  * TipTap-based rich-text editor. The toolbar is `RichTextToolbar`:
- *   undo · redo · text style · B · I · U · S · 1. ordered · • unordered · quote · 🔗 link · 🖼 image · divider
+ *   undo · redo · text style · B · I · U · S · 1. ordered · • unordered · quote · 🔗 link · 🖼 image · divider · table
  *
  * Output is HTML. Render the same HTML on the consumer side via
  * the `<SafeHtml />` component (DOMPurify-sanitised) — never with
@@ -113,6 +113,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
       richTextImage,
+      ...richTextTableExtensions(),
     ],
     content: toEditorHtml(value),
     editable: !disabled,
@@ -212,6 +213,23 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               borderLeftColor: 'divider',
               color: 'text.secondary',
             },
+            // A simple table: thin lines, a bold header row, no fixed widths.
+            '& table': {
+              borderCollapse: 'collapse',
+              width: '100%',
+              margin: '0.75em 0',
+            },
+            '& th, & td': {
+              border: '1px solid',
+              borderColor: 'divider',
+              padding: '0.4em 0.6em',
+              verticalAlign: 'top',
+              textAlign: 'left',
+              minWidth: '3em',
+            },
+            '& th': { fontWeight: 600, bgcolor: 'action.hover' },
+            '& th > p, & td > p': { margin: 0 },
+            '& .selectedCell': { bgcolor: 'action.selected' },
             '& hr': {
               border: 'none',
               borderTop: '1px solid',

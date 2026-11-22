@@ -1,5 +1,7 @@
 import Image from '@tiptap/extension-image';
-import type { Extensions } from '@tiptap/core';
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
+import { findParentNode, type Extensions } from '@tiptap/core';
+import { TextSelection, type Transaction } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { RichTextImageNodeView } from './RichTextImageResizeHandle';
 
@@ -111,3 +113,71 @@ export const richTextImage = RichTextImage.configure({
 
 /** The extensions that go beyond the base kit, exported for headless tests. */
 export const richTextImageExtensions = (): Extensions => [richTextImage];
+
+/** Cell attributes of the table extension, all switched off: the stored cell has none. */
+const plainCellAttributes = () => ({
+  colspan: { default: 1, parseHTML: () => 1, rendered: false },
+  rowspan: { default: 1, parseHTML: () => 1, rendered: false },
+  colwidth: { default: null, parseHTML: () => null, rendered: false },
+  align: { default: null, parseHTML: () => null, rendered: false },
+});
+
+/**
+ * Puts the cursor in a textblock next to the table: the existing one when the
+ * neighbour is a textblock, else a new empty paragraph.
+ */
+const moveOutOfTable = (tr: Transaction, tablePos: number, tableSize: number, forward: boolean): void => {
+  const paragraph = tr.doc.type.schema.nodes.paragraph;
+  const edge = forward ? tablePos + tableSize : tablePos;
+  const neighbour = forward ? tr.doc.resolve(edge).nodeAfter : tr.doc.resolve(edge).nodeBefore;
+  if (neighbour?.isTextblock) {
+    tr.setSelection(TextSelection.create(tr.doc, forward ? edge + 1 : edge - 1));
+    return;
+  }
+  tr.insert(edge, paragraph.create());
+  tr.setSelection(TextSelection.create(tr.doc, edge + 1));
+};
+
+/**
+ * The table node: no wrapper, no `colgroup`, no `style`, no attribute, so the
+ * stored HTML is `<table><tbody><tr>…</tr></tbody></table>`. Column resizing is
+ * off. Tab in the last cell leaves the table, it does not add a row.
+ */
+export const RichTextTable = Table.extend({
+  // The default view writes a `colgroup` and a width into the editor's DOM.
+  addNodeView() {
+    return null;
+  },
+
+  renderHTML() {
+    return ['table', {}, ['tbody', 0]];
+  },
+
+  addKeyboardShortcuts() {
+    const leave = (forward: boolean) => () => {
+      const { editor } = this;
+      if (forward ? editor.commands.goToNextCell() : editor.commands.goToPreviousCell()) return true;
+      const table = findParentNode((node) => node.type.name === 'table')(editor.state.selection);
+      if (!table) return false;
+      const { tr } = editor.state;
+      moveOutOfTable(tr, table.pos, table.node.nodeSize, forward);
+      editor.view.dispatch(tr.scrollIntoView());
+      return true;
+    };
+    return { ...this.parent?.(), Tab: leave(true), 'Shift-Tab': leave(false) };
+  },
+}).configure({ resizable: false, allowTableNodeSelection: false });
+
+export const RichTextTableRow = TableRow;
+
+/** A header cell and a data cell without span, width and alignment. */
+export const RichTextTableHeader = TableHeader.extend({ addAttributes: plainCellAttributes });
+export const RichTextTableCell = TableCell.extend({ addAttributes: plainCellAttributes });
+
+/** The table nodes of the rich-text editor, exported for headless tests. */
+export const richTextTableExtensions = (): Extensions => [
+  RichTextTable,
+  RichTextTableRow,
+  RichTextTableHeader,
+  RichTextTableCell,
+];

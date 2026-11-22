@@ -180,7 +180,8 @@
     "imageRemove": "Remove image",
     "imageEdit": "Edit image",
     "imageSave": "Save",
-    "imageResize": "Drag to resize the image"
+    "imageResize": "Drag to resize the image",
+    "table": "Insert table"
   },
   "loading": "Loading …",
   "legalLinks": {

@@ -3,18 +3,28 @@ import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { IMAGE_WIDTHS, richTextImageExtensions } from './richTextExtensions';
+import { IMAGE_WIDTHS, richTextImageExtensions, richTextTableExtensions } from './richTextExtensions';
 import { snapImageWidth } from './RichTextImageResizeHandle';
 
 let editor: Editor | null = null;
 
 const make = (content: string) => {
   editor = new Editor({
-    extensions: [Document, Paragraph, Text, ...richTextImageExtensions()],
+    extensions: [Document, Paragraph, Text, ...richTextImageExtensions(), ...richTextTableExtensions()],
     content,
   });
   return editor;
 };
+
+const pressKey = (e: Editor, key: string, shiftKey = false) => {
+  const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+  e.view.dom.dispatchEvent(event);
+  return event.defaultPrevented;
+};
+
+/** Text of the block the cursor stands in. */
+const cursorBlock = (e: Editor) => e.state.selection.$from.parent.textContent;
+const cursorInTable = (e: Editor) => e.isActive('table');
 
 afterEach(() => {
   editor?.destroy();
@@ -134,5 +144,112 @@ describe('image node: the resize handle', () => {
     expect(written).toBe(html);
     expect(written).not.toContain('style');
     expect(written).not.toContain('resize');
+  });
+});
+
+const STORED_TABLE =
+  '<table><tbody><tr><th><p>Tag</p></th><th><p></p></th><th><p></p></th></tr>' +
+  '<tr><td><p></p></td><td><p>Preis</p></td><td><p></p></td></tr>' +
+  '<tr><td><p></p></td><td><p></p></td><td><p></p></td></tr></tbody></table>';
+
+describe('table: reading and writing', () => {
+  it('writes an inserted 3 by 3 table with a header row and no attribute', () => {
+    const e = make('<p></p>');
+    e.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true });
+    e.commands.insertContent('Tag');
+    for (let i = 0; i < 4; i += 1) e.commands.goToNextCell();
+    e.commands.insertContent('Preis');
+    const html = e.getHTML();
+    expect(html).toBe(STORED_TABLE);
+    expect(html).not.toMatch(/style|colgroup|class|colspan|rowspan|colwidth|align/);
+  });
+
+  it('round-trips a stored table unchanged', () => {
+    expect(make(STORED_TABLE).getHTML()).toBe(STORED_TABLE);
+  });
+
+  it('drops spans, widths, alignment, style and class of a pasted table', () => {
+    const pasted =
+      '<table class="MsoTable" style="width:300px"><colgroup><col width="100"></colgroup><thead><tr>' +
+      '<th colspan="2" style="text-align:right" align="right">A</th></tr></thead><tbody><tr>' +
+      '<td rowspan="2" colwidth="80" class="x">B</td><td style="color:red">C</td></tr></tbody></table>';
+    const html = make(pasted).getHTML();
+    expect(html).not.toMatch(/style|colgroup|class|colspan|rowspan|colwidth|align|width/);
+    expect(html).toMatch(/^<table><tbody><tr><th><p>A<\/p><\/th>/);
+    expect(html).toContain('<td><p>B</p></td><td><p>C</p></td>');
+  });
+
+  it('turns column resizing off', () => {
+    const e = make(STORED_TABLE);
+    expect(e.view.dom.querySelector('colgroup')).toBeNull();
+    expect(e.view.dom.querySelector('table')?.getAttribute('style')).toBeNull();
+  });
+});
+
+describe('table: the keyboard never traps', () => {
+  it('moves between cells with Tab and Shift+Tab', () => {
+    const e = make(STORED_TABLE);
+    e.commands.setTextSelection(3);
+    expect(cursorBlock(e)).toBe('Tag');
+    expect(pressKey(e, 'Tab')).toBe(true);
+    expect(cursorInTable(e)).toBe(true);
+    expect(pressKey(e, 'Tab', true)).toBe(true);
+    expect(cursorBlock(e)).toBe('Tag');
+  });
+
+  it('leaves the table with Tab in the last cell, into the paragraph after it, and adds no row', () => {
+    const e = make(`${STORED_TABLE}<p>Danach</p>`);
+    // Put the cursor in the last cell.
+    let lastCell = 0;
+    e.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'tableCell') lastCell = pos;
+    });
+    e.commands.setTextSelection(lastCell + 2);
+    expect(cursorInTable(e)).toBe(true);
+    expect(pressKey(e, 'Tab')).toBe(true);
+    expect(cursorInTable(e)).toBe(false);
+    expect(cursorBlock(e)).toBe('Danach');
+    expect(e.getHTML()).toBe(`${STORED_TABLE}<p>Danach</p>`);
+  });
+
+  it('makes a paragraph after the table when there is none', () => {
+    const e = make(STORED_TABLE);
+    let lastCell = 0;
+    e.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'tableCell') lastCell = pos;
+    });
+    e.commands.setTextSelection(lastCell + 2);
+    expect(pressKey(e, 'Tab')).toBe(true);
+    expect(cursorInTable(e)).toBe(false);
+    expect(e.state.doc.lastChild?.type.name).toBe('paragraph');
+    expect(e.state.selection.$from.parent).toBe(e.state.doc.lastChild);
+    expect(e.getHTML()).toBe(`${STORED_TABLE}<p></p>`);
+  });
+
+  it('leaves the table with Shift+Tab in the first cell, into the text before it', () => {
+    const e = make(`<p>Davor</p>${STORED_TABLE}`);
+    e.commands.setTextSelection(e.state.doc.firstChild!.nodeSize + 4);
+    expect(cursorInTable(e)).toBe(true);
+    expect(cursorBlock(e)).toBe('Tag');
+    expect(pressKey(e, 'Tab', true)).toBe(true);
+    expect(cursorInTable(e)).toBe(false);
+    expect(cursorBlock(e)).toBe('Davor');
+    expect(e.state.selection.from).toBe('Davor'.length + 1);
+  });
+
+  it('makes a paragraph before the table when it is the first thing in the text', () => {
+    const e = make(STORED_TABLE);
+    e.commands.setTextSelection(3);
+    expect(cursorInTable(e)).toBe(true);
+    expect(pressKey(e, 'Tab', true)).toBe(true);
+    expect(cursorInTable(e)).toBe(false);
+    expect(e.state.doc.firstChild?.type.name).toBe('paragraph');
+    expect(e.state.selection.$from.parent).toBe(e.state.doc.firstChild);
+  });
+
+  it('leaves Tab alone outside a table', () => {
+    const e = make('<p>Text</p>');
+    e.commands.setTextSelection(2);
+    expect(pressKey(e, 'Tab')).toBe(false);
   });
 });
