@@ -425,7 +425,17 @@ The name-and-text steps carry no run marker. Each statement selects only rows th
 
 **Published result links** are not a Löschklasse. The link is a capability, not personal data by itself, but it still expires. A link stays resolvable for `settings.retention.result_link_days` days (default **90**), restarted by every re-publish. The sweep task `expired_result_links` (`sweep_expired_result_links`) deletes live links past their `expires_at` and revoked links once their original expiry has passed. Revoking answers 410 immediately but never shortens `expires_at`. The run and its scores are untouched.
 
-**Images of rich texts.** The editor uploads an image under `{org_id}/media/` the moment the creator inserts it. There is no DELETE route, on purpose: one object can stand in several languages of a text, in a copied station or task, in a soft-deleted row that can be restored, and in the frozen copy of a run. The task `orphaned_content_media` (`app/services/content_media_retention.py`) counts references instead. It deletes an object only when the object is older than 7 days (`CONTENT_MEDIA_ORPHAN_MIN_AGE_DAYS`, so an image inserted but not yet saved survives the edit) and no text or JSON column of the content tables names its key. The check reads every such column of `REFERENCE_TABLES`, not a list of fields, and a test makes every table with a text column choose a side. An image that leaves its last text goes at the first sweep after its grace period, counted from the upload. A deleted organization loses the whole prefix in `org_deletion.py`.
+**Images of rich texts.** The editor uploads an image under `{org_id}/media/` the moment the creator inserts it. There is no DELETE route, on purpose: one object can stand in several languages of a text, in a copied station or task, in a soft-deleted row that can be restored, and in the frozen copy of a run. The task `orphaned_content_media` (`app/services/content_media_retention.py`) counts references instead. It deletes an object only when the object is older than 7 days (`CONTENT_MEDIA_ORPHAN_MIN_AGE_DAYS`, so an image inserted but not yet saved survives the edit) and no text or JSON column of the content tables names its key. The check reads every such column of `REFERENCE_TABLES`, not a list of fields, and a test makes every table with a text column choose a side. The search is a text search for the image key, so an image inside a table cell or a figure counts as used. An image that leaves its last text goes at the first sweep after its grace period, counted from the upload. A deleted organization loses the whole prefix in `org_deletion.py`.
+
+### Rich Text
+
+The contract file `src/frontend/src/utils/richTextContract.json` lists every element, attribute and value the editor stores. The backend filter (`src/backend/app/services/richtext.py`, nh3) cleans every write by it. The frontend renderer (`src/frontend/src/utils/sanitizeRichText.ts`, DOMPurify) cleans every render by it. A test on each side compares the filter with the file.
+
+No `style`, `class`, `id`, event handler or other `data-` attribute survives. `data-width` and `data-align` keep only their listed values. An image survives only with a `src` under the organization's media route. This holds also inside a figure or a table cell. A figure without an image goes.
+
+The renderer also keeps `h1`, `code` and `pre`, only for texts written before the server filtered rich text. The editor never makes them. The editor and the backend both map them the same way: `h1` to `h2`, `pre` to paragraphs, `code` to plain text.
+
+Pasted HTML is cleaned in the browser before the editor reads it (`src/frontend/src/utils/cleanPastedHtml.ts`). The backend filter still decides what is stored.
 
 ### Participant Photo Hygiene
 
