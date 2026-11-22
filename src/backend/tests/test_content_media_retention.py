@@ -306,6 +306,69 @@ async def test_station_title_images_are_not_this_sweeps_business(db_session: Asy
     get_minio_client().remove_object(settings.storage.bucket, title_key)
 
 
+@pytest.mark.asyncio
+async def test_an_image_inside_a_table_cell_or_a_figure_stays(db_session: AsyncSession):
+    """The sweep finds a key by text search, so the markup around the image does not matter."""
+    org = await _org(db_session, "blocks")
+    table_key = _upload(org)
+    figure_key = _upload(org)
+    lost_key = _upload(org)
+    src = media_prefix_for(org.slug)
+    table = (
+        "<table><thead><tr><th>Ort</th><th>Bild</th></tr></thead>"
+        f'<tbody><tr><td>Rathaus</td><td><img src="{src}{table_key}" alt="Rathaus"></td></tr></tbody></table>'
+    )
+    figure = (
+        f'<figure data-width="50" data-align="center"><img src="{src}{figure_key}" alt="Marktplatz" '
+        'data-width="50" data-align="center"><figcaption>Der Marktplatz</figcaption></figure>'
+    )
+    await create_test_station(db_session, org, description={"de": table})
+    await create_test_station(db_session, org, description={"de": figure})
+
+    # the unreferenced upload goes, so the sweep did run
+    assert await sweep_orphaned_content_media(db_session, reference_date=_later()) == 1
+    assert not _exists(lost_key)
+    assert _exists(table_key)
+    assert _exists(figure_key)
+
+
+@pytest.mark.asyncio
+async def test_a_figure_saved_through_the_station_api_stays(client: AsyncClient, db_session: AsyncSession):
+    """The text the backend filter stored, with the figure and its caption, still names the image."""
+    org = await _org(db_session, "figure-api")
+    creator = await create_test_user(
+        db_session, email=f"creator-{uuid.uuid4().hex[:6]}@img.test", role=UserRole.CREATOR, organization=org
+    )
+    headers = get_auth_headers(creator)
+
+    upload = await client.post(
+        f"/api/orgs/{org.slug}/media/",
+        headers=headers,
+        files={"file": ("Marktplatz.png", io.BytesIO(PNG), "image/png")},
+    )
+    assert upload.status_code == 201, upload.text
+    key, url = upload.json()["key"], upload.json()["url"]
+    lost_key = _upload(org)
+    figure = (
+        f'<figure data-width="50" data-align="center"><img src="{url}" alt="Marktplatz" '
+        'data-width="50" data-align="center"><figcaption>Der Marktplatz</figcaption></figure>'
+    )
+
+    created = await client.post(
+        f"/api/orgs/{org.slug}/stations/",
+        headers=headers,
+        json={"title": {"de": "Marktplatz"}, "description": {"de": figure}},
+    )
+    assert created.status_code == 201, created.text
+    stored = created.json()["description"]["de"]
+    assert "<figure" in stored
+    assert key in stored
+
+    assert await sweep_orphaned_content_media(db_session, reference_date=_later()) == 1
+    assert not _exists(lost_key)
+    assert _exists(key)
+
+
 # ---------------------------------------------------------------------------
 # What holds the sweep together
 # ---------------------------------------------------------------------------
