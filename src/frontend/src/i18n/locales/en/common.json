@@ -190,7 +190,8 @@
     "tableRemoveRow": "Delete row",
     "tableRemoveColumn": "Delete column",
     "tableHeaderRow": "Header row",
-    "tableRemove": "Delete table"
+    "tableRemove": "Delete table",
+    "selectionMenu": "Format selection"
   },
   "loading": "Loading …",
   "legalLinks": {

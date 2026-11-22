@@ -10,6 +10,7 @@ import { onOrgMediaRefused } from '../api/media';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
+import RichTextSelectionMenu from './RichTextSelectionMenu';
 import RichTextTableMenu, { focusTableMenu } from './RichTextTableMenu';
 import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImageSettingsDialog';
 import { richTextImage, richTextTableExtensions } from './richTextExtensions';
@@ -283,6 +284,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <EditorContent editor={editor} />
         <RichTextImageMenu editor={editor} onOpenSettings={openImageSettings} />
         <RichTextTableMenu editor={editor} />
+        <RichTextSelectionMenu editor={editor} onOpenLink={openLinkDialog} />
       </Box>
       {mediaOrg && (
         <RichTextImageDialog

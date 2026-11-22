@@ -190,7 +190,8 @@
     "tableRemoveRow": "Zeile löschen",
     "tableRemoveColumn": "Spalte löschen",
     "tableHeaderRow": "Kopfzeile",
-    "tableRemove": "Tabelle löschen"
+    "tableRemove": "Tabelle löschen",
+    "selectionMenu": "Auswahl formatieren"
   },
   "loading": "Wird geladen …",
   "legalLinks": {
