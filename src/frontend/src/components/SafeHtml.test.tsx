@@ -72,4 +72,43 @@ describe('SafeHtml', () => {
     const { container } = render(<SafeHtml html={`<p>Vor dem Bild</p>${OWN_IMG}<p>Danach</p>`} />);
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('wraps a table in a labelled scroll region that is not part of the stored text', () => {
+    const html = '<table><tbody><tr><th>Kopf</th></tr><tr><td>Zelle</td></tr></tbody></table>';
+    const { container } = render(<SafeHtml html={html} />);
+    const region = container.querySelector('[role="region"]');
+    expect(region?.getAttribute('aria-label')).toBe('Tabelle, seitlich verschiebbar');
+    expect(region?.getAttribute('tabindex')).toBe('0');
+    expect(region?.querySelector('table')).not.toBeNull();
+    expect(html).not.toContain('region');
+  });
+
+  it('keeps the rules of the 0.9.1 elements and adds the rules for the new ones', () => {
+    const html =
+      `<figure data-width="50" data-align="center">${OWN_IMG}<figcaption>Unterschrift</figcaption></figure>` +
+      '<blockquote>Zitat</blockquote><hr><table><tbody><tr><th>K</th><td>Z</td></tr></tbody></table>';
+    const { container } = render(<SafeHtml html={html} />);
+    const root = container.firstElementChild as HTMLElement;
+    const css = [...document.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+    const cls = '.' + root.className.split(/\s+/).filter((c) => c.startsWith('css-'))[0];
+    for (const needle of [
+      `${cls} img{display:block;max-width:100%;height:auto;`,
+      'figure[data-width="25"]',
+      'figure[data-width="50"]',
+      'figure[data-width="75"]',
+      'figure[data-width="100"]',
+      'img[data-width="50"]',
+      'data-align="center"',
+      'data-align="right"',
+      'figcaption',
+      'blockquote',
+      'border-inline-start',
+      ' hr',
+      ' table',
+      'overflow-wrap',
+    ]) {
+      expect(css.replace(/\s+/g, '')).toContain(needle.replace(/\s+/g, ''));
+    }
+    expect(getComputedStyle(container.querySelector('figure') as Element).width).toBe('50%');
+  });
 });

@@ -261,5 +261,8 @@
     "orgSettings": "Organisationseinstellungen",
     "users": "Personen",
     "logs": "Protokoll"
+  },
+  "safeHtml": {
+    "richTextTableScroll": "Tabelle, seitlich verschiebbar"
   }
 }

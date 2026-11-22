@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RICH_TEXT_FILTER, sanitizeRichText } from './sanitizeRichText';
+import { RICH_TEXT_FILTER, sanitizeRichText, wrapTablesForScroll } from './sanitizeRichText';
 import contract from './richTextContract.json';
 import { EDITOR_091, RICH_TEXT_091_CORPUS, SANITIZED_091 } from './richText091.fixtures';
 
@@ -245,5 +245,43 @@ describe('sanitizeRichText on images and figures', () => {
   it('keeps the three render-only tags', () => {
     const html = '<h1>t</h1><pre><code>a\nb</code></pre>';
     expect(sanitizeRichText(html)).toBe(html);
+  });
+});
+
+describe('wrapTablesForScroll', () => {
+  const LABEL = 'Tabelle, seitlich verschiebbar';
+  const TABLE = '<table><tbody><tr><td>a</td></tr></tbody></table>';
+
+  it('wraps each table in a keyboard-reachable scroll region with the label', () => {
+    const body = parse(wrapTablesForScroll(`<p>x</p>${TABLE}<p>y</p>${TABLE}`, LABEL));
+    const wrappers = body.querySelectorAll('div');
+    expect(wrappers).toHaveLength(2);
+    for (const wrapper of wrappers) {
+      expect(wrapper.getAttribute('role')).toBe('region');
+      expect(wrapper.getAttribute('tabindex')).toBe('0');
+      expect(wrapper.getAttribute('aria-label')).toBe(LABEL);
+      expect(wrapper.children).toHaveLength(1);
+      expect(wrapper.firstElementChild?.tagName).toBe('TABLE');
+    }
+  });
+
+  it('escapes the label and adds nothing else', () => {
+    const out = wrapTablesForScroll(TABLE, '"><img src=x onerror=alert(1)>');
+    const body = parse(out);
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.querySelector('div')?.getAttributeNames().sort()).toEqual(['aria-label', 'role', 'tabindex']);
+    expect(body.querySelector('div')?.getAttribute('aria-label')).toBe('"><img src=x onerror=alert(1)>');
+  });
+
+  it('leaves a text without a table byte for byte as it is', () => {
+    const html = '<p>kein <strong>Table</strong></p>';
+    expect(wrapTablesForScroll(html, LABEL)).toBe(html);
+    expect(wrapTablesForScroll('plain', LABEL)).toBe('plain');
+  });
+
+  it('keeps the sanitized table content unchanged inside the wrapper', () => {
+    const clean = sanitizeRichText('<table><tr><th>K</th></tr><tr><td>v</td></tr></table>');
+    const body = parse(wrapTablesForScroll(clean, LABEL));
+    expect(body.querySelector('div > table')?.outerHTML).toBe(parse(clean).querySelector('table')?.outerHTML);
   });
 });

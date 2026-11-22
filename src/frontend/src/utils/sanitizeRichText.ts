@@ -143,3 +143,31 @@ export function sanitizeRichText(html: string): string {
   holder.appendChild(cleaned);
   return holder.innerHTML;
 }
+
+/**
+ * Puts every table of already clean output into its own horizontal scroll area, so a wide
+ * table never makes the page scroll sideways. The wrapper is a `div` with exactly three
+ * attributes: `role="region"`, `tabindex="0"` (keyboard reachable) and the label. It is made
+ * at render time and is never part of the stored text. The label is set as an attribute
+ * value through the DOM, so it is escaped. Only call this on the output of
+ * `sanitizeRichText`: the function adds the wrapper and nothing else.
+ */
+export function wrapTablesForScroll(cleanHtml: string, label: string): string {
+  if (!/<table[\s>]/i.test(cleanHtml)) return cleanHtml;
+  const holder = document.createElement('template');
+  holder.innerHTML = cleanHtml;
+  const root = holder.content;
+  for (const table of Array.from(root.querySelectorAll('table'))) {
+    // A table inside a table scrolls with the outer one.
+    if (table.parentElement?.closest('table')) continue;
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('role', 'region');
+    wrapper.setAttribute('tabindex', '0');
+    wrapper.setAttribute('aria-label', label);
+    table.replaceWith(wrapper);
+    wrapper.appendChild(table);
+  }
+  const out = document.createElement('div');
+  out.appendChild(root);
+  return out.innerHTML;
+}

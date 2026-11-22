@@ -261,5 +261,8 @@
     "orgSettings": "Organisation Settings",
     "users": "User Management",
     "logs": "Logs"
+  },
+  "safeHtml": {
+    "richTextTableScroll": "Table, scrolls sideways"
   }
 }
