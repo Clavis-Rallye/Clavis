@@ -1,5 +1,7 @@
 import Image from '@tiptap/extension-image';
 import type { Extensions } from '@tiptap/core';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { RichTextImageNodeView } from './RichTextImageResizeHandle';
 
 /** Values the contract allows for `data-width` and `data-align`. */
 export const IMAGE_WIDTHS = ['25', '50', '75', '100'] as const;
@@ -49,6 +51,12 @@ export const RichTextImage = Image.extend({
         rendered: false,
       },
     };
+  },
+
+  // The editor shows the image in a frame with a resize handle. The frame and
+  // the handle exist in the editor only: `renderHTML` below writes the HTML.
+  addNodeView() {
+    return ReactNodeViewRenderer(RichTextImageNodeView);
   },
 
   parseHTML() {

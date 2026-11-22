@@ -179,7 +179,8 @@
     "imageDescription": "Beschreibung und Bildunterschrift",
     "imageRemove": "Bild entfernen",
     "imageEdit": "Bild bearbeiten",
-    "imageSave": "Speichern"
+    "imageSave": "Speichern",
+    "imageResize": "Bildgröße ziehen"
   },
   "loading": "Wird geladen …",
   "legalLinks": {

@@ -3,7 +3,8 @@ import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { richTextImageExtensions } from './richTextExtensions';
+import { IMAGE_WIDTHS, richTextImageExtensions } from './richTextExtensions';
+import { snapImageWidth } from './RichTextImageResizeHandle';
 
 let editor: Editor | null = null;
 
@@ -117,5 +118,21 @@ describe('image node: commands', () => {
     const e = make('<p></p>');
     e.commands.setImage({ src: SRC, alt: 'A' });
     expect(e.getHTML()).toContain(`<img loading="lazy" src="${SRC}" alt="A">`);
+  });
+});
+
+describe('image node: the resize handle', () => {
+  it('offers the same sizes as the contract', () => {
+    const sizes = [25, 50, 75, 100];
+    expect(IMAGE_WIDTHS.map(Number)).toEqual(sizes);
+    expect(sizes.map((size) => snapImageWidth(size))).toEqual([...IMAGE_WIDTHS]);
+  });
+
+  it('writes the same HTML with the node view registered', () => {
+    const html = `<figure data-width="75" data-align="center"><img loading="lazy" src="${SRC}" alt="Rathaus"><figcaption>Das Rathaus im Mai</figcaption></figure>`;
+    const written = make(html).getHTML();
+    expect(written).toBe(html);
+    expect(written).not.toContain('style');
+    expect(written).not.toContain('resize');
   });
 });

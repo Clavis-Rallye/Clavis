@@ -179,7 +179,8 @@
     "imageDescription": "Description and caption",
     "imageRemove": "Remove image",
     "imageEdit": "Edit image",
-    "imageSave": "Save"
+    "imageSave": "Save",
+    "imageResize": "Drag to resize the image"
   },
   "loading": "Loading …",
   "legalLinks": {
