@@ -1,5 +1,11 @@
 """Server-side sanitising of rich text."""
 
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
 from app.services.richtext import (
     is_html,
     media_prefix_for,
@@ -90,3 +96,25 @@ def test_optional_html_keeps_none_plain_text_and_own_images() -> None:
 def test_optional_html_turns_an_emptied_editor_into_none() -> None:
     for empty in ("", "   ", "<p></p>", "<p> </p>", "<p><br></p>", "<script>x</script>"):
         assert sanitize_optional_html(empty, PREFIX) is None, empty
+
+
+def _load_corpus_091() -> dict[str, Any]:
+    path = Path(__file__).parent / "richtext_091_corpus.json"
+    corpus: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return corpus
+
+
+CORPUS_091 = _load_corpus_091()
+
+
+@pytest.mark.parametrize("key", list(CORPUS_091["documents"]))
+def test_release_091_corpus_is_sanitised_as_recorded(key: str) -> None:
+    document = CORPUS_091["documents"][key]
+    assert sanitize_html(document["input"], CORPUS_091["media_prefix"]) == document["sanitized"]
+
+
+def test_release_091_corpus_is_complete() -> None:
+    keys = set(CORPUS_091["documents"])
+    assert len(keys) >= 10
+    assert {"emptyString", "legacyPlainText", "legacyServerUnfiltered"} <= keys
+    assert CORPUS_091["media_prefix"] == "/api/orgs/stadt/media/"
