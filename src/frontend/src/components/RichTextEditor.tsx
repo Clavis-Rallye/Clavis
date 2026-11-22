@@ -5,11 +5,11 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
 import { AuthContext } from '../auth/AuthContext';
 import { onOrgMediaRefused } from '../api/media';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
+import { richTextImage } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
 import RichTextToolbar from './RichTextToolbar';
 
@@ -107,11 +107,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         autolink: true,
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
-      Image.configure({
-        inline: false,
-        allowBase64: false,
-        HTMLAttributes: { loading: 'lazy' },
-      }),
+      richTextImage,
     ],
     content: toEditorHtml(value),
     editable: !disabled,
@@ -241,8 +237,12 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           open={imageDialogOpen}
           orgSlug={mediaOrg}
           onClose={() => setImageDialogOpen(false)}
-          onInsert={({ src, alt }) => {
-            editor.chain().focus().setImage({ src, alt }).run();
+          onInsert={({ src, alt, caption }) => {
+            editor
+              .chain()
+              .focus()
+              .insertContent({ type: 'image', attrs: caption ? { src, alt, caption } : { src, alt } })
+              .run();
           }}
         />
       )}

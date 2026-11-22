@@ -19,6 +19,7 @@ import { ORG_MEDIA_IMAGE_TYPES, uploadOrgMedia } from '../api/media';
 interface InsertedImage {
   src: string;
   alt: string;
+  caption?: string;
 }
 
 interface RichTextImageDialogProps {
@@ -38,6 +39,7 @@ const RichTextImageDialog: React.FC<RichTextImageDialogProps> = ({ open, orgSlug
   const { t } = useTranslation('common');
   const [file, setFile] = useState<File | null>(null);
   const [alt, setAlt] = useState('');
+  const [caption, setCaption] = useState('');
   const [altTouched, setAltTouched] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ const RichTextImageDialog: React.FC<RichTextImageDialogProps> = ({ open, orgSlug
   const reset = () => {
     setFile(null);
     setAlt('');
+    setCaption('');
     setAltTouched(false);
     setProgress(null);
     setError(null);
@@ -82,7 +85,8 @@ const RichTextImageDialog: React.FC<RichTextImageDialogProps> = ({ open, orgSlug
     setProgress(0);
     try {
       const { url } = await uploadOrgMedia(orgSlug, file, setProgress);
-      onInsert({ src: url, alt: alt.trim() });
+      const trimmedCaption = caption.trim();
+      onInsert(trimmedCaption ? { src: url, alt: alt.trim(), caption: trimmedCaption } : { src: url, alt: alt.trim() });
       handleClose();
     } catch {
       setError(t('richTextEditor.imageDialog.uploadFailed'));
@@ -141,6 +145,15 @@ const RichTextImageDialog: React.FC<RichTextImageDialogProps> = ({ open, orgSlug
                 : t('richTextEditor.imageDialog.altHelper')
             }
             slotProps={{ htmlInput: { maxLength: 200 } }}
+          />
+          <TextField
+            label={t('richTextEditor.imageDialog.captionLabel')}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            fullWidth
+            disabled={busy}
+            helperText={t('richTextEditor.imageDialog.captionHelper')}
+            slotProps={{ htmlInput: { maxLength: 300 } }}
           />
           {busy && <LinearProgress variant="determinate" value={progress ?? 0} aria-label={t('richTextEditor.imageDialog.uploading')} />}
           {error && <Alert severity="error">{error}</Alert>}

@@ -148,7 +148,9 @@
       "uploadFailed": "The image could not be uploaded. Please try again.",
       "uploading": "Uploading image",
       "insert": "Insert",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "captionLabel": "Caption (optional)",
+      "captionHelper": "Shown below the image, for everyone."
     },
     "toolbar": "Formatting",
     "linkAddressLabel": "Address of the link",

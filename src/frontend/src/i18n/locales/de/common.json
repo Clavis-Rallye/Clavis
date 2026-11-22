@@ -148,7 +148,9 @@
       "uploadFailed": "Das Bild konnte nicht hochgeladen werden. Bitte versuche es erneut.",
       "uploading": "Bild wird hochgeladen",
       "insert": "Einfügen",
-      "cancel": "Abbrechen"
+      "cancel": "Abbrechen",
+      "captionLabel": "Bildunterschrift (optional)",
+      "captionHelper": "Steht unter dem Bild, für alle sichtbar."
     },
     "toolbar": "Formatierung",
     "linkAddressLabel": "Adresse des Links",
