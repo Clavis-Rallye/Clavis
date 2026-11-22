@@ -9,6 +9,8 @@ import { AuthContext } from '../auth/AuthContext';
 import { onOrgMediaRefused } from '../api/media';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
+import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
+import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImageSettingsDialog';
 import { richTextImage } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
 import RichTextToolbar from './RichTextToolbar';
@@ -66,6 +68,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const mediaOrg = allowImages ? orgSlug ?? auth?.user?.organization_slug : undefined;
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [imageSettingsOpen, setImageSettingsOpen] = useState(false);
   // Why the server refused the last image, as an i18n key, and a counter that
   // gives the image dialog a fresh state after a refusal.
   const [imageRefusal, setImageRefusal] = useState<string | null>(null);
@@ -90,6 +93,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setImageDialogOpen(true);
   }, []);
 
+  const openImageSettings = useCallback(() => setImageSettingsOpen(true), []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -112,6 +117,14 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     content: toEditorHtml(value),
     editable: !disabled,
     editorProps: {
+      // Alt+F10 moves the focus into the menu of the selected image. Without a
+      // selected image there is no menu and the key keeps its meaning.
+      handleKeyDown: (view, event) => {
+        if (event.key !== 'F10' || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+        if (!focusImageMenu(view.dom.parentElement)) return false;
+        event.preventDefault();
+        return true;
+      },
       attributes: {
         'aria-label': ariaLabel ?? 'Editor',
         role: 'textbox',
@@ -172,6 +185,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         allowImages={Boolean(mediaOrg)}
         onOpenLink={openLinkDialog}
         onOpenImage={openImageDialog}
+        onOpenImageSettings={openImageSettings}
         editorLabel={ariaLabel}
       />
       {imageRefusal && (
@@ -208,14 +222,32 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               borderTopColor: 'primary.main',
             },
             '& a': { color: 'primary.main', textDecoration: 'underline' },
-            '& img': {
+            // An image is a block of its own. `data-width` is a share of the text
+            // column, `data-align` the side it stands on (left when not set). With
+            // a caption the figure carries both and the picture fills it.
+            '& img, & figure': {
               display: 'block',
               maxWidth: '100%',
+              margin: '0.75em auto 0.75em 0',
+            },
+            '& img': {
               height: 'auto',
               borderRadius: 1,
-              margin: '0.75em 0',
             },
-            '& img.ProseMirror-selectednode': {
+            '& figure > img': { width: '100%', margin: 0 },
+            '& figure': { width: 'fit-content' },
+            '& figcaption': {
+              marginTop: '0.25em',
+              fontSize: '0.875em',
+              color: 'text.secondary',
+            },
+            '& [data-width="25"]': { width: '25%' },
+            '& [data-width="50"]': { width: '50%' },
+            '& [data-width="75"]': { width: '75%' },
+            '& [data-width="100"]': { width: '100%' },
+            '& [data-align="center"]': { marginLeft: 'auto', marginRight: 'auto' },
+            '& [data-align="right"]': { marginLeft: 'auto', marginRight: 0 },
+            '& img.ProseMirror-selectednode, & figure.ProseMirror-selectednode': {
               outline: '3px solid',
               outlineColor: 'primary.main',
             },
@@ -230,6 +262,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }}
       >
         <EditorContent editor={editor} />
+        <RichTextImageMenu editor={editor} onOpenSettings={openImageSettings} />
       </Box>
       {mediaOrg && (
         <RichTextImageDialog
@@ -246,6 +279,20 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           }}
         />
       )}
+      <RichTextImageSettingsDialog
+        open={imageSettingsOpen}
+        image={{
+          alt: (editor.getAttributes('image').alt as string | null | undefined) ?? null,
+          caption: (editor.getAttributes('image').caption as string | null | undefined) ?? null,
+          width: (editor.getAttributes('image').width as string | null | undefined) ?? null,
+          align: (editor.getAttributes('image').align as string | null | undefined) ?? null,
+        }}
+        onClose={() => setImageSettingsOpen(false)}
+        onSave={(settings: ImageSettings) => {
+          setImageSettingsOpen(false);
+          editor.chain().focus().updateAttributes('image', settings).run();
+        }}
+      />
       <RichTextLinkDialog
         open={linkDialogOpen}
         onClose={() => setLinkDialogOpen(false)}

@@ -164,7 +164,22 @@
     "textStyleSubheading": "Zwischenüberschrift",
     "strike": "Durchgestrichen",
     "quote": "Zitat",
-    "divider": "Trennlinie"
+    "divider": "Trennlinie",
+    "imageMenu": "Bild",
+    "imageSizeSmall": "Klein",
+    "imageSizeMedium": "Mittel",
+    "imageSizeLarge": "Groß",
+    "imageSizeFull": "Volle Breite",
+    "imageSizeOriginal": "Originalgröße",
+    "imageSize": "Größe",
+    "imageAlign": "Position",
+    "imageAlignLeft": "Links",
+    "imageAlignCenter": "Mitte",
+    "imageAlignRight": "Rechts",
+    "imageDescription": "Beschreibung und Bildunterschrift",
+    "imageRemove": "Bild entfernen",
+    "imageEdit": "Bild bearbeiten",
+    "imageSave": "Speichern"
   },
   "loading": "Wird geladen …",
   "legalLinks": {

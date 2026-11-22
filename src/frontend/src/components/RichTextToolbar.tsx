@@ -73,10 +73,11 @@ interface ToolHandlers {
   allowImages: boolean;
   onOpenLink: () => void;
   onOpenImage: () => void;
+  onOpenImageSettings?: () => void;
 }
 
 /** The tools of the editor, in the order of the toolbar. */
-const buildToolbarTools = ({ t, allowImages, onOpenLink, onOpenImage }: ToolHandlers): ToolDefinition[] => {
+const buildToolbarTools = ({ t, allowImages, onOpenLink, onOpenImage, onOpenImageSettings }: ToolHandlers): ToolDefinition[] => {
   const tools: ToolDefinition[] = [
     {
       id: 'undo',
@@ -198,10 +199,17 @@ const buildToolbarTools = ({ t, allowImages, onOpenLink, onOpenImage }: ToolHand
     tools.push({
       id: 'image',
       group: 4,
-      label: () => t('richTextEditor.image'),
+      // With an image selected the button edits it, otherwise it inserts one.
+      label: (editor) => (editor.isActive('image') ? t('richTextEditor.imageEdit') : t('richTextEditor.image')),
       icon: () => <ImageIcon fontSize="small" />,
       isActive: (editor) => editor.isActive('image'),
-      run: () => onOpenImage(),
+      run: (editor) => {
+        if (editor.isActive('image') && onOpenImageSettings) {
+          onOpenImageSettings();
+          return;
+        }
+        onOpenImage();
+      },
     });
   }
   tools.push({
@@ -257,6 +265,8 @@ interface RichTextToolbarProps {
   allowImages: boolean;
   onOpenLink: () => void;
   onOpenImage: () => void;
+  /** Opens the settings of the selected image. Without it the button always inserts. */
+  onOpenImageSettings?: () => void;
   /** The editor's own label, put in front of the toolbar's label. */
   editorLabel?: string;
   /** Replaces the tool list. For tests of the toolbar behaviour. */
@@ -271,6 +281,7 @@ const RichTextToolbar: React.FC<RichTextToolbarProps> = ({
   allowImages,
   onOpenLink,
   onOpenImage,
+  onOpenImageSettings,
   editorLabel,
   tools: toolsOverride,
 }) => {
@@ -284,8 +295,8 @@ const RichTextToolbar: React.FC<RichTextToolbarProps> = ({
   const [choiceMenu, setChoiceMenu] = useState<{ id: string; anchor: HTMLElement } | null>(null);
 
   const tools = useMemo(
-    () => toolsOverride ?? buildToolbarTools({ t, allowImages, onOpenLink, onOpenImage }),
-    [toolsOverride, t, allowImages, onOpenLink, onOpenImage],
+    () => toolsOverride ?? buildToolbarTools({ t, allowImages, onOpenLink, onOpenImage, onOpenImageSettings }),
+    [toolsOverride, t, allowImages, onOpenLink, onOpenImage, onOpenImageSettings],
   );
 
   // The editor does not re-render its parent on every transaction. The toolbar

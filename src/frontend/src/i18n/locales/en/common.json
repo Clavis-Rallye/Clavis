@@ -164,7 +164,22 @@
     "textStyleSubheading": "Subheading",
     "strike": "Strikethrough",
     "quote": "Quote",
-    "divider": "Divider"
+    "divider": "Divider",
+    "imageMenu": "Image",
+    "imageSizeSmall": "Small",
+    "imageSizeMedium": "Medium",
+    "imageSizeLarge": "Large",
+    "imageSizeFull": "Full width",
+    "imageSizeOriginal": "Original size",
+    "imageSize": "Size",
+    "imageAlign": "Position",
+    "imageAlignLeft": "Left",
+    "imageAlignCenter": "Centre",
+    "imageAlignRight": "Right",
+    "imageDescription": "Description and caption",
+    "imageRemove": "Remove image",
+    "imageEdit": "Edit image",
+    "imageSave": "Save"
   },
   "loading": "Loading …",
   "legalLinks": {
