@@ -181,7 +181,16 @@
     "imageEdit": "Edit image",
     "imageSave": "Save",
     "imageResize": "Drag to resize the image",
-    "table": "Insert table"
+    "table": "Insert table",
+    "tableMenu": "Table",
+    "tableRowAbove": "Row above",
+    "tableRowBelow": "Row below",
+    "tableColumnLeft": "Column left",
+    "tableColumnRight": "Column right",
+    "tableRemoveRow": "Delete row",
+    "tableRemoveColumn": "Delete column",
+    "tableHeaderRow": "Header row",
+    "tableRemove": "Delete table"
   },
   "loading": "Loading …",
   "legalLinks": {

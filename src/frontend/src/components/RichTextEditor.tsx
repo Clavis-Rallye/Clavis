@@ -10,6 +10,7 @@ import { onOrgMediaRefused } from '../api/media';
 import { toEditorHtml } from '../utils/richtext';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
+import RichTextTableMenu, { focusTableMenu } from './RichTextTableMenu';
 import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImageSettingsDialog';
 import { richTextImage, richTextTableExtensions } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
@@ -118,11 +119,11 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     content: toEditorHtml(value),
     editable: !disabled,
     editorProps: {
-      // Alt+F10 moves the focus into the menu of the selected image. Without a
-      // selected image there is no menu and the key keeps its meaning.
+      // Alt+F10 moves the focus into the menu of the selected image, or of the
+      // table the cursor is in. Without a menu the key keeps its meaning.
       handleKeyDown: (view, event) => {
         if (event.key !== 'F10' || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
-        if (!focusImageMenu(view.dom.parentElement)) return false;
+        if (!focusImageMenu(view.dom.parentElement) && !focusTableMenu(view.dom.parentElement)) return false;
         event.preventDefault();
         return true;
       },
@@ -281,6 +282,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       >
         <EditorContent editor={editor} />
         <RichTextImageMenu editor={editor} onOpenSettings={openImageSettings} />
+        <RichTextTableMenu editor={editor} />
       </Box>
       {mediaOrg && (
         <RichTextImageDialog

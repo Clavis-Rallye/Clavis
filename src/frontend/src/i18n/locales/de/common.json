@@ -181,7 +181,16 @@
     "imageEdit": "Bild bearbeiten",
     "imageSave": "Speichern",
     "imageResize": "Bildgröße ziehen",
-    "table": "Tabelle einfügen"
+    "table": "Tabelle einfügen",
+    "tableMenu": "Tabelle",
+    "tableRowAbove": "Zeile darüber",
+    "tableRowBelow": "Zeile darunter",
+    "tableColumnLeft": "Spalte links",
+    "tableColumnRight": "Spalte rechts",
+    "tableRemoveRow": "Zeile löschen",
+    "tableRemoveColumn": "Spalte löschen",
+    "tableHeaderRow": "Kopfzeile",
+    "tableRemove": "Tabelle löschen"
   },
   "loading": "Wird geladen …",
   "legalLinks": {
