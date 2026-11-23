@@ -111,4 +111,46 @@ describe('SafeHtml', () => {
     }
     expect(getComputedStyle(container.querySelector('figure') as Element).width).toBe('50%');
   });
+
+  describe('table of up to three columns', () => {
+    const TABLE =
+      '<table><tbody><tr><th>Tag</th><th>Zeit</th><th>Eintritt</th></tr>' +
+      '<tr><td>Montag</td><td>9 Uhr</td><td>frei</td></tr></tbody></table>';
+
+    it('gives a cell no minimum width, a narrow padding and a way to break long words', () => {
+      const { container } = render(<SafeHtml html={TABLE} />);
+      const cell = getComputedStyle(container.querySelector('td') as Element);
+      expect(['', 'auto', '0px']).toContain(cell.getPropertyValue('min-width'));
+      expect(cell.getPropertyValue('padding-left')).toBe('6px');
+      expect(cell.getPropertyValue('padding-right')).toBe('6px');
+      expect(cell.getPropertyValue('padding-top')).toBe('4px');
+      expect(cell.getPropertyValue('padding-bottom')).toBe('4px');
+      expect(cell.getPropertyValue('hyphens')).toBe('auto');
+      expect(cell.getPropertyValue('overflow-wrap')).toBe('anywhere');
+      const head = getComputedStyle(container.querySelector('th') as Element);
+      expect(['', 'auto', '0px']).toContain(head.getPropertyValue('min-width'));
+    });
+
+    it('draws the table with separate borders that never exceed its width', () => {
+      const { container } = render(<SafeHtml html={TABLE} />);
+      const table = getComputedStyle(container.querySelector('table') as Element);
+      expect(table.getPropertyValue('border-collapse')).toBe('separate');
+      expect(table.getPropertyValue('border-spacing')).toBe('0px');
+      expect(table.getPropertyValue('width')).toBe('100%');
+      expect(table.getPropertyValue('border-top-width')).toBe('1px');
+      expect(table.getPropertyValue('border-left-width')).toBe('1px');
+      const cell = getComputedStyle(container.querySelector('td') as Element);
+      expect(cell.getPropertyValue('border-right-width')).toBe('1px');
+      expect(cell.getPropertyValue('border-bottom-width')).toBe('1px');
+      expect(cell.getPropertyValue('border-top-width')).not.toBe('1px');
+      expect(cell.getPropertyValue('border-left-width')).not.toBe('1px');
+    });
+
+    it('keeps the scroll region as the safety net for a table that does not fit', () => {
+      const { container } = render(<SafeHtml html={TABLE} />);
+      const region = getComputedStyle(container.querySelector('[role="region"]') as Element);
+      expect(region.getPropertyValue('overflow-x')).toBe('auto');
+      expect(region.getPropertyValue('max-width')).toBe('100%');
+    });
+  });
 });

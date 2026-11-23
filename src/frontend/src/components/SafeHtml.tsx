@@ -83,16 +83,26 @@ const SafeHtml: React.FC<SafeHtmlProps> = ({ html, dir, sx }) => {
         '& hr': { border: 0, borderTop: '1px solid', borderColor: 'divider', my: 2.5 },
         // Tables scroll inside their own region, so a wide table never widens the page.
         '& div[role="region"]': { maxWidth: '100%', overflowX: 'auto', my: 1.5 },
-        '& table': { borderCollapse: 'collapse', width: '100%' },
-        '& th, & td': {
-          border: '1px solid',
+        // Separate borders with no spacing: the table never stands wider than its region
+        // because of its own border. Top and left lines sit on the table, right and bottom on the cells.
+        '& table': {
+          borderCollapse: 'separate',
+          borderSpacing: 0,
+          width: '100%',
+          borderTop: '1px solid',
+          borderLeft: '1px solid',
           borderColor: 'divider',
-          px: 1,
+        },
+        '& th, & td': {
+          borderRight: '1px solid',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          px: 0.75,
           py: 0.5,
-          minWidth: '8em',
           verticalAlign: 'top',
           textAlign: 'start',
           overflowWrap: 'anywhere',
+          hyphens: 'auto',
         },
         '& th': { fontWeight: 700 },
         ...sx,
