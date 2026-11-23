@@ -300,7 +300,7 @@ describe('tables outside the contract', () => {
 });
 
 describe('sanitizeRichText on a strict image address', () => {
-  it('does not render an image with a tab in its address and drops the figure around it', () => {
+  it('does not render an image with an unclean address and drops the figure around it', () => {
     const body = parse(
       sanitizeRichText(
         '<p>ok</p><figure><img src="/api/orgs/stadt/media/.\t./x.jpg" alt="a"><figcaption>c</figcaption></figure>',

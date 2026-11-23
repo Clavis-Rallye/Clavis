@@ -128,11 +128,11 @@ describe('toEditorHtml with tables', () => {
 
 describe('richtext helpers run in linear time', () => {
   const SHAPES: Record<string, (k: number) => string> = {
-    'an open pre tag repeated': (k) => '<p>x</p>' + '<pre '.repeat(k),
-    'an open code tag repeated': (k) => '<code '.repeat(k),
-    'a line break tag repeated in a pre': (k) => '<pre>' + '<br '.repeat(k),
-    'a tag start repeated': (k) => '<a'.repeat(k),
-    'an open h1 tag repeated': (k) => '<h1 '.repeat(k),
+    'shape 1': (k) => '<p>x</p>' + '<pre '.repeat(k),
+    'shape 2': (k) => '<code '.repeat(k),
+    'shape 3': (k) => '<pre>' + '<br '.repeat(k),
+    'shape 4': (k) => '<a'.repeat(k),
+    'shape 5': (k) => '<h1 '.repeat(k),
   };
 
   const timed = (run: () => unknown): number => {
@@ -168,22 +168,22 @@ describe('isOwnMediaSrc strict form', () => {
   });
 
   it.each([
-    ['a tab', `${ROUTE}.\t./x.jpg`],
-    ['a tab in a name', `${ROUTE}a\tb.jpg`],
-    ['a newline', `${ROUTE}a\nb.jpg`],
-    ['a carriage return', `${ROUTE}a\rb.jpg`],
-    ['a no-break space', `${ROUTE}a\u00a0b.jpg`],
-    ['a space', `${ROUTE}a b.jpg`],
-    ['a delete character', `${ROUTE}a\u007fb.jpg`],
-    ['a dot segment', `${ROUTE}./x.jpg`],
-    ['a double dot segment', `${ROUTE}../x.jpg`],
-    ['a double dot in the middle', `${ROUTE}a/../x.jpg`],
-    ['a lower case encoded dot', `${ROUTE}%2e%2e/x.jpg`],
-    ['an upper case encoded dot', `${ROUTE}%2E/x.jpg`],
-    ['an encoded slash', `${ROUTE}a%2fb.jpg`],
-    ['an encoded backslash', `${ROUTE}a%5Cb.jpg`],
-    ['a backslash', `${ROUTE}a\\b.jpg`],
-  ])('refuses an address with %s', (_name, src) => {
+    ['address 1', `${ROUTE}.\t./x.jpg`],
+    ['address 2', `${ROUTE}a\tb.jpg`],
+    ['address 3', `${ROUTE}a\nb.jpg`],
+    ['address 4', `${ROUTE}a\rb.jpg`],
+    ['address 5', `${ROUTE}a\u00a0b.jpg`],
+    ['address 6', `${ROUTE}a b.jpg`],
+    ['address 7', `${ROUTE}a\u007fb.jpg`],
+    ['address 8', `${ROUTE}./x.jpg`],
+    ['address 9', `${ROUTE}../x.jpg`],
+    ['address 10', `${ROUTE}a/../x.jpg`],
+    ['address 11', `${ROUTE}%2e%2e/x.jpg`],
+    ['address 12', `${ROUTE}%2E/x.jpg`],
+    ['address 13', `${ROUTE}a%2fb.jpg`],
+    ['address 14', `${ROUTE}a%5Cb.jpg`],
+    ['address 15', `${ROUTE}a\\b.jpg`],
+  ])('refuses an unclean address (%s)', (_name, src) => {
     expect(isOwnMediaSrc(src)).toBe(false);
   });
 });

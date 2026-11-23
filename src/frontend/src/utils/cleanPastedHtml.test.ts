@@ -281,7 +281,7 @@ describe('cleanPastedHtml on tables', () => {
 });
 
 describe('cleanPastedHtml in linear time', () => {
-  it('ends within half a second on a style value of two million characters without a semicolon', () => {
+  it('ends within half a second on a long style value', () => {
     const style = 'text-decoration:'.repeat(125_000);
     const start = performance.now();
     const result = cleanPastedHtml(`<p><span style="${style}">a</span></p>`);
