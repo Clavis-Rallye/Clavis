@@ -193,7 +193,8 @@
     "tableRemove": "Delete table",
     "selectionMenu": "Format selection",
     "pasteImagesLeftOut_one": "{{count}} image was left out. Add images with the image button.",
-    "pasteImagesLeftOut_other": "{{count}} images were left out. Add images with the image button."
+    "pasteImagesLeftOut_other": "{{count}} images were left out. Add images with the image button.",
+    "tableColumnLimit": "At most three columns"
   },
   "loading": "Loading …",
   "legalLinks": {

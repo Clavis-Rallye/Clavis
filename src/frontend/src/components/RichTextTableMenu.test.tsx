@@ -17,6 +17,7 @@ vi.mock('@tiptap/react', async (importOriginal) => {
 });
 
 import RichTextEditor from './RichTextEditor';
+import i18n from '../i18n';
 
 // ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
 const emptyRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
@@ -28,6 +29,8 @@ document.elementFromPoint = () => null;
 const TABLE =
   '<table><tbody><tr><th><p>A</p></th><th><p>B</p></th></tr><tr><td><p>C</p></td><td><p>D</p></td></tr></tbody></table>';
 const DOCUMENT = `<p>Vorher</p>${TABLE}<p>Nachher</p>`;
+const THREE =
+  '<table><tbody><tr><th><p>A</p></th><th><p>B</p></th><th><p>C</p></th></tr><tr><td><p>D</p></td><td><p>E</p></td><td><p>F</p></td></tr></tbody></table>';
 const SINGLE = '<table><tbody><tr><td><p>A</p></td></tr></tbody></table>';
 const IMAGE = '<img src="/api/orgs/stadt/media/a.png" alt="Das Rathaus">';
 
@@ -50,9 +53,9 @@ const cursorIn = (text: string) => {
   });
 };
 
-const cursorInTable = async (text = 'A') => {
+const cursorInTable = async (text = 'A', name = 'Tabelle') => {
   cursorIn(text);
-  return screen.findByRole('toolbar', { name: 'Tabelle' });
+  return screen.findByRole('toolbar', { name });
 };
 
 const renderEditor = async (value = DOCUMENT) => {
@@ -64,8 +67,9 @@ const renderEditor = async (value = DOCUMENT) => {
 
 const lastHtml = (onChange: ReturnType<typeof vi.fn>): string => onChange.mock.calls.at(-1)?.[0] as string;
 
-afterEach(() => {
+afterEach(async () => {
   editorUnderTest = null;
+  await i18n.changeLanguage('de');
 });
 
 describe('the table menu', () => {
@@ -199,6 +203,89 @@ describe('the table menu', () => {
     });
     await screen.findByRole('toolbar', { name: 'Tabelle' });
     await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Bild' })).not.toBeInTheDocument());
+  });
+
+  describe('the limit of three columns', () => {
+    const NOTE = 'Höchstens drei Spalten';
+
+    it('disables column left and column right at three columns and says why', async () => {
+      await renderEditor(THREE);
+      const menu = await cursorInTable();
+      const left = within(menu).getByRole('button', { name: 'Spalte links' });
+      const right = within(menu).getByRole('button', { name: 'Spalte rechts' });
+      expect(left).toBeDisabled();
+      expect(right).toBeDisabled();
+      expect(within(menu).getByText(NOTE)).toBeVisible();
+      expect(left).toHaveAccessibleDescription(NOTE);
+      expect(right).toHaveAccessibleDescription(NOTE);
+      expect(within(menu).getByRole('button', { name: 'Zeile darüber' })).not.toHaveAttribute('aria-describedby');
+      expect(within(menu).getAllByRole('button')).toHaveLength(8);
+    });
+
+    it('gives the disabled buttons no tooltip', async () => {
+      await renderEditor(THREE);
+      const menu = await cursorInTable();
+      expect(within(menu).getByRole('button', { name: 'Spalte links' })).not.toHaveAttribute('title');
+      expect(within(menu).getByRole('button', { name: 'Spalte rechts' })).not.toHaveAttribute('title');
+    });
+
+    it('shows the note in English with the English locale', async () => {
+      await i18n.changeLanguage('en');
+      await renderEditor(THREE);
+      const menu = await cursorInTable('A', 'Table');
+      expect(within(menu).getByText('At most three columns')).toBeVisible();
+      expect(within(menu).getByRole('button', { name: 'Column right' })).toHaveAccessibleDescription(
+        'At most three columns',
+      );
+    });
+
+    it('enables both and shows no note in a table of two columns, and a column added gives three', async () => {
+      const { onChange, user } = await renderEditor();
+      const menu = await cursorInTable();
+      const left = within(menu).getByRole('button', { name: 'Spalte links' });
+      const right = within(menu).getByRole('button', { name: 'Spalte rechts' });
+      expect(left).toBeEnabled();
+      expect(right).toBeEnabled();
+      expect(within(menu).queryByText(NOTE)).not.toBeInTheDocument();
+      expect(left).not.toHaveAttribute('aria-describedby');
+      expect(right).not.toHaveAttribute('aria-describedby');
+      await user.click(right);
+      expect(lastHtml(onChange)).toContain('<th><p>A</p></th><th><p></p></th><th><p>B</p></th>');
+      await waitFor(() => expect(within(menu).getByRole('button', { name: 'Spalte rechts' })).toBeDisabled());
+      expect(within(menu).getByText(NOTE)).toBeVisible();
+    });
+
+    it('enables both again after a column is removed at three columns', async () => {
+      const { user } = await renderEditor(THREE);
+      const menu = await cursorInTable('C');
+      expect(within(menu).getByRole('button', { name: 'Spalte rechts' })).toBeDisabled();
+      await user.click(within(menu).getByRole('button', { name: 'Spalte löschen' }));
+      await waitFor(() => expect(within(menu).getByRole('button', { name: 'Spalte rechts' })).toBeEnabled());
+      expect(within(menu).getByRole('button', { name: 'Spalte links' })).toBeEnabled();
+      expect(within(menu).queryByText(NOTE)).not.toBeInTheDocument();
+    });
+
+    it('does not add a column at the limit even if the click runs', async () => {
+      const { onChange } = await renderEditor(THREE);
+      const menu = await cursorInTable();
+      const right = within(menu).getByRole('button', { name: 'Spalte rechts' });
+      onChange.mockClear();
+      act(() => {
+        right.click();
+      });
+      expect(onChange).not.toHaveBeenCalled();
+      expect(current().getHTML()).not.toContain('<th><p></p></th>');
+    });
+
+    it('starts Alt+F10 on the first enabled item and skips the disabled ones with the arrows', async () => {
+      const { user } = await renderEditor(THREE);
+      screen.getByRole('textbox', { name: 'Beschreibung' }).focus();
+      const menu = await cursorInTable();
+      await user.keyboard('{Alt>}{F10}{/Alt}');
+      expect(within(menu).getByRole('button', { name: 'Zeile darüber' })).toHaveFocus();
+      await user.keyboard('{ArrowRight}{ArrowRight}');
+      expect(within(menu).getByRole('button', { name: 'Zeile löschen' })).toHaveFocus();
+    });
   });
 
   describe('keyboard', () => {

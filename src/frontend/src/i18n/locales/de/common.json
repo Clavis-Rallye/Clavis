@@ -193,7 +193,8 @@
     "tableRemove": "Tabelle löschen",
     "selectionMenu": "Auswahl formatieren",
     "pasteImagesLeftOut_one": "{{count}} Bild wurde nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.",
-    "pasteImagesLeftOut_other": "{{count}} Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein."
+    "pasteImagesLeftOut_other": "{{count}} Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.",
+    "tableColumnLimit": "Höchstens drei Spalten"
   },
   "loading": "Wird geladen …",
   "legalLinks": {

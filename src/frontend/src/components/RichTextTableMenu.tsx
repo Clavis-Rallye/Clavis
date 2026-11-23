@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Divider } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -6,6 +6,7 @@ import { findParentNode } from '@tiptap/core';
 import { TableMap } from '@tiptap/pm/tables';
 import { useEditorState, type Editor } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
+import { TABLE_MAX_COLUMNS } from '../utils/richTextTables';
 
 const ITEM = 'data-table-menu-item';
 const MENU = 'data-table-menu';
@@ -72,6 +73,7 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
   const { t } = useTranslation('common');
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const limitNoteId = useId();
 
   const state = useEditorState({
     editor,
@@ -80,7 +82,12 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
       a === b || (a !== null && b !== null && a.rows === b.rows && a.columns === b.columns && a.headerRow === b.headerRow),
   });
 
+  const atColumnLimit = state !== null && state.columns >= TABLE_MAX_COLUMNS;
+
   const run = (id: Action) => {
+    // A table has at most TABLE_MAX_COLUMNS columns, the button is disabled at
+    // the limit and this is the second guard.
+    if (atColumnLimit && (id === 'columnLeft' || id === 'columnRight')) return;
     const chain = editor.chain().focus();
     switch (id) {
       case 'rowAbove':
@@ -114,6 +121,7 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
     if (!state) return true;
     if (id === 'removeRow') return state.rows <= 1;
     if (id === 'removeColumn') return state.columns <= 1;
+    if (id === 'columnLeft' || id === 'columnRight') return state.columns >= TABLE_MAX_COLUMNS;
     return false;
   };
 
@@ -213,6 +221,7 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
           const previous = ACTIONS[index - 1];
           const pressed = id === 'headerRow' ? (state?.headerRow ?? false) : undefined;
           const label = t(labelKey);
+          const limited = atColumnLimit && (id === 'columnLeft' || id === 'columnRight');
           return (
             <React.Fragment key={id}>
               {previous && previous.group !== group && (
@@ -223,6 +232,7 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
                 color={id === 'remove' ? 'error' : 'inherit'}
                 startIcon={id === 'remove' ? <DeleteIcon fontSize="small" /> : undefined}
                 disabled={isDisabled(id)}
+                {...(limited ? { 'aria-describedby': limitNoteId } : {})}
                 {...(pressed === undefined ? {} : { 'aria-pressed': pressed })}
                 {...itemProps(id)}
                 onClick={() => run(id)}
@@ -242,6 +252,15 @@ const RichTextTableMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
               >
                 {label}
               </Button>
+              {atColumnLimit && id === 'columnRight' && (
+                <Box
+                  component="span"
+                  id={limitNoteId}
+                  sx={{ color: 'text.secondary', fontSize: '0.8125rem', lineHeight: 1.75, px: 0.5 }}
+                >
+                  {t('richTextEditor.tableColumnLimit')}
+                </Box>
+              )}
             </React.Fragment>
           );
         })}
