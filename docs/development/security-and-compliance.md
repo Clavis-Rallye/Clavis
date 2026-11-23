@@ -435,6 +435,8 @@ No `style`, `class`, `id`, event handler or other `data-` attribute survives. `d
 
 The renderer also keeps `h1`, `code` and `pre`, only for texts written before the server filtered rich text. The editor never makes them. The editor and the backend both map them the same way: `h1` to `h2`, `pre` to paragraphs, `code` to plain text.
 
+A table has at most three columns and does not stand inside a cell. A wider table, or a table inside a cell, becomes one paragraph per row: on write in the backend filter, on render in the frontend renderer, and in the editor on open and on paste. The cells of a row are joined by " · ", a row of header cells is bold, and no word is lost. `src/frontend/src/utils/richTextTableCases.json` pins the rule for both filters, which must give the same output on every case.
+
 Pasted HTML is cleaned in the browser before the editor reads it (`src/frontend/src/utils/cleanPastedHtml.ts`). The backend filter still decides what is stored.
 
 ### Participant Photo Hygiene

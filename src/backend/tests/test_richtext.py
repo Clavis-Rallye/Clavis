@@ -2,15 +2,22 @@
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
+import nh3
 import pytest
 
 from app.services.richtext import (
+    _NH3_ATTRIBUTE_VALUES,
+    _NH3_ATTRIBUTES,
     ALLOWED_ATTRIBUTE_VALUES,
     ALLOWED_ATTRIBUTES,
     ALLOWED_TAGS,
+    LINK_REL,
+    TABLE_CELL_SEPARATOR,
+    TABLE_MAX_COLUMNS,
     URL_SCHEMES,
     image_sources,
     is_html,
@@ -363,3 +370,120 @@ def test_code_is_plain_text() -> None:
 def test_document_without_the_three_tags_is_not_changed_by_the_mapping() -> None:
     document = "<h2>Titel</h2><p>Text<br>Zeile</p><blockquote><p>Zitat</p></blockquote>"
     assert sanitize_html(document, PREFIX) == document
+
+
+# Tables outside the contract: more than three columns, or a table inside a cell. The frontend renderer
+# follows the same rule and the same fixture, ``richTextTableCases.json``.
+
+TABLE_CASES: list[dict[str, str]] = json.loads(
+    (Path(__file__).parent / ".." / ".." / "frontend" / "src" / "utils" / "richTextTableCases.json").read_text(
+        encoding="utf-8"
+    )
+)["cases"]
+
+
+def test_table_constants_equal_the_contract_file() -> None:
+    assert CONTRACT["tables"]["maxColumns"] == TABLE_MAX_COLUMNS
+    assert CONTRACT["tables"]["cellSeparator"] == TABLE_CELL_SEPARATOR
+
+
+def test_table_fixture_holds_every_case() -> None:
+    assert len(TABLE_CASES) >= 20
+    assert len({case["name"] for case in TABLE_CASES}) == len(TABLE_CASES)
+
+
+@pytest.mark.parametrize("case", TABLE_CASES, ids=[case["name"] for case in TABLE_CASES])
+def test_table_cases_of_the_shared_fixture(case: dict[str, str]) -> None:
+    assert sanitize_html(case["input"], "/api/orgs/demo/media/") == case["output"]
+
+
+def test_a_table_of_three_columns_comes_back_as_nh3_gives_it() -> None:
+    html = (
+        '<p>Vor &amp; nach\u00a0dem "Tisch"</p>'
+        '<table><tbody><tr><td><a href="https://example.org/?a=1&b=2" target="_blank" rel="x">Link</a></td>'
+        '<td>A &amp; B\u00a0C</td><td>"D" &lt; E</td></tr></tbody></table>'
+        '<p><a href="/x?a=<b>" target="_blank">z</a></p>'
+    )
+    expected = nh3.clean(
+        html,
+        tags=ALLOWED_TAGS,
+        attributes=_NH3_ATTRIBUTES,
+        tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
+        url_schemes=URL_SCHEMES,
+        link_rel=LINK_REL,
+        strip_comments=True,
+    )
+    assert 'rel="noopener noreferrer"' in expected and "&nbsp;" in expected and "&amp;" in expected
+    assert sanitize_html(html, PREFIX) == expected
+
+
+def test_parts_outside_a_flattened_table_are_written_as_nh3_writes_them() -> None:
+    html = (
+        '<p><a href="/x?a=1&b=2&c=<d>" target="_blank">A &amp; B\u00a0C "q"</a></p>'
+        "<table><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table>"
+        '<p>&lt;tag&gt;</p><img src="' + PREFIX + 'a.png" alt="x &quot;y&quot; &amp; \u00a0">'
+    )
+    cleaned = sanitize_html(html, PREFIX)
+    assert cleaned.startswith(
+        '<p><a href="/x?a=1&amp;b=2&amp;c=&lt;d&gt;" target="_blank" rel="noopener noreferrer">'
+        'A &amp; B&nbsp;C "q"</a></p><p>1 · 2 · 3 · 4</p><p>&lt;tag&gt;</p>'
+    )
+    assert cleaned.endswith('alt="x &quot;y&quot; &amp; &nbsp;">')
+
+
+def test_an_image_of_a_wide_table_follows_the_paragraph_of_its_row() -> None:
+    html = (
+        f'<table><tbody><tr><td><p>a</p><img src="{PREFIX}one.png" alt="eins"></td><td>b</td><td>c</td>'
+        f'<td><a href="https://example.org/">d<img src="{PREFIX}two.png"></a></td></tr>'
+        "<tr><td>e</td><td>f</td><td>g</td><td>h</td></tr></tbody></table>"
+    )
+    assert sanitize_html(html, PREFIX) == (
+        f'<p>a · b · c · <a href="https://example.org/" rel="noopener noreferrer">d</a></p>'
+        f'<img src="{PREFIX}one.png" alt="eins"><img src="{PREFIX}two.png"><p>e · f · g · h</p>'
+    )
+
+
+def test_a_figure_with_a_caption_moves_whole_out_of_a_wide_table() -> None:
+    figure = f'<figure data-width="50"><img src="{PREFIX}a.png"><figcaption>Bildtext</figcaption></figure>'
+    html = f"<table><tbody><tr><td>a{figure}</td><td>b</td><td>c</td><td>d</td></tr></tbody></table>"
+    assert sanitize_html(html, PREFIX) == f"<p>a · b · c · d</p>{figure}"
+
+
+def test_a_foreign_image_in_a_wide_table_goes_and_the_words_of_its_row_stay() -> None:
+    html = (
+        '<table><tbody><tr><td>eins<img src="https://evil.example/p.png"></td><td>zwei</td><td>drei</td>'
+        '<td>vier<figure><img src="https://evil.example/q.png"><figcaption>fünf</figcaption></figure></td></tr>'
+        "</tbody></table>"
+    )
+    cleaned = sanitize_html(html, PREFIX)
+    assert "<img" not in cleaned and "evil.example" not in cleaned
+    assert cleaned == "<p>eins · zwei · drei · vier</p>"
+
+
+def test_a_table_nested_two_hundred_deep_loses_no_word() -> None:
+    html = "<p>kern</p>"
+    for level in range(200):
+        html = f"<table><tbody><tr><td><p>w{level}</p>{html}</td><td>x</td></tr></tbody></table>"
+    cleaned = sanitize_html(html, PREFIX)
+    assert "kern" in cleaned
+    for level in range(200):
+        assert f"w{level}" in cleaned
+    assert cleaned.count("<table") == 1
+
+
+def test_deeply_nested_inline_and_block_markup_in_a_wide_table_does_not_raise() -> None:
+    depth = 3000
+    inline = "<strong>" * depth + "tief" + "</strong>" * depth
+    block = "<blockquote>" * depth + "<p>Block</p>" + "</blockquote>" * depth
+    html = f"<table><tbody><tr><td>{inline}</td><td>{block}</td><td>c</td><td>d</td></tr></tbody></table>"
+    cleaned = sanitize_html(html, PREFIX)
+    assert "tief" in cleaned and "Block" in cleaned and "<table" not in cleaned
+
+
+def test_a_table_of_three_hundred_rows_with_twenty_cells_finishes_within_a_second() -> None:
+    row = "<tr>" + "".join(f"<td>z{index}</td>" for index in range(20)) + "</tr>"
+    html = "<table><tbody>" + row * 300 + "</tbody></table>"
+    started = time.perf_counter()
+    cleaned = sanitize_html(html, PREFIX)
+    assert time.perf_counter() - started < 1
+    assert cleaned.count("<p>") == 300 and "<table" not in cleaned

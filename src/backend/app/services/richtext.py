@@ -18,6 +18,10 @@ are mapped before ``nh3`` cleans, so no word is lost and none ends up outside a 
 ``h2``, a ``pre`` block becomes paragraphs (a blank line starts a new paragraph, a single line break
 becomes ``br``) and ``code`` becomes plain text. The frontend does the same in ``toEditorHtml``.
 
+A table has at most three columns and does not stand inside a cell. Any other table becomes one
+paragraph per row, the same rule as in ``src/frontend/src/utils/richTextTables.ts``, and
+``src/frontend/src/utils/richTextTableCases.json`` pins both filters to the same output.
+
 Plain text without a tag passes unchanged, so a text written before the editor
 existed keeps its line breaks.
 """
@@ -25,7 +29,7 @@ existed keeps its line breaks.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from html.parser import HTMLParser
 from typing import Any
 
@@ -77,6 +81,10 @@ ALLOWED_ATTRIBUTE_VALUES: dict[str, set[str]] = {
 URL_SCHEMES: set[str] = {"http", "https", "mailto"}
 
 LINK_REL = "noopener noreferrer"
+
+# Tables stay up to this many columns. The cells of a row that became a paragraph are joined by the separator.
+TABLE_MAX_COLUMNS = 3
+TABLE_CELL_SEPARATOR = " · "
 
 # What ``nh3`` receives: free attributes in ``attributes``, value-checked ones in ``tag_attribute_values``.
 _NH3_ATTRIBUTES: dict[str, set[str]] = {
@@ -233,6 +241,376 @@ def map_legacy_elements(html: str) -> str:
     return _CODE_TAG.sub("", html)
 
 
+# Tables outside the contract. The clean document is parsed into a small tree, the rule of
+# ``richTextTables.ts`` is applied step for step, and the tree is written back. Every walk keeps its own
+# stack, so a deeply nested hostile document cannot raise ``RecursionError``.
+
+# White space is exactly these characters, as in the frontend. ``str.strip()`` without them strips more.
+_TABLE_SPACE = " \t\n\r\f\u00a0"
+_VOID_TAGS = {"br", "img", "hr"}
+_INLINE_TAGS = {"strong", "em", "u", "s", "a", "br", "code"}
+_STRUCTURE_TAGS = {"tbody", "tr", "td", "th"}
+
+
+class _Node:
+    __slots__ = ("parent",)
+
+    def __init__(self) -> None:
+        self.parent: _Element | None = None
+
+
+class _Text(_Node):
+    __slots__ = ("data",)
+
+    def __init__(self, data: str) -> None:
+        super().__init__()
+        self.data = data
+
+
+class _Element(_Node):
+    __slots__ = ("tag", "attrs", "children")
+
+    def __init__(self, tag: str, attrs: list[tuple[str, str | None]] | None = None) -> None:
+        super().__init__()
+        self.tag = tag
+        self.attrs: list[tuple[str, str | None]] = attrs or []
+        self.children: list[_Node] = []
+
+
+def _tag(node: _Node) -> str:
+    return node.tag if isinstance(node, _Element) else ""
+
+
+def _detach(node: _Node) -> None:
+    if node.parent is not None:
+        node.parent.children.remove(node)
+        node.parent = None
+
+
+def _append(parent: _Element, node: _Node) -> None:
+    """Append ``node`` to ``parent`` and take it out of its old parent first, like ``appendChild``."""
+    _detach(node)
+    node.parent = parent
+    parent.children.append(node)
+
+
+class _TreeBuilder(HTMLParser):
+    """Parse a clean document into a tree. Text comes decoded, so the serializer escapes it again."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.root = _Element("")
+        self._stack: list[_Element] = [self.root]
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        element = _Element(tag, attrs)
+        _append(self._stack[-1], element)
+        if tag not in _VOID_TAGS:
+            self._stack.append(element)
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self._stack) - 1, 0, -1):
+            if self._stack[index].tag == tag:
+                del self._stack[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        parent = self._stack[-1]
+        last = parent.children[-1] if parent.children else None
+        if isinstance(last, _Text):
+            last.data += data
+        else:
+            _append(parent, _Text(data))
+
+
+def _escape_text(text: str) -> str:
+    return text.replace("&", "&amp;").replace("\u00a0", "&nbsp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _escape_attribute(value: str) -> str:
+    # The installed ``nh3`` writes ``<`` and ``>`` in a value as entities too, like in text.
+    return _escape_text(value).replace('"', "&quot;")
+
+
+def _serialize(root: _Element) -> str:
+    """Write the tree the way ``nh3`` writes a document, so the parts outside the tables do not change."""
+    parts: list[str] = []
+    stack: list[_Node | str] = list(reversed(root.children))
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, _Text):
+            parts.append(_escape_text(item.data))
+        else:
+            assert isinstance(item, _Element)
+            parts.append(f"<{item.tag}")
+            for name, value in item.attrs:
+                parts.append(f' {name}="{_escape_attribute(value or "")}"')
+            parts.append(">")
+            if item.tag not in _VOID_TAGS:
+                stack.append(f"</{item.tag}>")
+                stack.extend(reversed(item.children))
+    return "".join(parts)
+
+
+def _has_text(node: _Node) -> bool:
+    """True when the text of ``node`` holds more than white space."""
+    stack: list[_Node] = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, _Text):
+            if current.data.strip(_TABLE_SPACE):
+                return True
+        elif isinstance(current, _Element):
+            stack.extend(current.children)
+    return False
+
+
+def _cells_of(row: _Element) -> list[_Element]:
+    return [child for child in row.children if isinstance(child, _Element) and child.tag in ("td", "th")]
+
+
+def _own_rows(table: _Element) -> list[_Element]:
+    """The ``tr`` children of the table and of its ``tbody``, in document order."""
+    rows: list[_Element] = []
+    for child in table.children:
+        if _tag(child) == "tr":
+            assert isinstance(child, _Element)
+            rows.append(child)
+        elif _tag(child) == "tbody":
+            assert isinstance(child, _Element)
+            rows.extend(row for row in child.children if isinstance(row, _Element) and row.tag == "tr")
+    return rows
+
+
+def _loose_runs(table: _Element) -> list[list[_Node]]:
+    """Child nodes of the table, of its ``tbody`` and of a ``tr`` that are not ``tbody``, ``tr``, ``td`` or ``th``.
+
+    Adjacent loose nodes of one parent are one run. Runs come in document order.
+    """
+    runs: list[list[_Node]] = []
+    stack: list[tuple[Iterator[_Node], list[list[_Node]]]] = [(iter(list(table.children)), [[]])]
+    while stack:
+        children, current = stack[-1]
+        descended = False
+        for child in children:
+            if _tag(child) not in _STRUCTURE_TAGS:
+                current[0].append(child)
+                continue
+            if current[0]:
+                runs.append(current[0])
+                current[0] = []
+            if _tag(child) in ("tbody", "tr"):
+                assert isinstance(child, _Element)
+                stack.append((iter(list(child.children)), [[]]))
+                descended = True
+                break
+        if descended:
+            continue
+        if current[0]:
+            runs.append(current[0])
+        stack.pop()
+    return runs
+
+
+def _trim_edge(nodes: list[_Node], at_start: bool) -> None:
+    """Remove white space and ``br`` from one edge of a run of nodes, going into elements at the edge."""
+    frames: list[tuple[_Element | None, list[_Node]]] = [(None, nodes)]
+    while frames:
+        owner, work = frames[-1]
+        if not work:
+            frames.pop()
+            if owner is None or owner.children:
+                return
+            _detach(owner)
+            frames[-1][1].pop(0 if at_start else -1)
+            continue
+        node = work[0] if at_start else work[-1]
+        if isinstance(node, _Text):
+            node.data = node.data.lstrip(_TABLE_SPACE) if at_start else node.data.rstrip(_TABLE_SPACE)
+            if node.data:
+                return
+        elif isinstance(node, _Element) and node.tag != "br":
+            frames.append((node, list(node.children)))
+            continue
+        _detach(node)
+        work.pop(0 if at_start else -1)
+
+
+def _take_images(parent: _Element, images: list[_Node]) -> bool:
+    """Collect every ``img`` and ``figure`` below ``parent``, also deep inside inline elements.
+
+    An inline element that held an image and holds no other text than white space goes away with it, so no
+    empty link is left. Returns whether it found an image.
+    """
+    frames: list[tuple[_Element, Iterator[_Node], list[bool]]] = [(parent, iter(list(parent.children)), [False])]
+    while frames:
+        element, children, took = frames[-1]
+        descended = False
+        for child in children:
+            if _tag(child) in ("img", "figure"):
+                images.append(child)
+                took[0] = True
+            elif isinstance(child, _Element):
+                frames.append((child, iter(list(child.children)), [False]))
+                descended = True
+                break
+        if descended:
+            continue
+        frames.pop()
+        if not frames:
+            return took[0]
+        if took[0]:
+            frames[-1][2][0] = True
+            if not _has_text(element):
+                _detach(element)
+    return False
+
+
+def _lines_of(nodes: list[_Node], images: list[_Node]) -> list[list[_Node]]:
+    """The lines of a run of nodes: the content of a cell, or loose content of a table.
+
+    Images and figures leave into ``images``. A block ends the line before and after its own lines, ``hr``
+    only ends the line. Unknown elements, ``h1`` and ``pre`` count as blocks, ``code`` as inline.
+    """
+    lines: list[list[_Node]] = []
+    current: list[_Node] = []
+    # A ``None`` on the stack ends the line, it closes a block.
+    stack: list[_Node | None] = list(reversed(nodes))
+    while stack:
+        child = stack.pop()
+        if child is None:
+            if current:
+                lines.append(current)
+            current = []
+        elif isinstance(child, _Text):
+            current.append(child)
+        elif isinstance(child, _Element):
+            if child.tag in ("img", "figure"):
+                images.append(child)
+            elif child.tag in _INLINE_TAGS:
+                if _take_images(child, images) and not _has_text(child):
+                    continue
+                current.append(child)
+            elif child.tag == "hr":
+                if current:
+                    lines.append(current)
+                current = []
+            else:
+                if current:
+                    lines.append(current)
+                current = []
+                stack.append(None)
+                stack.extend(reversed(child.children))
+    if current:
+        lines.append(current)
+    kept = [line for line in lines if any(_has_text(node) for node in line)]
+    for line in kept:
+        _trim_edge(line, True)
+        _trim_edge(line, False)
+    return kept
+
+
+def _join_lines(lines: list[list[_Node]]) -> list[_Node]:
+    content: list[_Node] = []
+    for index, line in enumerate(lines):
+        if index > 0:
+            content.append(_Element("br"))
+        content.extend(line)
+    return content
+
+
+def _inside_cell(table: _Element) -> bool:
+    ancestor = table.parent
+    while ancestor is not None:
+        if ancestor.tag in ("td", "th"):
+            return True
+        ancestor = ancestor.parent
+    return False
+
+
+def _flatten_table(table: _Element) -> bool:
+    """Replace one table by paragraphs when it is outside the contract. True when it did."""
+    rows = _own_rows(table)
+    columns = max((len(_cells_of(row)) for row in rows), default=0)
+    parent = table.parent
+    if parent is None or (columns <= TABLE_MAX_COLUMNS and not _inside_cell(table)):
+        return False
+
+    out: list[_Node] = []
+    loose_images: list[_Node] = []
+    for run in _loose_runs(table):
+        lines = _lines_of(run, loose_images)
+        if not lines:
+            continue
+        paragraph = _Element("p")
+        for node in _join_lines(lines):
+            _append(paragraph, node)
+        out.append(paragraph)
+    out.extend(loose_images)
+    for row in rows:
+        cells = _cells_of(row)
+        images: list[_Node] = []
+        contents: list[list[_Node]] = []
+        for cell in cells:
+            lines = _lines_of(list(cell.children), images)
+            if lines:
+                contents.append(_join_lines(lines))
+        if contents:
+            paragraph = _Element("p")
+            holder = paragraph
+            if all(cell.tag == "th" for cell in cells):
+                holder = _Element("strong")
+                _append(paragraph, holder)
+            for index, content in enumerate(contents):
+                if index > 0:
+                    _append(holder, _Text(TABLE_CELL_SEPARATOR))
+                for node in content:
+                    _append(holder, node)
+            out.append(paragraph)
+        out.extend(images)
+
+    position = parent.children.index(table)
+    for node in out:
+        _detach(node)
+    parent.children[position : position + 1] = out
+    for node in out:
+        node.parent = parent
+    table.parent = None
+    return True
+
+
+def _flatten_tables_outside_contract(html: str) -> str:
+    """Turn every table with more than ``TABLE_MAX_COLUMNS`` columns, or inside a cell, into paragraphs.
+
+    One paragraph for each run of loose content of the table, then one for each row: the cells joined by
+    ``TABLE_CELL_SEPARATOR``, the blocks of a cell as lines joined by ``br``, empty cells left out, a row of
+    header cells in ``strong``. Images and figures of a row follow its paragraph. Tables are done from the
+    innermost out. ``richTextTableCases.json`` pins this function and the frontend renderer to one output.
+    A document without such a table comes back as it is.
+    """
+    if "<table" not in html:
+        return html
+    builder = _TreeBuilder()
+    builder.feed(html)
+    builder.close()
+    tables: list[_Element] = []
+    stack: list[_Node] = list(reversed(builder.root.children))
+    while stack:
+        node = stack.pop()
+        if isinstance(node, _Element):
+            if node.tag == "table":
+                tables.append(node)
+            stack.extend(reversed(node.children))
+    changed = False
+    # Document order puts a table before the tables inside it, so the reverse order is innermost first.
+    for table in reversed(tables):
+        if _flatten_table(table):
+            changed = True
+    return _serialize(builder.root) if changed else html
+
+
 def sanitize_html(html: str, media_prefix: str) -> str:
     """Return ``html`` reduced to the editor's allowlist, with images only under ``media_prefix``."""
     if not html or not is_html(html):
@@ -246,7 +624,7 @@ def sanitize_html(html: str, media_prefix: str) -> str:
         link_rel=LINK_REL,
         strip_comments=True,
     )
-    return _strip_foreign_images(cleaned, media_prefix)
+    return _flatten_tables_outside_contract(_strip_foreign_images(cleaned, media_prefix))
 
 
 def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
