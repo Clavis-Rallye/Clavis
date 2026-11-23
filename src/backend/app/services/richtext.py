@@ -13,10 +13,12 @@ The allowlist is written once, in ``src/frontend/src/utils/richTextContract.json
 The constants below follow that file, and the frontend renderer follows it too. A test
 compares the constants with the file, so the two filters cannot drift apart.
 
-Legal texts written before this filter existed can hold ``h1``, ``pre`` and ``code``. Those three
-are mapped before ``nh3`` cleans, so no word is lost and none ends up outside a block: ``h1`` becomes
-``h2``, a ``pre`` block becomes paragraphs (a blank line starts a new paragraph, a single line break
-becomes ``br``) and ``code`` becomes plain text. The frontend does the same in ``toEditorHtml``.
+Legal texts written before this filter existed can hold ``h1``, ``pre`` and ``code``. ``nh3`` lets those
+three pass, and they are mapped on the parsed tree right after it, so no word is lost and none ends up
+outside a block: ``h1`` becomes ``h2``, a ``pre`` block becomes paragraphs (a blank line starts a new
+paragraph, a single line break becomes ``br``) and ``code`` becomes plain text. The frontend does the same
+in ``toEditorHtml``. No regular expression runs over the raw input: the time of every step grows with the
+length of the text, and a text longer than ``RICH_TEXT_MAX_LENGTH`` is refused.
 
 A table has at most three columns and does not stand inside a cell. Any other table becomes one
 paragraph per row, the same rule as in ``src/frontend/src/utils/richTextTables.ts``, and
@@ -34,6 +36,10 @@ from html.parser import HTMLParser
 from typing import Any
 
 import nh3
+
+# The longest rich text of one language. The city's longest legal text has 16,220 characters, and tables and
+# figures add markup. At this length the filter, ``nh3`` included, stays near 0.1 s.
+RICH_TEXT_MAX_LENGTH = 50_000
 
 ALLOWED_TAGS: set[str] = {
     "p",
@@ -86,6 +92,10 @@ LINK_REL = "noopener noreferrer"
 TABLE_MAX_COLUMNS = 3
 TABLE_CELL_SEPARATOR = " · "
 
+# Elements of texts written before the editor. ``nh3`` lets them pass without attributes, and ``map_legacy_elements``
+# maps them right after.
+_LEGACY_TAGS: set[str] = {"h1", "pre", "code"}
+
 # What ``nh3`` receives: free attributes in ``attributes``, value-checked ones in ``tag_attribute_values``.
 _NH3_ATTRIBUTES: dict[str, set[str]] = {
     tag: free
@@ -98,16 +108,12 @@ _NH3_ATTRIBUTE_VALUES: dict[str, dict[str, set[str]]] = {
     if any(name in ALLOWED_ATTRIBUTE_VALUES for name in names)
 }
 
-_HAS_TAG = re.compile(r"<[a-z][\s\S]*>", re.IGNORECASE)
-_H1_OPEN = re.compile(r"<h1(?=[\s/>])", re.IGNORECASE)
-_H1_CLOSE = re.compile(r"</h1\s*>", re.IGNORECASE)
-_PRE_BLOCK = re.compile(r"<pre(?=[\s/>])[^>]*>([\s\S]*?)(?:</pre\s*>|\Z)", re.IGNORECASE)
-_BR_TAG = re.compile(r"<br(?=[\s/>])[^>]*>", re.IGNORECASE)
-_ANY_TAG = re.compile(r"</?[a-z][^>]*>", re.IGNORECASE)
-_CODE_TAG = re.compile(r"</?code(?=[\s/>])[^>]*>", re.IGNORECASE)
-_BLANK_LINE = re.compile(r"\n(?:[ \t]*\n)+")
-_IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+# Patterns of this module never scan from many start points to the end: a tag pattern stops at the next ``<``
+# or ``>``, and nothing runs over raw input that has not passed ``nh3``.
+_TAG_START = re.compile(r"<[a-z]", re.IGNORECASE)
+_IMG_TAG = re.compile(r"<img\b[^<>]*>", re.IGNORECASE)
 _SRC_ATTR = re.compile(r"""\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
+_TAG_OR_SPACE = re.compile(r"<[^<>]+>|&nbsp;|\s")
 
 
 def media_prefix_for(org_slug: str) -> str:
@@ -115,10 +121,26 @@ def media_prefix_for(org_slug: str) -> str:
     return f"/api/orgs/{org_slug}/media/"
 
 
+# A browser removes a tab and a newline from an address, reads a backslash as a slash and resolves ``.`` and
+# ``..`` segments, also when they are percent-encoded. None of these may stand in a stored image address.
+_ENCODED_PATH_CHARACTERS = ("%2e", "%2f", "%5c")
+
+
 def _is_media_source(src: str, media_prefix: str) -> bool:
-    """True when ``src`` lies under the organisation's media route and cannot climb out of it."""
+    """True when ``src`` is a clean address under the organisation's media route and cannot climb out of it.
+
+    The strict form: no character below 0x20 or 0x7F, no white space, no backslash, no percent-encoded dot,
+    slash or backslash, and no ``.`` or ``..`` segment of the path. Only then the prefix is compared.
+    """
+    if any(ord(char) < 0x20 or char == "\x7f" or char.isspace() for char in src) or "\\" in src:
+        return False
     lowered = src.lower()
-    return src.startswith(media_prefix) and ".." not in src and "\\" not in src and "%2e" not in lowered
+    if any(escape in lowered for escape in _ENCODED_PATH_CHARACTERS):
+        return False
+    path = src.split("?", 1)[0].split("#", 1)[0]
+    if any(segment in (".", "..") for segment in path.split("/")):
+        return False
+    return src.startswith(media_prefix)
 
 
 class _ForeignImageFinder(HTMLParser):
@@ -219,26 +241,12 @@ def image_sources(html: str | None) -> set[str]:
 
 
 def is_html(text: str) -> bool:
-    """True when the text carries at least one tag, the same test ``SafeHtml`` uses."""
-    return bool(_HAS_TAG.search(text))
+    """True when the text carries at least one tag, the same test ``SafeHtml`` uses.
 
-
-def _pre_to_paragraphs(match: re.Match[str]) -> str:
-    """A ``pre`` block as paragraphs: only its text, a blank line starts a paragraph, a line break is ``br``."""
-    text = _ANY_TAG.sub("", _BR_TAG.sub("\n", match.group(1))).replace("\r\n", "\n").replace("\r", "\n")
-    paragraphs: list[str] = []
-    for chunk in _BLANK_LINE.split(text):
-        chunk = chunk.strip("\n")
-        if chunk.strip():
-            paragraphs.append(f"<p>{chunk.replace(chr(10), '<br>')}</p>")
-    return "".join(paragraphs)
-
-
-def map_legacy_elements(html: str) -> str:
-    """Map ``h1``, ``pre`` and ``code`` of an old document to ``h2``, paragraphs and plain text."""
-    html = _H1_CLOSE.sub("</h2>", _H1_OPEN.sub("<h2", html))
-    html = _PRE_BLOCK.sub(_pre_to_paragraphs, html)
-    return _CODE_TAG.sub("", html)
+    That is a ``<`` followed by a letter and, somewhere after it, a ``>``. Two linear searches.
+    """
+    start = _TAG_START.search(text)
+    return start is not None and text.find(">", start.end()) != -1
 
 
 # Tables outside the contract. The clean document is parsed into a small tree, the rule of
@@ -611,20 +619,112 @@ def _flatten_tables_outside_contract(html: str) -> str:
     return _serialize(builder.root) if changed else html
 
 
+# Texts from before the editor. The clean document is parsed into the same tree as for the tables.
+
+
+def _pre_text(pre: _Element) -> str:
+    """The text of a ``pre`` block: its text nodes in order, a ``br`` as a line break, other elements dropped."""
+    parts: list[str] = []
+    stack: list[_Node] = list(reversed(pre.children))
+    while stack:
+        node = stack.pop()
+        if isinstance(node, _Text):
+            parts.append(node.data)
+        elif isinstance(node, _Element):
+            if node.tag == "br":
+                parts.append("\n")
+            else:
+                stack.extend(reversed(node.children))
+    return "".join(parts).replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _pre_paragraphs(pre: _Element) -> list[_Node]:
+    """A ``pre`` block as paragraphs: a blank line starts a new one, a line break inside a part is ``br``.
+
+    A blank line is a line of spaces and tabs between two line breaks. A part of only white space gives no
+    paragraph, and line breaks at its start and end go.
+    """
+    lines = _pre_text(pre).split("\n")
+    parts: list[list[str]] = [[]]
+    for index, line in enumerate(lines):
+        if 0 < index < len(lines) - 1 and not line.strip(" \t"):
+            parts.append([])
+        else:
+            parts[-1].append(line)
+    paragraphs: list[_Node] = []
+    for part in parts:
+        start, end = 0, len(part)
+        while start < end and not part[start]:
+            start += 1
+        while end > start and not part[end - 1]:
+            end -= 1
+        part = part[start:end]
+        if not any(line.strip() for line in part):
+            continue
+        paragraph = _Element("p")
+        for index, line in enumerate(part):
+            if index > 0:
+                _append(paragraph, _Element("br"))
+            if line:
+                _append(paragraph, _Text(line))
+        paragraphs.append(paragraph)
+    return paragraphs
+
+
+def map_legacy_elements(html: str) -> str:
+    """Map ``h1``, ``pre`` and ``code`` of an old document to ``h2``, paragraphs and plain text.
+
+    ``html`` is the output of ``nh3``. A document without the three elements comes back as it is.
+    """
+    if not any(f"<{tag}" in html for tag in _LEGACY_TAGS):
+        return html
+    builder = _TreeBuilder()
+    builder.feed(html)
+    builder.close()
+    todo: list[_Element] = [builder.root]
+    while todo:
+        element = todo.pop()
+        work: list[_Node] = list(reversed(element.children))
+        children: list[_Node] = []
+        while work:
+            child = work.pop()
+            if isinstance(child, _Element):
+                if child.tag == "code":
+                    work.extend(reversed(child.children))
+                    continue
+                if child.tag == "pre":
+                    children.extend(_pre_paragraphs(child))
+                    continue
+                if child.tag == "h1":
+                    child.tag = "h2"
+                todo.append(child)
+            children.append(child)
+        for child in children:
+            child.parent = element
+        element.children = children
+    return _serialize(builder.root)
+
+
 def sanitize_html(html: str, media_prefix: str) -> str:
-    """Return ``html`` reduced to the editor's allowlist, with images only under ``media_prefix``."""
+    """Return ``html`` reduced to the editor's allowlist, with images only under ``media_prefix``.
+
+    A text longer than ``RICH_TEXT_MAX_LENGTH`` raises ``ValueError`` before any other work.
+    """
+    if len(html) > RICH_TEXT_MAX_LENGTH:
+        raise ValueError(f"Text must be at most {RICH_TEXT_MAX_LENGTH} characters")
     if not html or not is_html(html):
         return html
     cleaned = nh3.clean(
-        map_legacy_elements(html),
-        tags=ALLOWED_TAGS,
+        html,
+        tags=ALLOWED_TAGS | _LEGACY_TAGS,
         attributes=_NH3_ATTRIBUTES,
         tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
         url_schemes=URL_SCHEMES,
         link_rel=LINK_REL,
         strip_comments=True,
     )
-    return _flatten_tables_outside_contract(_strip_foreign_images(cleaned, media_prefix))
+    mapped = map_legacy_elements(cleaned)
+    return _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
 
 
 def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
@@ -643,7 +743,7 @@ def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
     cleaned = sanitize_html(value, media_prefix).strip()
     if not cleaned:
         return None
-    if is_html(cleaned) and not _IMG_TAG.search(cleaned) and not re.sub(r"<[^>]+>|&nbsp;|\s", "", cleaned):
+    if is_html(cleaned) and not _IMG_TAG.search(cleaned) and not _TAG_OR_SPACE.sub("", cleaned):
         return None
     return cleaned
 

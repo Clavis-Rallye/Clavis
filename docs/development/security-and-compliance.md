@@ -437,6 +437,10 @@ The renderer also keeps `h1`, `code` and `pre`, only for texts written before th
 
 A table has at most three columns and does not stand inside a cell. A wider table, or a table inside a cell, becomes one paragraph per row: on write in the backend filter, on render in the frontend renderer, and in the editor on open and on paste. The cells of a row are joined by " · ", a row of header cells is bold, and no word is lost. `src/frontend/src/utils/richTextTableCases.json` pins the rule for both filters, which must give the same output on every case.
 
+A rich text has at most `RICH_TEXT_MAX_LENGTH` (50,000) characters per language, counted with the markup. The API refuses a longer one with a 422 that names the field, and `sanitize_html` raises `ValueError` as a second guard, before any other work. The filter runs no regular expression over raw input, so its time grows with the length of the text; the limit bounds `nh3` itself, which grows faster than the length for deeply nested or attribute-heavy markup.
+
+An image address is stored only in a strict form: no character below 0x20 or 0x7F, no white space, no backslash, no percent-encoded dot, slash or backslash, no `.` or `..` segment, and then the media route of the organization. A browser removes a tab and a newline from an address, so one that passes with them would leave the media route. Both filters apply the same rule, and an image that fails goes like a foreign image, a figure with it.
+
 Pasted HTML is cleaned in the browser before the editor reads it (`src/frontend/src/utils/cleanPastedHtml.ts`). The backend filter still decides what is stored.
 
 ### Participant Photo Hygiene

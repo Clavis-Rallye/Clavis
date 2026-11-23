@@ -57,5 +57,8 @@
   "tables": {
     "maxColumns": 3,
     "cellSeparator": " · "
+  },
+  "text": {
+    "maxLength": 50000
   }
 }
