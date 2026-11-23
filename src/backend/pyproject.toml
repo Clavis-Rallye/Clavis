@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clavis-backend"
-version = "0.9.1"
+version = "0.9.2"
 description = "Backend API for Clavis"
 readme = "README.md"
 # Below 3.15: httptools, a dependency of uvicorn[standard], has no wheel for 3.15, so a fresh sync would have to
