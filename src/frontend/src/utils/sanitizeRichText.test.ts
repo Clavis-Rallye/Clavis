@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RICH_TEXT_FILTER, sanitizeRichText, wrapTablesForScroll } from './sanitizeRichText';
 import contract from './richTextContract.json';
+import tableCases from './richTextTableCases.json';
 import { EDITOR_091, RICH_TEXT_091_CORPUS, SANITIZED_091 } from './richText091.fixtures';
 
 describe('sanitizeRichText on the 0.9.1 corpus', () => {
@@ -283,5 +284,17 @@ describe('wrapTablesForScroll', () => {
     const clean = sanitizeRichText('<table><tr><th>K</th></tr><tr><td>v</td></tr></table>');
     const body = parse(wrapTablesForScroll(clean, LABEL));
     expect(body.querySelector('div > table')?.outerHTML).toBe(parse(clean).querySelector('table')?.outerHTML);
+  });
+});
+
+describe('tables outside the contract', () => {
+  it.each(tableCases.cases.map((c) => [c.name, c.input, c.output]))('%s', (_name, input, output) => {
+    expect(sanitizeRichText(input)).toBe(output);
+  });
+
+  it('keeps the words of a header row in a thead', () => {
+    const out = sanitizeRichText('<table><thead><tr><th>Kopf A</th><th>Kopf B</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>');
+    expect(out).toContain('Kopf A');
+    expect(out).toContain('Kopf B');
   });
 });

@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify';
 import { resolveMediaUrl } from '../api/media';
 import { isOwnMediaSrc } from './richtext';
+import { flattenTablesOutsideContract } from './richTextTables';
 
 /**
  * Own DOMPurify instance so the hooks below stay local to this renderer.
@@ -127,6 +128,38 @@ function removeFiguresWithoutImage(root: ParentNode): void {
   }
 }
 
+/**
+ * DOMPurify's own list of elements whose content goes with the element, without `thead`:
+ * the header row of a table is content, and the API filter keeps it.
+ */
+const FORBID_CONTENTS = [
+  'annotation-xml',
+  'audio',
+  'colgroup',
+  'desc',
+  'foreignobject',
+  'head',
+  'iframe',
+  'math',
+  'mi',
+  'mn',
+  'mo',
+  'ms',
+  'mtext',
+  'noembed',
+  'noframes',
+  'noscript',
+  'plaintext',
+  'script',
+  'selectedcontent',
+  'style',
+  'svg',
+  'template',
+  'title',
+  'video',
+  'xmp',
+];
+
 export function sanitizeRichText(html: string): string {
   // Text without a `<` holds no element and no attribute. It stays as it is, as in release 0.9.1.
   if (!html.includes('<')) return html;
@@ -135,10 +168,12 @@ export function sanitizeRichText(html: string): string {
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    FORBID_CONTENTS,
     RETURN_DOM_FRAGMENT: true,
   });
   if (typeof cleaned === 'string') return cleaned;
   removeFiguresWithoutImage(cleaned);
+  flattenTablesOutsideContract(cleaned);
   const holder = (cleaned.ownerDocument ?? document).createElement('div');
   holder.appendChild(cleaned);
   return holder.innerHTML;

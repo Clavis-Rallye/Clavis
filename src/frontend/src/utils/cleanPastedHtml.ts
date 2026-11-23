@@ -1,4 +1,5 @@
 import { isOwnMediaSrc } from './richtext';
+import { flattenTablesOutsideContract } from './richTextTables';
 
 /**
  * Cleans HTML from the clipboard (Word, Google Docs, a web page) before the
@@ -443,6 +444,7 @@ export function cleanPastedHtml(html: string): CleanedPaste {
 
   const root = el('div', {}, blockify(walkChildren(doc.body, { marks: new Set(), inFigure: false })));
   tidy(root);
+  flattenTablesOutsideContract(root);
   return { html: root.innerHTML, imagesLeftOut };
 }
 

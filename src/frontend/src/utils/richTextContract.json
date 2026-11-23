@@ -53,5 +53,9 @@
     "http",
     "https",
     "mailto"
-  ]
+  ],
+  "tables": {
+    "maxColumns": 3,
+    "cellSeparator": " · "
+  }
 }

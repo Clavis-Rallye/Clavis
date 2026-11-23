@@ -4,6 +4,7 @@ import contract from './richTextContract.json';
 import {
   GOOGLE_DOCS_PASTE_HTML,
   WEB_PASTE_HTML,
+  WEB_WIDE_TABLE_PASTE_HTML,
   WORD_LISTS_PASTE_HTML,
   WORD_PASTE_HTML,
 } from './pasteFixtures';
@@ -241,5 +242,40 @@ describe('cleanPastedHtml on structure', () => {
 
   it('escapes what it writes', () => {
     expect(clean('<p>a &lt;b&gt; &amp; c</p>')).toBe('<p>a &lt;b&gt; &amp; c</p>');
+  });
+});
+
+describe('cleanPastedHtml on tables', () => {
+  const clean = (html: string) => cleanPastedHtml(html).html;
+
+  it('keeps the table of the Word sample a table', () => {
+    expect(clean(WORD_PASTE_HTML)).toContain(
+      '<table><tbody><tr><td><p>Zelle 1</p></td><td><p>Zelle 2</p></td></tr></tbody></table>',
+    );
+  });
+
+  it('turns a web table of six columns into the caption and one paragraph per row', () => {
+    const html = clean(WEB_WIDE_TABLE_PASTE_HTML);
+    expect(html).toBe(
+      '<p>Fahrplan Sommer</p>' +
+        '<p><strong>Linie · Start · Ziel · Abfahrt · Dauer · Preis</strong></p>' +
+        '<p>Linie 1 · Passau · Wien · 9:00 · 7 Stunden · 45 €</p>' +
+        '<p>Linie 2 · Linz · Donaudampfschifffahrtsgesellschaft · 11:30 · 3 Stunden · 25 €</p>',
+    );
+    expect(html).not.toMatch(/style|class|<table/);
+    const words = [
+      'Fahrplan', 'Sommer', 'Linie', 'Start', 'Ziel', 'Abfahrt', 'Dauer', 'Preis', 'Passau', 'Wien', 'Linz',
+      '9:00', '11:30', 'Stunden', '45', '25', '€', 'Donaudampfschifffahrtsgesellschaft',
+    ];
+    for (const word of words) expect(html).toContain(word);
+  });
+
+  it('keeps a web table of three columns a table', () => {
+    const html = clean(
+      '<table class="x" style="width:100%"><thead><tr><th>A</th><th>B</th><th>C</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table>',
+    );
+    expect(html).toBe(
+      '<table><tbody><tr><th><p>A</p></th><th><p>B</p></th><th><p>C</p></th></tr><tr><td><p>1</p></td><td><p>2</p></td><td><p>3</p></td></tr></tbody></table>',
+    );
   });
 });

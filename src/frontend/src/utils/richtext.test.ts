@@ -8,6 +8,7 @@ import {
   plainTextToHtml,
   toEditorHtml,
 } from './richtext';
+import tableCases from './richTextTableCases.json';
 
 describe('richtext utils', () => {
   it('detects markup', () => {
@@ -99,5 +100,28 @@ describe('richtext utils', () => {
       const document = '<h2>Titel</h2><p>Text<br>Zeile</p><blockquote><p>Zitat</p></blockquote>';
       expect(toEditorHtml(document)).toBe(document);
     });
+  });
+});
+
+describe('toEditorHtml with tables', () => {
+  const wide = tableCases.cases.find((c) => c.name === 'six_columns_walk_sample')!;
+
+  it('turns a table of six columns into the paragraphs of its rows', () => {
+    expect(toEditorHtml(wide.input)).toBe(wide.output);
+  });
+
+  it('turns a table inside a cell into a paragraph and keeps the outer table', () => {
+    const nested = tableCases.cases.find((c) => c.name === 'nested_table_in_a_small_table')!;
+    expect(toEditorHtml(nested.input)).toBe(nested.output);
+  });
+
+  it('gives a text with a table of three columns back byte for byte', () => {
+    const html = '<p>vor</p><table><tbody><tr><td><p>a</p></td><td><p>b</p></td><td><p>c</p></td></tr></tbody></table>\n<p>nach</p>';
+    expect(toEditorHtml(html)).toBe(html);
+  });
+
+  it('gives a text without a table back byte for byte', () => {
+    const html = '<p>kein  Table</p>\n<ul><li>x</li></ul>';
+    expect(toEditorHtml(html)).toBe(html);
   });
 });

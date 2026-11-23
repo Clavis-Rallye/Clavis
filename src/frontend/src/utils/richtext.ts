@@ -7,6 +7,8 @@
  * has to know which one it got.
  */
 
+import { flattenTablesOutsideContract } from './richTextTables';
+
 const HTML_TAG_RE = /<[a-z][\s\S]*>/i;
 
 /** The only `src` an inline image may carry: the organisation media route. */
@@ -79,10 +81,21 @@ function mapLegacyElements(html: string): string {
     .replace(CODE_TAG_RE, '');
 }
 
+/**
+ * A table of more than three columns, or one inside a cell, becomes paragraphs, as the renderer
+ * and the API filter do. The document is parsed only when it holds a table, and the parsed
+ * result is used only when the rule changed something.
+ */
+function flattenWideTables(html: string): string {
+  if (!/<table/i.test(html) || typeof DOMParser === 'undefined') return html;
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  return flattenTablesOutsideContract(body) ? body.innerHTML : html;
+}
+
 /** Either the document as is, or the legacy plain text converted, ready for the editor. */
 export function toEditorHtml(value: string | null | undefined): string {
   if (!value) return '';
-  return isHtml(value) ? mapLegacyElements(value) : plainTextToHtml(value);
+  return isHtml(value) ? flattenWideTables(mapLegacyElements(value)) : plainTextToHtml(value);
 }
 
 /**
