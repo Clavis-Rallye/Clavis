@@ -90,6 +90,16 @@
       "name": "only_empty_cells",
       "input": "<table><tr><td></td><td></td><td></td><td></td></tr></table>",
       "output": ""
+    },
+    {
+      "name": "caption_with_markup_in_a_wide_table",
+      "input": "<table><caption><strong>Preise</strong> 2026</caption><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></table>",
+      "output": "<p><strong>Preise</strong> 2026</p><p>1 · 2 · 3 · 4</p>"
+    },
+    {
+      "name": "link_kept_in_a_wide_table",
+      "input": "<table><tr><td><a href=\"https://example.org/\" rel=\"noopener noreferrer\">Seite</a></td><td>2</td><td>3</td><td>4</td></tr></table>",
+      "output": "<p><a href=\"https://example.org/\" rel=\"noopener noreferrer\">Seite</a> · 2 · 3 · 4</p>"
     }
   ]
 }
