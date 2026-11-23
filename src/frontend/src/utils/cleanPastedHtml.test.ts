@@ -279,3 +279,22 @@ describe('cleanPastedHtml on tables', () => {
     );
   });
 });
+
+describe('cleanPastedHtml in linear time', () => {
+  it('ends within half a second on a style value of two million characters without a semicolon', () => {
+    const style = 'text-decoration:'.repeat(125_000);
+    const start = performance.now();
+    const result = cleanPastedHtml(`<p><span style="${style}">a</span></p>`);
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(result.html).toBe('<p>a</p>');
+  });
+
+  it('still counts an underline and a strike-through in a normal style', () => {
+    const html =
+      '<p><span style="color:red; text-decoration : underline">a</span>' +
+      '<span style="TEXT-DECORATION-LINE:underline line-through;color:red">b</span>' +
+      '<span style="text-decoration:none;text-decoration:line-through">c</span>' +
+      '<span style="text-decoration:none">d</span></p>';
+    expect(cleanPastedHtml(html).html).toBe('<p><u>a<s>b</s></u><s>c</s>d</p>');
+  });
+});

@@ -103,8 +103,8 @@ const NOT_BOLD = /font-weight\s*:\s*(?:normal|lighter|[1-5]00)\b/i;
 const BOLD = /font-weight\s*:\s*(?:bold|bolder|[6-9]00)\b/i;
 const NOT_ITALIC = /font-style\s*:\s*normal/i;
 const ITALIC = /font-style\s*:\s*(?:italic|oblique)/i;
-const UNDERLINE = /text-decoration(?:-line)?\s*:[^;]*\bunderline\b/i;
-const STRIKE = /text-decoration(?:-line)?\s*:[^;]*\bline-through\b/i;
+const UNDERLINE_WORD = /\bunderline\b/;
+const STRIKE_WORD = /\bline-through\b/;
 const HIDDEN = /display\s*:\s*none|mso-hide\s*:\s*all/i;
 const WORD_LIST = /mso-list\s*:\s*l\d+\s+level\d+/i;
 const WORD_LIST_IGNORE = /mso-list\s*:\s*ignore/i;
@@ -112,6 +112,22 @@ const ORDERED_MARKER = /^\(?[0-9a-z]{1,4}[.)]$/i;
 
 const WIDTHS = ['25', '50', '75', '100'];
 const ALIGNS = ['left', 'center', 'right'];
+
+/**
+ * The values of the `text-decoration` and `text-decoration-line` declarations of a style, in order.
+ * The style is split at `;` and each declaration at its first `:`, so no pattern ever scans a
+ * long style from many start points.
+ */
+function decorationsOf(style: string): string[] {
+  const values: string[] = [];
+  for (const declaration of style.split(';')) {
+    const colon = declaration.indexOf(':');
+    if (colon === -1) continue;
+    const property = declaration.slice(0, colon).trim().toLowerCase();
+    if (property === 'text-decoration' || property === 'text-decoration-line') values.push(declaration.slice(colon + 1).toLowerCase());
+  }
+  return values;
+}
 
 const nameOf = (node: Node): string => node.nodeName.toLowerCase();
 const isElement = (node: Node | null | undefined): node is Element => node?.nodeType === 1;
@@ -159,8 +175,9 @@ export function cleanPastedHtml(html: string): CleanedPaste {
     } else if (tag === 'span' || tag === 'font') {
       if (BOLD.test(style)) marks.push('strong');
       if (ITALIC.test(style)) marks.push('em');
-      if (UNDERLINE.test(style)) marks.push('u');
-      if (STRIKE.test(style)) marks.push('s');
+      const decorations = decorationsOf(style);
+      if (decorations.some((value) => UNDERLINE_WORD.test(value))) marks.push('u');
+      if (decorations.some((value) => STRIKE_WORD.test(value))) marks.push('s');
     }
     return marks;
   };

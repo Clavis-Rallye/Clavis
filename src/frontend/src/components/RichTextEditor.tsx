@@ -1,13 +1,14 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Box } from '@mui/material';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { Alert, Box, FormHelperText } from '@mui/material';
+import { useEditor, useEditorState, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { AuthContext } from '../auth/AuthContext';
 import { onOrgMediaRefused } from '../api/media';
 import { cleanPastedHtml } from '../utils/cleanPastedHtml';
 import { toEditorHtml } from '../utils/richtext';
+import contract from '../utils/richTextContract.json';
 import RichTextImageDialog from './RichTextImageDialog';
 import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
 import RichTextSelectionMenu from './RichTextSelectionMenu';
@@ -16,6 +17,15 @@ import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImage
 import { richTextImage, richTextLink, richTextTableExtensions } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
 import RichTextToolbar from './RichTextToolbar';
+
+/** The longest rich text the API takes per language, from the contract file the API filter follows. */
+const MAX_TEXT_LENGTH = contract.text.maxLength;
+
+/** What the editor hands to the form: an empty document is an empty string. */
+const handedHtml = (html: string): string => (html === '<p></p>' ? '' : html);
+
+/** The length of the HTML of each document state, so a selection change does not serialise it again. */
+const htmlLengths = new WeakMap<object, number>();
 
 interface RichTextEditorProps {
   /** Current document as HTML. Legacy plain text is converted on the way in. */
@@ -65,7 +75,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   orgSlug,
   allowImages = true,
 }) => {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const tooLongId = `${useId()}-too-long`;
   const auth = useContext(AuthContext);
   const mediaOrg = allowImages ? orgSlug ?? auth?.user?.organization_slug : undefined;
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
@@ -162,8 +173,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       },
     },
     onUpdate: ({ editor: e }) => {
-      const html = e.getHTML();
-      onChange(html === '<p></p>' ? '' : html);
+      const html = handedHtml(e.getHTML());
+      onChange(html);
     },
   });
 
@@ -184,184 +195,226 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     editor.setEditable(!disabled, false);
   }, [editor, disabled]);
 
+  // Length of the HTML the editor hands to the form, which the API holds to a limit.
+  const htmlLength =
+    useEditorState({
+      editor,
+      selector: ({ editor: current }) => {
+        if (!current || current.isDestroyed) return 0;
+        const doc = current.state.doc;
+        let length = htmlLengths.get(doc);
+        if (length === undefined) {
+          length = handedHtml(current.getHTML()).length;
+          htmlLengths.set(doc, length);
+        }
+        return length;
+      },
+    }) ?? 0;
+  const tooLong = htmlLength > MAX_TEXT_LENGTH;
+
+  // ProseMirror writes only its own attributes and leaves these two alone.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const dom = editor.view.dom;
+    if (tooLong) {
+      dom.setAttribute('aria-invalid', 'true');
+      dom.setAttribute('aria-describedby', tooLongId);
+    } else {
+      dom.removeAttribute('aria-invalid');
+      dom.removeAttribute('aria-describedby');
+    }
+  }, [editor, tooLong, tooLongId]);
+
   if (!editor) return null;
 
+  const numberFormat = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language);
+
   return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: error ? 'error.main' : 'divider',
-        borderRadius: 1.5,
-        // `clip` and not `hidden`: the rounded corners still clip, but the frame
-        // is no scroll container, so the toolbar can stay in view (sticky).
-        overflow: 'clip',
-        bgcolor: disabled ? 'action.disabledBackground' : 'background.paper',
-        opacity: disabled ? 0.6 : 1,
-        // The focus frame matches the other outlined fields (theme.ts: #1D47A4,
-        // 2px). The error frame keeps its red. The second pixel is an inset
-        // shadow, so the border box keeps its size and nothing shifts.
-        '&:focus-within': {
-          borderColor: error ? 'error.main' : '#1D47A4',
-          boxShadow: `inset 0 0 0 1px ${error ? '#B3261E' : '#1D47A4'}`,
-        },
-      }}
-    >
-      <RichTextToolbar
-        editor={editor}
-        disabled={disabled}
-        allowImages={Boolean(mediaOrg)}
-        onOpenLink={openLinkDialog}
-        onOpenImage={openImageDialog}
-        onOpenImageSettings={openImageSettings}
-        editorLabel={ariaLabel}
-      />
-      {imageRefusal && (
-        <Alert severity="error" sx={{ borderRadius: 0 }}>
-          {t(imageRefusal)}
-        </Alert>
-      )}
-      {pasteImagesLeftOut > 0 && (
-        <Alert severity="info" sx={{ borderRadius: 0 }} onClose={() => setPasteImagesLeftOut(0)}>
-          {t('richTextEditor.pasteImagesLeftOut', { count: pasteImagesLeftOut })}
-        </Alert>
-      )}
+    <>
       <Box
         sx={{
-          px: 2,
-          py: 1.25,
-          minHeight: 110,
-          '& .ProseMirror': {
-            outline: 'none',
-            minHeight: 80,
-            '& p': { margin: '0 0 0.75em' },
-            '& h2': { margin: '0.5em 0 0.25em', fontSize: '1.4em' },
-            '& h3': { margin: '0.5em 0 0.25em', fontSize: '1.2em' },
-            '& ul, & ol': { paddingLeft: '1.5em', margin: '0 0 0.75em' },
-            '& blockquote': {
-              margin: '0 0 0.75em',
-              paddingLeft: '1em',
-              borderLeft: '3px solid',
-              borderLeftColor: 'divider',
-              color: 'text.secondary',
-            },
-            // A simple table: thin lines, a bold header row, no fixed widths.
-            '& table': {
-              borderCollapse: 'collapse',
-              width: '100%',
-              margin: '0.75em 0',
-            },
-            '& th, & td': {
-              border: '1px solid',
-              borderColor: 'divider',
-              padding: '0.4em 0.6em',
-              verticalAlign: 'top',
-              textAlign: 'left',
-              minWidth: '3em',
-            },
-            '& th': { fontWeight: 600, bgcolor: 'action.hover' },
-            '& th > p, & td > p': { margin: 0 },
-            '& .selectedCell': { bgcolor: 'action.selected' },
-            '& hr': {
-              border: 'none',
-              borderTop: '1px solid',
-              borderTopColor: 'divider',
-              margin: '1em 0',
-            },
-            '& hr.ProseMirror-selectednode': {
-              borderTopColor: 'primary.main',
-            },
-            '& a': { color: 'primary.main', textDecoration: 'underline' },
-            // An image is a block of its own. `data-width` is a share of the text
-            // column, `data-align` the side it stands on (left when not set). With
-            // a caption the figure carries both and the picture fills it.
-            '& img, & figure': {
-              display: 'block',
-              maxWidth: '100%',
-              margin: '0.75em auto 0.75em 0',
-            },
-            '& img': {
-              height: 'auto',
-              borderRadius: 1,
-            },
-            '& figure > img': { width: '100%', margin: 0 },
-            '& figure': { width: 'fit-content' },
-            '& figcaption': {
-              marginTop: '0.25em',
-              fontSize: '0.875em',
-              color: 'text.secondary',
-            },
-            '& [data-width="25"]': { width: '25%' },
-            '& [data-width="50"]': { width: '50%' },
-            '& [data-width="75"]': { width: '75%' },
-            '& [data-width="100"]': { width: '100%' },
-            '& [data-align="center"]': { marginLeft: 'auto', marginRight: 'auto' },
-            '& [data-align="right"]': { marginLeft: 'auto', marginRight: 0 },
-            '& img.ProseMirror-selectednode, & figure.ProseMirror-selectednode': {
-              outline: '3px solid',
-              outlineColor: 'primary.main',
-            },
-          },
-          '& .ProseMirror p.is-editor-empty:first-of-type::before': {
-            content: 'attr(data-placeholder)',
-            color: 'text.disabled',
-            float: 'left',
-            pointerEvents: 'none',
-            height: 0,
+          border: 1,
+          borderColor: error ? 'error.main' : 'divider',
+          borderRadius: 1.5,
+          // `clip` and not `hidden`: the rounded corners still clip, but the frame
+          // is no scroll container, so the toolbar can stay in view (sticky).
+          overflow: 'clip',
+          bgcolor: disabled ? 'action.disabledBackground' : 'background.paper',
+          opacity: disabled ? 0.6 : 1,
+          // The focus frame matches the other outlined fields (theme.ts: #1D47A4,
+          // 2px). The error frame keeps its red. The second pixel is an inset
+          // shadow, so the border box keeps its size and nothing shifts.
+          '&:focus-within': {
+            borderColor: error ? 'error.main' : '#1D47A4',
+            boxShadow: `inset 0 0 0 1px ${error ? '#B3261E' : '#1D47A4'}`,
           },
         }}
       >
-        <EditorContent editor={editor} />
-        <RichTextImageMenu editor={editor} onOpenSettings={openImageSettings} />
-        <RichTextTableMenu editor={editor} />
-        <RichTextSelectionMenu editor={editor} onOpenLink={openLinkDialog} />
-      </Box>
-      {mediaOrg && (
-        <RichTextImageDialog
-          key={imageDialogRound}
-          open={imageDialogOpen}
-          orgSlug={mediaOrg}
-          onClose={() => setImageDialogOpen(false)}
-          onInsert={({ src, alt, caption }) => {
-            editor
-              .chain()
-              .focus()
-              .insertContent({ type: 'image', attrs: caption ? { src, alt, caption } : { src, alt } })
-              .run();
+        <RichTextToolbar
+          editor={editor}
+          disabled={disabled}
+          allowImages={Boolean(mediaOrg)}
+          onOpenLink={openLinkDialog}
+          onOpenImage={openImageDialog}
+          onOpenImageSettings={openImageSettings}
+          editorLabel={ariaLabel}
+        />
+        {imageRefusal && (
+          <Alert severity="error" sx={{ borderRadius: 0 }}>
+            {t(imageRefusal)}
+          </Alert>
+        )}
+        {pasteImagesLeftOut > 0 && (
+          <Alert severity="info" sx={{ borderRadius: 0 }} onClose={() => setPasteImagesLeftOut(0)}>
+            {t('richTextEditor.pasteImagesLeftOut', { count: pasteImagesLeftOut })}
+          </Alert>
+        )}
+        <Box
+          sx={{
+            px: 2,
+            py: 1.25,
+            minHeight: 110,
+            '& .ProseMirror': {
+              outline: 'none',
+              minHeight: 80,
+              '& p': { margin: '0 0 0.75em' },
+              '& h2': { margin: '0.5em 0 0.25em', fontSize: '1.4em' },
+              '& h3': { margin: '0.5em 0 0.25em', fontSize: '1.2em' },
+              '& ul, & ol': { paddingLeft: '1.5em', margin: '0 0 0.75em' },
+              '& blockquote': {
+                margin: '0 0 0.75em',
+                paddingLeft: '1em',
+                borderLeft: '3px solid',
+                borderLeftColor: 'divider',
+                color: 'text.secondary',
+              },
+              // A simple table: thin lines, a bold header row, no fixed widths.
+              '& table': {
+                borderCollapse: 'collapse',
+                width: '100%',
+                margin: '0.75em 0',
+              },
+              '& th, & td': {
+                border: '1px solid',
+                borderColor: 'divider',
+                padding: '0.4em 0.6em',
+                verticalAlign: 'top',
+                textAlign: 'left',
+                minWidth: '3em',
+              },
+              '& th': { fontWeight: 600, bgcolor: 'action.hover' },
+              '& th > p, & td > p': { margin: 0 },
+              '& .selectedCell': { bgcolor: 'action.selected' },
+              '& hr': {
+                border: 'none',
+                borderTop: '1px solid',
+                borderTopColor: 'divider',
+                margin: '1em 0',
+              },
+              '& hr.ProseMirror-selectednode': {
+                borderTopColor: 'primary.main',
+              },
+              '& a': { color: 'primary.main', textDecoration: 'underline' },
+              // An image is a block of its own. `data-width` is a share of the text
+              // column, `data-align` the side it stands on (left when not set). With
+              // a caption the figure carries both and the picture fills it.
+              '& img, & figure': {
+                display: 'block',
+                maxWidth: '100%',
+                margin: '0.75em auto 0.75em 0',
+              },
+              '& img': {
+                height: 'auto',
+                borderRadius: 1,
+              },
+              '& figure > img': { width: '100%', margin: 0 },
+              '& figure': { width: 'fit-content' },
+              '& figcaption': {
+                marginTop: '0.25em',
+                fontSize: '0.875em',
+                color: 'text.secondary',
+              },
+              '& [data-width="25"]': { width: '25%' },
+              '& [data-width="50"]': { width: '50%' },
+              '& [data-width="75"]': { width: '75%' },
+              '& [data-width="100"]': { width: '100%' },
+              '& [data-align="center"]': { marginLeft: 'auto', marginRight: 'auto' },
+              '& [data-align="right"]': { marginLeft: 'auto', marginRight: 0 },
+              '& img.ProseMirror-selectednode, & figure.ProseMirror-selectednode': {
+                outline: '3px solid',
+                outlineColor: 'primary.main',
+              },
+            },
+            '& .ProseMirror p.is-editor-empty:first-of-type::before': {
+              content: 'attr(data-placeholder)',
+              color: 'text.disabled',
+              float: 'left',
+              pointerEvents: 'none',
+              height: 0,
+            },
+          }}
+        >
+          <EditorContent editor={editor} />
+          <RichTextImageMenu editor={editor} onOpenSettings={openImageSettings} />
+          <RichTextTableMenu editor={editor} />
+          <RichTextSelectionMenu editor={editor} onOpenLink={openLinkDialog} />
+        </Box>
+        {mediaOrg && (
+          <RichTextImageDialog
+            key={imageDialogRound}
+            open={imageDialogOpen}
+            orgSlug={mediaOrg}
+            onClose={() => setImageDialogOpen(false)}
+            onInsert={({ src, alt, caption }) => {
+              editor
+                .chain()
+                .focus()
+                .insertContent({ type: 'image', attrs: caption ? { src, alt, caption } : { src, alt } })
+                .run();
+            }}
+          />
+        )}
+        <RichTextImageSettingsDialog
+          open={imageSettingsOpen}
+          image={{
+            alt: (editor.getAttributes('image').alt as string | null | undefined) ?? null,
+            caption: (editor.getAttributes('image').caption as string | null | undefined) ?? null,
+            width: (editor.getAttributes('image').width as string | null | undefined) ?? null,
+            align: (editor.getAttributes('image').align as string | null | undefined) ?? null,
+          }}
+          onClose={() => setImageSettingsOpen(false)}
+          onSave={(settings: ImageSettings) => {
+            setImageSettingsOpen(false);
+            editor.chain().focus().updateAttributes('image', settings).run();
           }}
         />
+        <RichTextLinkDialog
+          open={linkDialogOpen}
+          onClose={() => setLinkDialogOpen(false)}
+          onInsert={(href) => {
+            if (editor.state.selection.empty && !editor.isActive('link')) {
+              // Nothing is selected: the address itself becomes the linked text.
+              // A mark without text was dropped by the next click.
+              editor
+                .chain()
+                .focus()
+                .insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] })
+                .run();
+              return;
+            }
+            editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+          }}
+        />
+      </Box>
+      {tooLong && (
+        <FormHelperText id={tooLongId} error>
+          {t('richTextEditor.tooLong', {
+            count: numberFormat.format(htmlLength),
+            max: numberFormat.format(MAX_TEXT_LENGTH),
+          })}
+        </FormHelperText>
       )}
-      <RichTextImageSettingsDialog
-        open={imageSettingsOpen}
-        image={{
-          alt: (editor.getAttributes('image').alt as string | null | undefined) ?? null,
-          caption: (editor.getAttributes('image').caption as string | null | undefined) ?? null,
-          width: (editor.getAttributes('image').width as string | null | undefined) ?? null,
-          align: (editor.getAttributes('image').align as string | null | undefined) ?? null,
-        }}
-        onClose={() => setImageSettingsOpen(false)}
-        onSave={(settings: ImageSettings) => {
-          setImageSettingsOpen(false);
-          editor.chain().focus().updateAttributes('image', settings).run();
-        }}
-      />
-      <RichTextLinkDialog
-        open={linkDialogOpen}
-        onClose={() => setLinkDialogOpen(false)}
-        onInsert={(href) => {
-          if (editor.state.selection.empty && !editor.isActive('link')) {
-            // Nothing is selected: the address itself becomes the linked text.
-            // A mark without text was dropped by the next click.
-            editor
-              .chain()
-              .focus()
-              .insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] })
-              .run();
-            return;
-          }
-          editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
-        }}
-      />
-    </Box>
+    </>
   );
 };
 

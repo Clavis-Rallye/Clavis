@@ -194,7 +194,8 @@
     "selectionMenu": "Format selection",
     "pasteImagesLeftOut_one": "{{count}} image was left out. Add images with the image button.",
     "pasteImagesLeftOut_other": "{{count}} images were left out. Add images with the image button.",
-    "tableColumnLimit": "At most three columns"
+    "tableColumnLimit": "At most three columns",
+    "tooLong": "The text is too long: {{count}} of at most {{max}} characters, formatting included."
   },
   "loading": "Loading …",
   "legalLinks": {

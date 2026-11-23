@@ -367,3 +367,53 @@ describe('RichTextEditor', () => {
     });
   });
 });
+
+describe('RichTextEditor length limit', () => {
+  const LIMIT = 50_000;
+  // `<p>` and `</p>` are seven characters of the stored text.
+  const documentOf = (length: number) => `<p>${'a'.repeat(length - 7)}</p>`;
+
+  it('says in German, at the field, that the text is one character too long', async () => {
+    await i18n.changeLanguage('de');
+    render(<RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    const message = await screen.findByText(
+      'Der Text ist zu lang: 50.001 von höchstens 50.000 Zeichen, Formatierung eingerechnet.',
+    );
+    await waitFor(() => expect(box).toHaveAttribute('aria-invalid', 'true'));
+    expect(box).toHaveAttribute('aria-describedby', message.id);
+  });
+
+  it('says it in English with the numbers of that locale', async () => {
+    await i18n.changeLanguage('en');
+    render(<RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Description" />);
+    expect(
+      await screen.findByText(
+        'The text is too long: 50,001 of at most 50,000 characters, formatting included.',
+      ),
+    ).toBeInTheDocument();
+    await i18n.changeLanguage('de');
+  });
+
+  it('shows nothing at the limit', async () => {
+    await i18n.changeLanguage('de');
+    render(<RichTextEditor value={documentOf(LIMIT)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    await waitFor(() => expect(box.textContent?.length).toBe(LIMIT - 7));
+    expect(screen.queryByText(/zu lang/)).not.toBeInTheDocument();
+    expect(box).not.toHaveAttribute('aria-invalid');
+    expect(box).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('takes the message away again when the text is shortened', async () => {
+    await i18n.changeLanguage('de');
+    const { rerender } = render(
+      <RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Beschreibung" />,
+    );
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    await screen.findByText(/zu lang/);
+    rerender(<RichTextEditor value={documentOf(LIMIT)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    await waitFor(() => expect(screen.queryByText(/zu lang/)).not.toBeInTheDocument());
+    expect(box).not.toHaveAttribute('aria-invalid');
+  });
+});

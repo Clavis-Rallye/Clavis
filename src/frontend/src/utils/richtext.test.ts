@@ -125,3 +125,65 @@ describe('toEditorHtml with tables', () => {
     expect(toEditorHtml(html)).toBe(html);
   });
 });
+
+describe('richtext helpers run in linear time', () => {
+  const SHAPES: Record<string, (k: number) => string> = {
+    'an open pre tag repeated': (k) => '<p>x</p>' + '<pre '.repeat(k),
+    'an open code tag repeated': (k) => '<code '.repeat(k),
+    'a line break tag repeated in a pre': (k) => '<pre>' + '<br '.repeat(k),
+    'a tag start repeated': (k) => '<a'.repeat(k),
+    'an open h1 tag repeated': (k) => '<h1 '.repeat(k),
+  };
+
+  const timed = (run: () => unknown): number => {
+    const start = performance.now();
+    run();
+    return performance.now() - start;
+  };
+
+  for (const [name, build] of Object.entries(SHAPES)) {
+    for (const size of [400_000, 2_000_000]) {
+      it(`ends isHtml and toEditorHtml within half a second on ${name} at ${size} characters`, () => {
+        const text = build(Math.ceil(size / build(1).length)).slice(0, size);
+        expect(timed(() => isHtml(text))).toBeLessThan(500);
+        expect(timed(() => toEditorHtml(text))).toBeLessThan(500);
+      });
+    }
+  }
+
+  it('keeps the meaning of isHtml', () => {
+    expect(isHtml('a < b > c')).toBe(false);
+    expect(isHtml('<a')).toBe(false);
+    expect(isHtml('x <B> y')).toBe(true);
+    expect(isHtml('<1> <a')).toBe(false);
+    expect(isHtml('< a>')).toBe(false);
+  });
+});
+
+describe('isOwnMediaSrc strict form', () => {
+  const ROUTE = '/api/orgs/demo/media/';
+
+  it('accepts a clean address of the media route', () => {
+    expect(isOwnMediaSrc(`${ROUTE}content/x.jpg`)).toBe(true);
+  });
+
+  it.each([
+    ['a tab', `${ROUTE}.\t./x.jpg`],
+    ['a tab in a name', `${ROUTE}a\tb.jpg`],
+    ['a newline', `${ROUTE}a\nb.jpg`],
+    ['a carriage return', `${ROUTE}a\rb.jpg`],
+    ['a no-break space', `${ROUTE}a\u00a0b.jpg`],
+    ['a space', `${ROUTE}a b.jpg`],
+    ['a delete character', `${ROUTE}a\u007fb.jpg`],
+    ['a dot segment', `${ROUTE}./x.jpg`],
+    ['a double dot segment', `${ROUTE}../x.jpg`],
+    ['a double dot in the middle', `${ROUTE}a/../x.jpg`],
+    ['a lower case encoded dot', `${ROUTE}%2e%2e/x.jpg`],
+    ['an upper case encoded dot', `${ROUTE}%2E/x.jpg`],
+    ['an encoded slash', `${ROUTE}a%2fb.jpg`],
+    ['an encoded backslash', `${ROUTE}a%5Cb.jpg`],
+    ['a backslash', `${ROUTE}a\\b.jpg`],
+  ])('refuses an address with %s', (_name, src) => {
+    expect(isOwnMediaSrc(src)).toBe(false);
+  });
+});
