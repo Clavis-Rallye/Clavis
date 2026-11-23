@@ -166,9 +166,6 @@ describe('InstanceLegal', () => {
 
     await waitFor(() =>
       expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
-        legal_imprint: null,
-        legal_privacy: null,
-        legal_accessibility: null,
         backup_retention_days: 365,
       }),
     );
@@ -194,9 +191,6 @@ describe('InstanceLegal', () => {
 
     await waitFor(() =>
       expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
-        legal_imprint: null,
-        legal_privacy: null,
-        legal_accessibility: null,
         backup_retention_days: 30,
       }),
     );
@@ -216,9 +210,6 @@ describe('InstanceLegal', () => {
 
     await waitFor(() =>
       expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
-        legal_imprint: null,
-        legal_privacy: null,
-        legal_accessibility: null,
         backup_retention_days: null,
       }),
     );
@@ -277,7 +268,7 @@ describe('InstanceLegal', () => {
     expect(privacy).not.toHaveTextContent('FOSSGIS');
   });
 
-  it('saving with every field empty sends null for each text', async () => {
+  it('saving with nothing changed sends only the backup period', async () => {
     mockAuthenticated(emptyLegalResponse);
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: emptyLegalResponse });
     renderPage();
@@ -286,12 +277,7 @@ describe('InstanceLegal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     await waitFor(() =>
-      expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
-        legal_imprint: null,
-        legal_privacy: null,
-        legal_accessibility: null,
-        backup_retention_days: 30,
-      }),
+      expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', { backup_retention_days: 30 }),
     );
     await waitFor(() =>
       expect(screen.getByText('Die Rechtstexte wurden gespeichert.')).toBeInTheDocument(),
@@ -368,7 +354,6 @@ describe('InstanceLegal', () => {
 
       await waitFor(() =>
         expect(apiClient.put).toHaveBeenCalledWith('/api/instance/legal', {
-          legal_imprint: null,
           // The template states the installation's periods. The backup period
           // stays a placeholder in the inserted text, because the operator had
           // not stated it when the template went in.
@@ -385,7 +370,6 @@ describe('InstanceLegal', () => {
               sources: [...defaultMap.address_search_sources],
             },
           }),
-          legal_accessibility: null,
           // The field showed the default at "Speichern": that number is sent.
           backup_retention_days: 30,
         }),
@@ -454,6 +438,56 @@ describe('InstanceLegal', () => {
       expect(
         screen.getByText('Dieser Text enthält noch Platzhalter: [DATUM DER ERSTELLUNG]'),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('stored texts with h1, pre and code', () => {
+    const legacyPrivacy = '<h1>Datenschutz</h1><pre><code>Zeile eins\nZeile zwei</code></pre><p>Ruf <code>ls</code> auf.</p>';
+    const legacyLegal: InstanceLegalResponse = {
+      ...filledLegalResponse,
+      legal_privacy: legacyPrivacy,
+    };
+
+    it('opens the heading as a heading, before any save', async () => {
+      mockAuthenticated(legacyLegal);
+      renderPage();
+
+      const privacy = await screen.findByRole('textbox', { name: 'Datenschutz' });
+      await waitFor(() => expect(within(privacy).getByRole('heading', { level: 2 })).toHaveTextContent('Datenschutz'));
+      expect(apiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('sends only the changed text and leaves the stored one out', async () => {
+      const stored = { ...legacyLegal, legal_imprint: null };
+      mockAuthenticated(stored);
+      vi.mocked(apiClient.put).mockResolvedValueOnce({ data: stored });
+      renderPage();
+      await screen.findByRole('textbox', { name: 'Impressum' });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Vorlage einfügen: Impressum' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+      await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+      const body = vi.mocked(apiClient.put).mock.calls[0][1] as Record<string, unknown>;
+      expect(Object.keys(body).sort()).toEqual(['backup_retention_days', 'legal_imprint']);
+      expect(body.legal_imprint).toEqual(legalTemplate('imprint'));
+    });
+
+    it('sends a template that was inserted into the stored text', async () => {
+      mockAuthenticated(legacyLegal);
+      vi.mocked(apiClient.put).mockResolvedValueOnce({ data: legacyLegal });
+      renderPage();
+      await screen.findByRole('textbox', { name: 'Impressum' });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Vorlage einfügen: Datenschutz' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Text ersetzen?' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Ersetzen' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await userEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+      await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+      const body = vi.mocked(apiClient.put).mock.calls[0][1] as Record<string, unknown>;
+      expect(Object.keys(body).sort()).toEqual(['backup_retention_days', 'legal_privacy']);
     });
   });
 

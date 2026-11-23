@@ -1,0 +1,58 @@
+{
+  "about": "Pins what the backend filter sanitize_html does with the rich-text corpus of the frontend fixtures (RICH_TEXT_091_CORPUS); the sanitized values were recorded from the unchanged code of release 0.9.1.",
+  "media_prefix": "/api/orgs/stadt/media/",
+  "documents": {
+    "everyKeptElement": {
+      "input": "<h2>Überschrift</h2><h3>Unterüberschrift</h3><p>Ein <strong>fetter</strong>, <em>kursiver</em>, <u>unterstrichener</u> und <s>durchgestrichener</s> Text mit Zeilen<br>umbruch und einem <a href=\"https://example.org/seite\" target=\"_blank\">Link</a>.</p><ul><li>Äpfel</li><li>Öl</li></ul><ol><li>Eins</li><li>Zwei</li></ol><p><img src=\"/api/orgs/stadt/media/content/rathaus.jpg\" alt=\"Das Rathaus\"></p>",
+      "sanitized": "<h2>Überschrift</h2><h3>Unterüberschrift</h3><p>Ein <strong>fetter</strong>, <em>kursiver</em>, <u>unterstrichener</u> und <s>durchgestrichener</s> Text mit Zeilen<br>umbruch und einem <a href=\"https://example.org/seite\" target=\"_blank\" rel=\"noopener noreferrer\">Link</a>.</p><ul><li>Äpfel</li><li>Öl</li></ul><ol><li>Eins</li><li>Zwei</li></ol><p><img src=\"/api/orgs/stadt/media/content/rathaus.jpg\" alt=\"Das Rathaus\"></p>"
+    },
+    "nestedOrderedInBulleted": {
+      "input": "<ul><li><p>Obere Ebene</p><ol><li><p>Erster Schritt</p></li><li><p>Zweiter Schritt</p></li></ol></li><li><p>Weiter oben</p></li></ul>",
+      "sanitized": "<ul><li><p>Obere Ebene</p><ol><li><p>Erster Schritt</p></li><li><p>Zweiter Schritt</p></li></ol></li><li><p>Weiter oben</p></li></ul>"
+    },
+    "nestedBulletedInOrdered": {
+      "input": "<ol><li><p>Erster Punkt</p><ul><li><p>Detail A</p></li><li><p>Detail B</p></li></ul></li><li><p>Zweiter Punkt</p></li></ol>",
+      "sanitized": "<ol><li><p>Erster Punkt</p><ul><li><p>Detail A</p></li><li><p>Detail B</p></li></ul></li><li><p>Zweiter Punkt</p></li></ol>"
+    },
+    "linkBlankWithRel": {
+      "input": "<p>Mehr unter <a href=\"https://example.org/info\" target=\"_blank\" rel=\"noopener noreferrer\">der Infoseite</a>.</p>",
+      "sanitized": "<p>Mehr unter <a href=\"https://example.org/info\" target=\"_blank\" rel=\"noopener noreferrer\">der Infoseite</a>.</p>"
+    },
+    "linkMailto": {
+      "input": "<p>Fragen an <a href=\"mailto:info@example.org\">info@example.org</a>.</p>",
+      "sanitized": "<p>Fragen an <a href=\"mailto:info@example.org\" rel=\"noopener noreferrer\">info@example.org</a>.</p>"
+    },
+    "linkRelativePath": {
+      "input": "<p>Siehe <a href=\"/hilfe/anfahrt\">die Anfahrt</a>.</p>",
+      "sanitized": "<p>Siehe <a href=\"/hilfe/anfahrt\" rel=\"noopener noreferrer\">die Anfahrt</a>.</p>"
+    },
+    "imageMediaRoute": {
+      "input": "<p><img src=\"/api/orgs/stadt/media/content/rathaus.jpg\" alt=\"Rathaus am Marktplatz\"></p>",
+      "sanitized": "<p><img src=\"/api/orgs/stadt/media/content/rathaus.jpg\" alt=\"Rathaus am Marktplatz\"></p>"
+    },
+    "imageOutsideMediaRoute": {
+      "input": "<p>Vorher<img src=\"https://example.org/pixel.gif\" alt=\"Pixel\">Nachher</p>",
+      "sanitized": "<p>VorherNachher</p>"
+    },
+    "legacyPlainText": {
+      "input": "Erste Zeile\nZweite Zeile\n\nNeuer Absatz mit Größe & Maß",
+      "sanitized": "Erste Zeile\nZweite Zeile\n\nNeuer Absatz mit Größe & Maß"
+    },
+    "legacyServerUnfiltered": {
+      "input": "<h1>Alter Titel</h1><pre><code>Zeile eins\nZeile zwei</code></pre><p>Ein Aufruf wie <code>ls -l</code> im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>",
+      "sanitized": "Alter TitelZeile eins\nZeile zwei<p>Ein Aufruf wie ls -l im Text.</p><p>Ein Zitat.</p>"
+    },
+    "paragraphWithBreak": {
+      "input": "<p>Zeile eins<br>Zeile zwei</p>",
+      "sanitized": "<p>Zeile eins<br>Zeile zwei</p>"
+    },
+    "emptyString": {
+      "input": "",
+      "sanitized": ""
+    },
+    "emptyParagraph": {
+      "input": "<p></p>",
+      "sanitized": "<p></p>"
+    }
+  }
+}

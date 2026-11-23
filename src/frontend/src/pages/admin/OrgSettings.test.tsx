@@ -495,10 +495,29 @@ describe('OrgSettings, legal templates', () => {
     await waitFor(() =>
       expect(apiClient.put).toHaveBeenCalledWith('/api/orgs/test-org', {
         legal_imprint: legalTemplate('imprint'),
-        legal_privacy: null,
-        legal_accessibility: null,
       }),
     );
+  });
+
+  it('opens an old heading as a heading and sends only the text that changed', async () => {
+    const legacyOrg = {
+      ...filledOrg,
+      legal_imprint: null,
+      legal_privacy: '<h1>Datenschutz</h1><pre><code>Zeile eins\nZeile zwei</code></pre><p>Ruf <code>ls</code> auf.</p>',
+    };
+    await renderWithLegalTab(legacyOrg);
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: legacyOrg });
+    const privacy = screen.getByRole('textbox', { name: 'Datenschutz' });
+    await waitFor(() => expect(within(privacy).getByRole('heading', { level: 2 })).toHaveTextContent('Datenschutz'));
+    expect(apiClient.put).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Vorlage einfügen: Impressum' }));
+    await userEvent.click(screen.getByRole('button', { name: /speichern/i }));
+
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+    const body = vi.mocked(apiClient.put).mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(['legal_imprint']);
+    expect(body.legal_imprint).toEqual(legalTemplate('imprint'));
   });
 
   it('asks before it replaces existing text, and keeps the text on cancel', async () => {

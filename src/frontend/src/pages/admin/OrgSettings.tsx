@@ -37,6 +37,7 @@ import { useAuth } from '../../auth/useAuth';
 import type {
   MailStatusResponse,
   OrganizationResponse,
+  OrganizationUpdateRequest,
   RetentionClass,
   RetentionConfigResponse,
 } from '../../api/types';
@@ -369,12 +370,15 @@ const OrgSettings: React.FC = () => {
     // the bundled copy. The API treats explicit null differently from
     // omitted keys (Pydantic model_fields_set).
     const toNull = (s: string): string | null => (s.trim() === '' ? null : s);
+    // Only a text that differs from the value the page loaded goes into the
+    // body. A stored text the person did not touch is not sent, so the server
+    // does not rewrite it. Both routes keep an omitted text as it is.
+    const body: Pick<OrganizationUpdateRequest, 'legal_imprint' | 'legal_privacy' | 'legal_accessibility'> = {};
+    if (legalImprint !== (org.legal_imprint ?? '')) body.legal_imprint = toNull(legalImprint);
+    if (legalPrivacy !== (org.legal_privacy ?? '')) body.legal_privacy = toNull(legalPrivacy);
+    if (legalAccessibility !== (org.legal_accessibility ?? '')) body.legal_accessibility = toNull(legalAccessibility);
     try {
-      const updated = await updateOrg(orgSlug, {
-        legal_imprint: toNull(legalImprint),
-        legal_privacy: toNull(legalPrivacy),
-        legal_accessibility: toNull(legalAccessibility),
-      });
+      const updated = await updateOrg(orgSlug, body);
       setOrg(updated);
       setLegalImprint(updated.legal_imprint ?? '');
       setLegalPrivacy(updated.legal_privacy ?? '');

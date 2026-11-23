@@ -11,10 +11,12 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from app.models.challenge import ChallengeType
 from app.models.feed_event import FeedEventType
 from app.models.run import RunState
+from app.services.richtext import RICH_TEXT_MAX_LENGTH
 
 # Email addresses are matched case-insensitively. Normalize every inbound email
 # to lowercase at the validation boundary, so storage and lookups never see
@@ -35,6 +37,19 @@ def _refuse_duplicate_languages(value: list[str] | None) -> list[str] | None:
     """Refuse a list that names one language twice, compared without regard to case."""
     if value is not None and len({code.lower() for code in value}) != len(value):
         raise ValueError("languages must not contain a duplicate")
+    return value
+
+
+def _refuse_overlong_rich_text(value: dict[str, str] | None) -> dict[str, str] | None:
+    """Refuse a rich text of which one language is longer than ``RICH_TEXT_MAX_LENGTH`` characters."""
+    if value is not None:
+        for text in value.values():
+            if len(text) > RICH_TEXT_MAX_LENGTH:
+                raise PydanticCustomError(
+                    "string_too_long",
+                    "String should have at most {max_length} characters",
+                    {"max_length": RICH_TEXT_MAX_LENGTH},
+                )
     return value
 
 
@@ -904,9 +919,11 @@ class OrganizationUpdateRequest(BaseModel):
 
     _no_duplicate_languages = field_validator("languages")(_refuse_duplicate_languages)
 
-    legal_imprint: str | None = Field(None, max_length=20000, description="Imprint markdown override")
-    legal_privacy: str | None = Field(None, max_length=20000, description="Privacy markdown override")
-    legal_accessibility: str | None = Field(None, max_length=20000, description="Accessibility markdown override")
+    legal_imprint: str | None = Field(None, max_length=RICH_TEXT_MAX_LENGTH, description="Imprint markdown override")
+    legal_privacy: str | None = Field(None, max_length=RICH_TEXT_MAX_LENGTH, description="Privacy markdown override")
+    legal_accessibility: str | None = Field(
+        None, max_length=RICH_TEXT_MAX_LENGTH, description="Accessibility markdown override"
+    )
 
 
 class OrganizationDeleteResponse(BaseModel):
@@ -937,6 +954,8 @@ class RallyeCreateRequest(BaseModel):
         examples=[{"de": "Eine spannende Tour durch die Stadt", "en": "An exciting tour through the city"}],
     )
 
+    _description_bounded = field_validator("description")(_refuse_overlong_rich_text)
+
 
 class RallyeUpdateRequest(BaseModel):
     """Request body for updating a rallye."""
@@ -953,6 +972,8 @@ class RallyeUpdateRequest(BaseModel):
         None,
         description="Whether the rallye is published",
     )
+
+    _description_bounded = field_validator("description")(_refuse_overlong_rich_text)
 
 
 class RallyeResponse(BaseModel):
@@ -1105,6 +1126,8 @@ class StationCreateRequest(BaseModel):
         description="Optional tips popup with links. Null means no popup",
     )
 
+    _description_bounded = field_validator("description")(_refuse_overlong_rich_text)
+
     @model_validator(mode="after")
     def _address_needs_coordinates(self) -> "StationCreateRequest":
         """An address without a map position would put a station on the wrong house."""
@@ -1145,6 +1168,8 @@ class StationUpdateRequest(BaseModel):
         None,
         description="Tips popup with links. An explicit null clears the popup. A missing field leaves it unchanged.",
     )
+
+    _description_bounded = field_validator("description")(_refuse_overlong_rich_text)
 
 
 SortOrder = Literal["asc", "desc"]
@@ -1303,6 +1328,7 @@ class ChallengeCreateRequest(BaseModel):
         max_length=10000,
     )
 
+    _instructions_bounded = field_validator("instructions")(_refuse_overlong_rich_text)
     _no_retired_type = field_validator("challenge_type")(_refuse_retired_type)
 
 
@@ -1340,6 +1366,7 @@ class ChallengeUpdateRequest(BaseModel):
         max_length=10000,
     )
 
+    _instructions_bounded = field_validator("instructions")(_refuse_overlong_rich_text)
     _no_retired_type = field_validator("challenge_type")(_refuse_retired_type)
 
 
@@ -2659,9 +2686,9 @@ class InstanceLegalUpdateRequest(BaseModel):
     that text. A field left out of the payload entirely is not touched.
     """
 
-    legal_imprint: str | None = Field(None, max_length=20000)
-    legal_privacy: str | None = Field(None, max_length=20000)
-    legal_accessibility: str | None = Field(None, max_length=20000)
+    legal_imprint: str | None = Field(None, max_length=RICH_TEXT_MAX_LENGTH)
+    legal_privacy: str | None = Field(None, max_length=RICH_TEXT_MAX_LENGTH)
+    legal_accessibility: str | None = Field(None, max_length=RICH_TEXT_MAX_LENGTH)
     backup_retention_days: int | None = Field(
         None,
         ge=1,

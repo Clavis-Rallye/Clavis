@@ -8,6 +8,7 @@ import {
   plainTextToHtml,
   toEditorHtml,
 } from './richtext';
+import tableCases from './richTextTableCases.json';
 
 describe('richtext utils', () => {
   it('detects markup', () => {
@@ -56,5 +57,133 @@ describe('richtext utils', () => {
     expect(isOwnMediaSrc('/api/orgs/stadt/media/../../secret.png')).toBe(false);
     expect(isOwnMediaSrc('/api/files/1234/runs/x.png')).toBe(false);
     expect(isOwnMediaSrc('')).toBe(false);
+  });
+
+  describe('toEditorHtml on old legal texts', () => {
+    // The same pair as in test_richtext.py (sanitize_html).
+    const LEGACY_LEGAL_DOCUMENT =
+      '<h1>Impressum</h1><pre><code>Musterstraße 1\n86150 Augsburg\n\nTelefon 0821 0000</code></pre><p>Ein Aufruf wie <code>ls -l</code> im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>';
+    const LEGACY_LEGAL_MAPPED =
+      '<h2>Impressum</h2><p>Musterstraße 1<br>86150 Augsburg</p><p>Telefon 0821 0000</p><p>Ein Aufruf wie ls -l im Text.</p><blockquote><p>Ein Zitat.</p></blockquote>';
+
+    it('maps h1, pre and code to what the editor has', () => {
+      expect(toEditorHtml(LEGACY_LEGAL_DOCUMENT)).toBe(LEGACY_LEGAL_MAPPED);
+    });
+
+    it('keeps the inline markup of an h1', () => {
+      expect(toEditorHtml('<h1>Neu <em>hier</em></h1>')).toBe('<h2>Neu <em>hier</em></h2>');
+    });
+
+    it('keeps only the text of a pre with markup inside', () => {
+      expect(toEditorHtml('<pre>Eins <strong>zwei</strong>\ndrei</pre>')).toBe('<p>Eins zwei<br>drei</p>');
+    });
+
+    it('keeps < and & inside a pre as escaped text', () => {
+      expect(toEditorHtml('<pre>a &lt; b &amp;&amp; c &gt; d</pre>')).toBe(
+        '<p>a &lt; b &amp;&amp; c &gt; d</p>',
+      );
+    });
+
+    it('starts a new paragraph at a blank line with spaces and reads CRLF', () => {
+      expect(toEditorHtml('<pre>Eins\n  \nZwei\r\nDrei</pre>')).toBe('<p>Eins</p><p>Zwei<br>Drei</p>');
+    });
+
+    it('leaves no block for an empty pre', () => {
+      expect(toEditorHtml('<p>Davor</p><pre>\n</pre><p>Danach</p>')).toBe('<p>Davor</p><p>Danach</p>');
+    });
+
+    it('turns code into plain text', () => {
+      expect(toEditorHtml('<p>Nutze <code>ls -l</code> hier.</p>')).toBe('<p>Nutze ls -l hier.</p>');
+    });
+
+    it('passes a document without the three tags unchanged', () => {
+      const document = '<h2>Titel</h2><p>Text<br>Zeile</p><blockquote><p>Zitat</p></blockquote>';
+      expect(toEditorHtml(document)).toBe(document);
+    });
+  });
+});
+
+describe('toEditorHtml with tables', () => {
+  const wide = tableCases.cases.find((c) => c.name === 'six_columns_walk_sample')!;
+
+  it('turns a table of six columns into the paragraphs of its rows', () => {
+    expect(toEditorHtml(wide.input)).toBe(wide.output);
+  });
+
+  it('turns a table inside a cell into a paragraph and keeps the outer table', () => {
+    const nested = tableCases.cases.find((c) => c.name === 'nested_table_in_a_small_table')!;
+    expect(toEditorHtml(nested.input)).toBe(nested.output);
+  });
+
+  it('gives a text with a table of three columns back byte for byte', () => {
+    const html = '<p>vor</p><table><tbody><tr><td><p>a</p></td><td><p>b</p></td><td><p>c</p></td></tr></tbody></table>\n<p>nach</p>';
+    expect(toEditorHtml(html)).toBe(html);
+  });
+
+  it('gives a text without a table back byte for byte', () => {
+    const html = '<p>kein  Table</p>\n<ul><li>x</li></ul>';
+    expect(toEditorHtml(html)).toBe(html);
+  });
+});
+
+describe('richtext helpers run in linear time', () => {
+  const SHAPES: Record<string, (k: number) => string> = {
+    'shape 1': (k) => '<p>x</p>' + '<pre '.repeat(k),
+    'shape 2': (k) => '<code '.repeat(k),
+    'shape 3': (k) => '<pre>' + '<br '.repeat(k),
+    'shape 4': (k) => '<a'.repeat(k),
+    'shape 5': (k) => '<h1 '.repeat(k),
+  };
+
+  const timed = (run: () => unknown): number => {
+    const start = performance.now();
+    run();
+    return performance.now() - start;
+  };
+
+  for (const [name, build] of Object.entries(SHAPES)) {
+    for (const size of [400_000, 2_000_000]) {
+      it(`ends isHtml and toEditorHtml within half a second on ${name} at ${size} characters`, () => {
+        const text = build(Math.ceil(size / build(1).length)).slice(0, size);
+        expect(timed(() => isHtml(text))).toBeLessThan(500);
+        expect(timed(() => toEditorHtml(text))).toBeLessThan(500);
+      });
+    }
+  }
+
+  it('keeps the meaning of isHtml', () => {
+    expect(isHtml('a < b > c')).toBe(false);
+    expect(isHtml('<a')).toBe(false);
+    expect(isHtml('x <B> y')).toBe(true);
+    expect(isHtml('<1> <a')).toBe(false);
+    expect(isHtml('< a>')).toBe(false);
+  });
+});
+
+describe('isOwnMediaSrc strict form', () => {
+  const ROUTE = '/api/orgs/demo/media/';
+
+  it('accepts a clean address of the media route', () => {
+    expect(isOwnMediaSrc(`${ROUTE}content/x.jpg`)).toBe(true);
+  });
+
+  it.each([
+    ['address 1', `${ROUTE}.\t./x.jpg`],
+    ['address 2', `${ROUTE}a\tb.jpg`],
+    ['address 3', `${ROUTE}a\nb.jpg`],
+    ['address 4', `${ROUTE}a\rb.jpg`],
+    ['address 5', `${ROUTE}a\u00a0b.jpg`],
+    ['address 6', `${ROUTE}a b.jpg`],
+    ['address 7', `${ROUTE}a\u007fb.jpg`],
+    ['address 8', `${ROUTE}./x.jpg`],
+    ['address 9', `${ROUTE}../x.jpg`],
+    ['address 10', `${ROUTE}a/../x.jpg`],
+    ['address 11', `${ROUTE}%2e%2e/x.jpg`],
+    ['address 12', `${ROUTE}%2E/x.jpg`],
+    ['address 13', `${ROUTE}a%2fb.jpg`],
+    ['address 14', `${ROUTE}a%5Cb.jpg`],
+    ['address 15', `${ROUTE}a\\b.jpg`],
+  ])('refuses an unclean address (%s)', (_name, src) => {
+    expect(isOwnMediaSrc(src)).toBe(false);
   });
 });

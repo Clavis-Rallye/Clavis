@@ -1,0 +1,64 @@
+{
+  "about": "The rich-text editor produces exactly these elements, attributes and values and nothing more. The backend filter that cleans every write and the frontend renderer that cleans every render both test against this file.",
+  "attributeValues": {
+    "data-align": [
+      "center",
+      "left",
+      "right"
+    ],
+    "data-width": [
+      "100",
+      "25",
+      "50",
+      "75"
+    ]
+  },
+  "elements": {
+    "a": [
+      "href",
+      "rel",
+      "target"
+    ],
+    "blockquote": [],
+    "br": [],
+    "em": [],
+    "figcaption": [],
+    "figure": [
+      "data-align",
+      "data-width"
+    ],
+    "h2": [],
+    "h3": [],
+    "hr": [],
+    "img": [
+      "alt",
+      "data-align",
+      "data-width",
+      "src"
+    ],
+    "li": [],
+    "ol": [],
+    "p": [],
+    "s": [],
+    "strong": [],
+    "table": [],
+    "tbody": [],
+    "td": [],
+    "th": [],
+    "tr": [],
+    "u": [],
+    "ul": []
+  },
+  "urlSchemes": [
+    "http",
+    "https",
+    "mailto"
+  ],
+  "tables": {
+    "maxColumns": 3,
+    "cellSeparator": " · "
+  },
+  "text": {
+    "maxLength": 50000
+  }
+}

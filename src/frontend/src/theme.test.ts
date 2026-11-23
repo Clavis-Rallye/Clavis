@@ -1,3 +1,6 @@
+import { createElement } from 'react';
+import { render } from '@testing-library/react';
+import { Card, ThemeProvider } from '@mui/material';
 import { describe, it, expect } from 'vitest';
 import theme from './theme';
 
@@ -96,6 +99,39 @@ describe('MUI Theme', () => {
     it('draws the card border in the divider tone', () => {
       const card = asObject(asObject(theme.components?.MuiCard?.styleOverrides).root);
       expect(card.borderColor).toBe(theme.palette.divider);
+    });
+
+    it('gives the card root no overflow and no display of its own', () => {
+      const card = asObject(asObject(theme.components?.MuiCard?.styleOverrides).root);
+      expect(card.overflow).toBeUndefined();
+      expect(card.display).toBeUndefined();
+    });
+
+    it('clips a card that holds an editor, so a sticky child sticks to the page', () => {
+      const card = asObject(asObject(theme.components?.MuiCard?.styleOverrides).root);
+      const withEditor = asObject(card['&:has(.ProseMirror)']);
+      expect(withEditor.overflow).toBe('clip');
+      expect(withEditor.display).toBe('flow-root');
+    });
+
+    it('keeps the overflow of a rendered card without an editor hidden', () => {
+      const { container } = render(
+        createElement(ThemeProvider, { theme }, createElement(Card, null, 'content')),
+      );
+      const style = window.getComputedStyle(container.firstElementChild as Element);
+      expect(style.overflow).toBe('hidden');
+    });
+
+    it('computes the overflow of a rendered card with an editor as clip', () => {
+      const { container } = render(
+        createElement(
+          ThemeProvider,
+          { theme },
+          createElement(Card, null, createElement('div', { className: 'ProseMirror' })),
+        ),
+      );
+      const style = window.getComputedStyle(container.firstElementChild as Element);
+      expect(style.overflow).toBe('clip');
     });
   });
 });

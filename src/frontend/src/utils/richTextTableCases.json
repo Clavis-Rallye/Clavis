@@ -1,0 +1,105 @@
+{
+  "about": "The rule for tables outside the contract, as input and output of the whole filter. The backend filter sanitize_html and the frontend renderer sanitizeRichText must both turn each input into exactly its output. A table with more than three columns, or a table inside a cell, becomes one paragraph per row. Never edit an output to make a test pass: a change of the rule is a change of the spec.",
+  "cases": [
+    {
+      "name": "three_columns_stay",
+      "input": "<table><tbody><tr><th><p>Tag</p></th><th><p>Zeit</p></th><th><p>Eintritt</p></th></tr><tr><td><p>Montag</p></td><td><p>9 bis 18 Uhr</p></td><td><p>8 €</p></td></tr></tbody></table>",
+      "output": "<table><tbody><tr><th><p>Tag</p></th><th><p>Zeit</p></th><th><p>Eintritt</p></th></tr><tr><td><p>Montag</p></td><td><p>9 bis 18 Uhr</p></td><td><p>8 €</p></td></tr></tbody></table>"
+    },
+    {
+      "name": "six_columns_walk_sample",
+      "input": "<table><tbody><tr><th><p>Spalte 1</p></th><th><p>Spalte 2</p></th><th><p>Spalte 3</p></th><th><p>Spalte 4</p></th><th><p>Spalte 5</p></th><th><p>Spalte 6</p></th></tr><tr><td><p>Donaudampfschifffahrtsgesellschaft 1</p></td><td><p>Donaudampfschifffahrtsgesellschaft 2</p></td><td><p>Donaudampfschifffahrtsgesellschaft 3</p></td><td><p>Donaudampfschifffahrtsgesellschaft 4</p></td><td><p>Donaudampfschifffahrtsgesellschaft 5</p></td><td><p>Donaudampfschifffahrtsgesellschaft 6</p></td></tr></tbody></table>",
+      "output": "<p><strong>Spalte 1 · Spalte 2 · Spalte 3 · Spalte 4 · Spalte 5 · Spalte 6</strong></p><p>Donaudampfschifffahrtsgesellschaft 1 · Donaudampfschifffahrtsgesellschaft 2 · Donaudampfschifffahrtsgesellschaft 3 · Donaudampfschifffahrtsgesellschaft 4 · Donaudampfschifffahrtsgesellschaft 5 · Donaudampfschifffahrtsgesellschaft 6</p>"
+    },
+    {
+      "name": "twenty_cells_in_one_row",
+      "input": "<table><tr><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td>15</td><td>16</td><td>17</td><td>18</td><td>19</td><td>20</td></tr></table>",
+      "output": "<p>1 · 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9 · 10 · 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18 · 19 · 20</p>"
+    },
+    {
+      "name": "four_columns_mixed_first_column",
+      "input": "<table><tbody><tr><th><p>Tag</p></th><th><p>Zeit</p></th><th><p>Eintritt</p></th><th><p>Hinweis</p></th></tr><tr><th><p>Montag</p></th><td><p>9 bis 18 Uhr</p></td><td><p>8 €</p></td><td><p>frei</p></td></tr></tbody></table>",
+      "output": "<p><strong>Tag · Zeit · Eintritt · Hinweis</strong></p><p>Montag · 9 bis 18 Uhr · 8 € · frei</p>"
+    },
+    {
+      "name": "colspan_and_rowspan_removed",
+      "input": "<table><tr><td colspan=\"2\" rowspan=\"3\">a</td><td>b</td></tr></table>",
+      "output": "<table><tbody><tr><td>a</td><td>b</td></tr></tbody></table>"
+    },
+    {
+      "name": "colspan_does_not_count",
+      "input": "<table><tr><td colspan=\"5\">Kopf</td></tr><tr><td>1</td><td>2</td><td>3</td></tr></table>",
+      "output": "<table><tbody><tr><td>Kopf</td></tr><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table>"
+    },
+    {
+      "name": "nested_table_in_a_small_table",
+      "input": "<table><tbody><tr><td><p>außen</p><table><tbody><tr><td><p>innen 1</p></td><td><p>innen 2</p></td></tr></tbody></table></td><td><p>b</p></td></tr></tbody></table>",
+      "output": "<table><tbody><tr><td><p>außen</p><p>innen 1 · innen 2</p></td><td><p>b</p></td></tr></tbody></table>"
+    },
+    {
+      "name": "nested_table_in_a_wide_table",
+      "input": "<table><tbody><tr><td><p>a</p><table><tbody><tr><td><p>innen 1</p></td><td><p>innen 2</p></td></tr></tbody></table></td><td><p>b</p></td><td><p>c</p></td><td><p>d</p></td></tr></tbody></table>",
+      "output": "<p>a<br>innen 1 · innen 2 · b · c · d</p>"
+    },
+    {
+      "name": "empty_cells_left_out",
+      "input": "<table><tbody><tr><td></td><td><p>x</p></td><td><p></p></td><td>y</td></tr><tr><td><p></p></td><td></td><td></td><td><br></td></tr></tbody></table>",
+      "output": "<p>x · y</p>"
+    },
+    {
+      "name": "marks_kept_in_cells",
+      "input": "<table><tbody><tr><td><p><strong>fett</strong> und <em>kursiv</em></p></td><td><p>b</p></td><td><p>c</p></td><td><p>d</p></td></tr></tbody></table>",
+      "output": "<p><strong>fett</strong> und <em>kursiv</em> · b · c · d</p>"
+    },
+    {
+      "name": "header_row_bold_with_marks",
+      "input": "<table><tbody><tr><th><p><em>A</em></p></th><th><p>B</p></th><th><p>C</p></th><th><p>D</p></th></tr></tbody></table>",
+      "output": "<p><strong><em>A</em> · B · C · D</strong></p>"
+    },
+    {
+      "name": "blocks_in_a_cell_become_lines",
+      "input": "<table><tbody><tr><td><p>eins</p><p>zwei</p></td><td><ul><li><p>Punkt 1</p></li><li><p>Punkt 2</p></li></ul></td><td><h3>Titel</h3></td><td><blockquote><p>Zitat</p></blockquote></td></tr></tbody></table>",
+      "output": "<p>eins<br>zwei · Punkt 1<br>Punkt 2 · Titel · Zitat</p>"
+    },
+    {
+      "name": "escaping_kept",
+      "input": "<table><tbody><tr><td><p>A &amp; B &lt; C</p></td><td><p>D&nbsp;E</p></td><td><p>\"F\"</p></td><td><p>G</p></td></tr></tbody></table>",
+      "output": "<p>A &amp; B &lt; C · D&nbsp;E · \"F\" · G</p>"
+    },
+    {
+      "name": "text_between_tables",
+      "input": "<p>vor</p><table><tbody><tr><td><p>1</p></td><td><p>2</p></td></tr></tbody></table><p>mitte</p><table><tbody><tr><td><p>1</p></td><td><p>2</p></td><td><p>3</p></td><td><p>4</p></td></tr></tbody></table><p>nach</p>",
+      "output": "<p>vor</p><table><tbody><tr><td><p>1</p></td><td><p>2</p></td></tr></tbody></table><p>mitte</p><p>1 · 2 · 3 · 4</p><p>nach</p>"
+    },
+    {
+      "name": "thead_and_caption_in_a_wide_table",
+      "input": "<table><caption>Preise</caption><thead><tr><th>a</th><th>b</th><th>c</th><th>d</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table>",
+      "output": "<p>Preise</p><p><strong>a · b · c · d</strong></p><p>1 · 2 · 3 · 4</p>"
+    },
+    {
+      "name": "script_and_style_in_a_cell",
+      "input": "<table><tr><td><script>alert(1)</script>x</td><td style=\"color:red\" onclick=\"alert(2)\">y</td><td>z</td><td>w</td></tr></table>",
+      "output": "<p>x · y · z · w</p>"
+    },
+    {
+      "name": "whitespace_between_rows",
+      "input": "<table>\n  <tbody>\n    <tr>\n      <td> a </td>\n      <td>b</td>\n      <td>c</td>\n      <td>d</td>\n    </tr>\n  </tbody>\n</table>",
+      "output": "<p>a · b · c · d</p>"
+    },
+    {
+      "name": "only_empty_cells",
+      "input": "<table><tr><td></td><td></td><td></td><td></td></tr></table>",
+      "output": ""
+    },
+    {
+      "name": "caption_with_markup_in_a_wide_table",
+      "input": "<table><caption><strong>Preise</strong> 2026</caption><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></table>",
+      "output": "<p><strong>Preise</strong> 2026</p><p>1 · 2 · 3 · 4</p>"
+    },
+    {
+      "name": "link_kept_in_a_wide_table",
+      "input": "<table><tr><td><a href=\"https://example.org/\" rel=\"noopener noreferrer\">Seite</a></td><td>2</td><td>3</td><td>4</td></tr></table>",
+      "output": "<p><a href=\"https://example.org/\" rel=\"noopener noreferrer\">Seite</a> · 2 · 3 · 4</p>"
+    }
+  ]
+}

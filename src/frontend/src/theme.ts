@@ -263,6 +263,13 @@ const theme = createTheme({
         root: {
           borderRadius: 16,
           borderColor: '#CAC4D0',
+          // `clip` rounds the corners like `hidden` did, but makes no scroll container, so a sticky child sticks to the page.
+          // `flow-root` keeps the block formatting context that `hidden` gave, so no child margin or float moves.
+          // Only a card that holds an editor gets this (`:has()`), so every other card keeps the `hidden` of MUI.
+          '&:has(.ProseMirror)': {
+            overflow: 'clip',
+            display: 'flow-root',
+          },
         },
       },
     },

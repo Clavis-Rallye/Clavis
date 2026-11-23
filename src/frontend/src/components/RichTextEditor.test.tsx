@@ -1,13 +1,21 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import RichTextEditor from './RichTextEditor';
 import { AuthContext } from '../auth/AuthContext';
 import i18n from '../i18n';
 import apiClient, { ApiError } from '../api/client';
+import { WEB_PASTE_HTML, WORD_PASTE_HTML } from '../utils/pasteFixtures';
+
+// ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
+const emptyRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
+Range.prototype.getClientRects = emptyRects as unknown as Range['getClientRects'];
+Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
+Element.prototype.getClientRects = emptyRects as unknown as Element['getClientRects'];
+document.elementFromPoint = () => null;
 
 const LazyRichTextEditor = lazy(() => Promise.resolve({ default: RichTextEditor }));
 
@@ -219,5 +227,193 @@ describe('RichTextEditor', () => {
     // The second pixel is an inset shadow, so the border box keeps its size
     // and nothing shifts when the focus enters.
     expect(frameCss).toMatch(/:focus-within[^{]*\{[^}]*box-shadow:\s*inset 0 0 0 1px #1D47A4/i);
+  });
+
+  // Pasted HTML is cleaned before the editor reads it: what shows in the
+  // editor is what will be stored.
+  describe('pasting', () => {
+    const paste = (box: HTMLElement, data: { html?: string; text?: string }) => {
+      fireEvent.paste(box, {
+        clipboardData: {
+          getData: (type: string) => (type === 'text/html' ? data.html ?? '' : type === 'text/plain' ? data.text ?? '' : ''),
+          types: [data.html ? 'text/html' : '', data.text ? 'text/plain' : ''].filter(Boolean),
+          files: [],
+          items: [],
+        },
+      });
+    };
+
+    const setup = async () => {
+      const onChange = vi.fn();
+      render(<RichTextEditor value="" onChange={onChange} ariaLabel="Beschreibung" orgSlug="stadt" />);
+      const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+      return { box, onChange, lastHtml: () => onChange.mock.calls.at(-1)?.[0] as string };
+    };
+
+    it('turns the Word sample into the editor\'s list, formatting and table', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { html: WORD_PASTE_HTML, text: 'Aus Word: Treffpunkt' });
+      await waitFor(() => expect(box.querySelector('table')).not.toBeNull());
+      expect(lastHtml()).toBe(
+        '<p><strong>Aus Word: Treffpunkt</strong></p>' +
+          '<ul><li><p>Word-Punkt eins</p></li><li><p>Word-Punkt zwei</p></li></ul>' +
+          '<p><em>Kursiv aus Word</em> und gelb markiert</p>' +
+          '<table><tbody><tr><td><p>Zelle 1</p></td><td><p>Zelle 2</p></td></tr></tbody></table>' +
+          // The editor keeps a paragraph after a table to write in.
+          '<p></p>',
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('says how many images it left out, can be closed and goes away on the next paste', async () => {
+      const user = userEvent.setup();
+      const { box, lastHtml } = await setup();
+      paste(box, { html: WEB_PASTE_HTML });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        '1 Bild wurde nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.',
+      );
+      expect(box.querySelector('img')).toBeNull();
+      expect(lastHtml()).toContain('<h2>Aus dem Web: Öffnungszeiten</h2>');
+      expect(lastHtml()).not.toContain('<img');
+
+      await user.click(within(screen.getByRole('alert')).getByRole('button'));
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+
+      paste(box, { html: `${WEB_PASTE_HTML}<img src="https://example.org/b.jpg"><img src="https://example.org/c.jpg">` });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        '3 Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.',
+      );
+      paste(box, { text: 'nur Text' });
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    });
+
+    it('says it in English', async () => {
+      await i18n.changeLanguage('en');
+      try {
+        const { box } = await setup();
+        paste(box, { html: WEB_PASTE_HTML });
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          '1 image was left out. Add images with the image button.',
+        );
+      } finally {
+        await i18n.changeLanguage('de');
+      }
+    });
+
+    it('keeps the target of a pasted link whose text is an address', async () => {
+      const { box, lastHtml } = await setup();
+      // The HTML a Word file written with LibreOffice puts on the clipboard.
+      paste(box, {
+        html:
+          '<meta charset="utf-8"><p style="margin-bottom: 0cm; line-height: 100%"><span style="font-family: Calibri, sans-serif">Mehr auf ' +
+          '<a href="https://www.augsburg.de/"><span style="color: #0563c1"><u>augsburg.de</u></span></a>.</span></p>' +
+          '<p><a href="https://www.fuggerei.de/de/besuch">fuggerei.de</a></p>',
+        text: 'Mehr auf augsburg.de.\nfuggerei.de',
+      });
+      await waitFor(() => expect(lastHtml()).toContain('augsburg.de'));
+      expect(lastHtml()).toContain('href="https://www.augsburg.de/"');
+      expect(lastHtml()).toContain('href="https://www.fuggerei.de/de/besuch"');
+      expect(lastHtml()).not.toContain('http://');
+    });
+
+    it('links an address in pasted text with https', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { text: 'Mehr auf augsburg.de' });
+      await waitFor(() => expect(lastHtml()).toContain('href="https://augsburg.de"'));
+    });
+
+    it('pastes plain text as before', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { text: 'Nur ein Satz' });
+      await waitFor(() => expect(lastHtml()).toBe('<p>Nur ein Satz</p>'));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('code and code blocks are off', () => {
+    const typeInto = async (keys: string) => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<RichTextEditor value="" onChange={onChange} ariaLabel="Beschreibung" orgSlug="stadt" />);
+      const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+      await user.click(box);
+      await user.keyboard(keys);
+      return { box, onChange, user };
+    };
+
+    it('keeps a word between backticks as plain text', async () => {
+      const { box } = await typeInto('so `ls` ok');
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('so `ls` ok');
+    });
+
+    it('keeps three backticks and a space as plain text', async () => {
+      const { box } = await typeInto('```{ }x');
+      expect(box.querySelector('pre')).toBeNull();
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('``` x');
+    });
+
+    it('makes nothing of Mod+E', async () => {
+      const { box } = await typeInto('wort{Control>}e{/Control}x');
+      expect(box.querySelector('code')).toBeNull();
+      expect(box.textContent).toBe('wortx');
+    });
+
+    it('makes nothing of Mod+Alt+C', async () => {
+      const { box } = await typeInto('wort{Control>}{Alt>}c{/Alt}{/Control}');
+      expect(box.querySelector('pre')).toBeNull();
+      expect(box.querySelector('code')).toBeNull();
+    });
+  });
+});
+
+describe('RichTextEditor length limit', () => {
+  const LIMIT = 50_000;
+  // `<p>` and `</p>` are seven characters of the stored text.
+  const documentOf = (length: number) => `<p>${'a'.repeat(length - 7)}</p>`;
+
+  it('says in German, at the field, that the text is one character too long', async () => {
+    await i18n.changeLanguage('de');
+    render(<RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    const message = await screen.findByText(
+      'Der Text ist zu lang: 50.001 von höchstens 50.000 Zeichen, Formatierung eingerechnet.',
+    );
+    await waitFor(() => expect(box).toHaveAttribute('aria-invalid', 'true'));
+    expect(box).toHaveAttribute('aria-describedby', message.id);
+  });
+
+  it('says it in English with the numbers of that locale', async () => {
+    await i18n.changeLanguage('en');
+    render(<RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Description" />);
+    expect(
+      await screen.findByText(
+        'The text is too long: 50,001 of at most 50,000 characters, formatting included.',
+      ),
+    ).toBeInTheDocument();
+    await i18n.changeLanguage('de');
+  });
+
+  it('shows nothing at the limit', async () => {
+    await i18n.changeLanguage('de');
+    render(<RichTextEditor value={documentOf(LIMIT)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    await waitFor(() => expect(box.textContent?.length).toBe(LIMIT - 7));
+    expect(screen.queryByText(/zu lang/)).not.toBeInTheDocument();
+    expect(box).not.toHaveAttribute('aria-invalid');
+    expect(box).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('takes the message away again when the text is shortened', async () => {
+    await i18n.changeLanguage('de');
+    const { rerender } = render(
+      <RichTextEditor value={documentOf(LIMIT + 1)} onChange={vi.fn()} ariaLabel="Beschreibung" />,
+    );
+    const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
+    await screen.findByText(/zu lang/);
+    rerender(<RichTextEditor value={documentOf(LIMIT)} onChange={vi.fn()} ariaLabel="Beschreibung" />);
+    await waitFor(() => expect(screen.queryByText(/zu lang/)).not.toBeInTheDocument());
+    expect(box).not.toHaveAttribute('aria-invalid');
   });
 });

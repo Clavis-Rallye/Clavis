@@ -7,18 +7,40 @@
  * has to know which one it got.
  */
 
-const HTML_TAG_RE = /<[a-z][\s\S]*>/i;
+import { flattenTablesOutsideContract } from './richTextTables';
+
+/** A `<` and a letter: the start of a tag. Searched once, from the left. */
+const TAG_START_RE = /<[a-z]/i;
 
 /** The only `src` an inline image may carry: the organisation media route. */
 const MEDIA_ROUTE_RE = /^\/api\/orgs\/[^/]+\/media\/[^?#]+$/;
 
-/** True when the text carries at least one tag, the same test `SafeHtml` uses. */
+/**
+ * True when the text carries at least one tag, the same test `SafeHtml` uses and the same rule as
+ * the API filter: a `<` followed by a letter and, somewhere after it, a `>`. Two linear searches.
+ */
 export function isHtml(text: string | null | undefined): boolean {
-  return !!text && HTML_TAG_RE.test(text);
+  if (!text) return false;
+  const start = text.search(TAG_START_RE);
+  return start !== -1 && text.indexOf('>', start + 1) !== -1;
 }
 
+/**
+ * A character a browser drops or reads differently inside an address, white space of every kind and
+ * the backslash, or a percent-encoded dot, slash or backslash. None of them may stand in an image address.
+ */
+// eslint-disable-next-line no-control-regex
+const UNCLEAN_SRC_RE = /[\u0000-\u001f\u007f\s\\]|%2e|%2f|%5c/i;
+
+/**
+ * True for an image address in the strict form: no character below 0x20 or 0x7F, no white space, no
+ * backslash, no percent-encoded dot, slash or backslash, no `.` or `..` segment, and then the media route.
+ */
 export function isOwnMediaSrc(src: string | null | undefined): boolean {
-  return !!src && MEDIA_ROUTE_RE.test(src) && !src.includes('..');
+  if (!src || UNCLEAN_SRC_RE.test(src)) return false;
+  const path = src.split('?', 1)[0].split('#', 1)[0];
+  if (path.split('/').some((segment) => segment === '.' || segment === '..')) return false;
+  return MEDIA_ROUTE_RE.test(src);
 }
 
 function escapeHtml(text: string): string {
@@ -43,10 +65,58 @@ export function plainTextToHtml(text: string): string {
     .join('');
 }
 
+const H1_OPEN_RE = /<h1(?=[\s/>])/gi;
+const H1_CLOSE_RE = /<\/h1\s*>/gi;
+// Every tag pattern stops at the next `<` or `>`, so none of them scans from many start points to the end.
+const PRE_BLOCK_RE = /<pre(?=[\s/>])[^<>]*>([\s\S]*?)(?:<\/pre\s*>|$)/gi;
+const BR_TAG_RE = /<br(?=[\s/>])[^<>]*>/gi;
+const ANY_TAG_RE = /<\/?[a-z][^<>]*>/gi;
+const CODE_TAG_RE = /<\/?code(?=[\s/>])[^<>]*>/gi;
+const BLANK_LINE_RE = /\n(?:[ \t]*\n)+/;
+
+/** A `pre` block as paragraphs: only its text, a blank line starts a paragraph, a line break is `<br>`. */
+function preToParagraphs(_block: string, content: string): string {
+  const text = content
+    .replace(BR_TAG_RE, '\n')
+    .replace(ANY_TAG_RE, '')
+    .replace(/\r\n?/g, '\n');
+  return text
+    .split(BLANK_LINE_RE)
+    .map((chunk) => chunk.replace(/^\n+|\n+$/g, ''))
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => `<p>${chunk.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+/**
+ * Legal texts written before the server filtered rich text can hold `h1`, `pre`
+ * and `code`. Map them to what the editor has: `h1` to `h2`, a `pre` block to
+ * paragraphs and `code` to plain text. The server does the same in
+ * `sanitize_html`, so no word is lost and none ends up outside a block.
+ */
+function mapLegacyElements(html: string): string {
+  return html
+    .replace(H1_OPEN_RE, '<h2')
+    .replace(H1_CLOSE_RE, '</h2>')
+    .replace(PRE_BLOCK_RE, preToParagraphs)
+    .replace(CODE_TAG_RE, '');
+}
+
+/**
+ * A table of more than three columns, or one inside a cell, becomes paragraphs, as the renderer
+ * and the API filter do. The document is parsed only when it holds a table, and the parsed
+ * result is used only when the rule changed something.
+ */
+function flattenWideTables(html: string): string {
+  if (!/<table/i.test(html) || typeof DOMParser === 'undefined') return html;
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  return flattenTablesOutsideContract(body) ? body.innerHTML : html;
+}
+
 /** Either the document as is, or the legacy plain text converted, ready for the editor. */
 export function toEditorHtml(value: string | null | undefined): string {
   if (!value) return '';
-  return isHtml(value) ? value : plainTextToHtml(value);
+  return isHtml(value) ? flattenWideTables(mapLegacyElements(value)) : plainTextToHtml(value);
 }
 
 /**
@@ -63,7 +133,7 @@ export function htmlToPlainText(html: string | null | undefined): string {
     return doc.body.textContent?.replace(/\s+/g, ' ').trim() ?? '';
   }
   return html
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<[^<>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

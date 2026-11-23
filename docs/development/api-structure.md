@@ -349,6 +349,14 @@ The general rule this stands for: **when a second router needs the same domain
 rule, move it to `services/` rather than copying it.** A duplicated guard reads
 as consistent right up to the day one copy changes.
 
+## Rich Text Fields
+
+Rich text fields take HTML of the contract in `src/frontend/src/utils/richTextContract.json`. The server cleans each one on write and returns the cleaned text. The filter is `src/backend/app/services/richtext.py`. [security-and-compliance.md](security-and-compliance.md) lists what it keeps.
+
+The legal text routes keep an omitted text as it is. These are `PUT /api/orgs/{slug}` for the organization's texts and `PUT /api/instance/legal` for the instance's texts. The legal pages send only the texts the person changed.
+
+The daily sweep of unused content images finds an image key by text search in every text and JSON column. An image inside a table cell or a figure counts as used.
+
 ## Participant Photos: Hygiene on Upload, Variants on Serve
 
 Submission files upload through `POST /api/orgs/{slug}/runs/{run_id}/submissions/upload/`
