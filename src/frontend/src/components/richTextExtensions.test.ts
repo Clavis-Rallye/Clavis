@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { IMAGE_WIDTHS, richTextImageExtensions, richTextTableExtensions } from './richTextExtensions';
+import { IMAGE_WIDTHS, richTextImageExtensions, richTextLink, richTextTableExtensions } from './richTextExtensions';
 import { snapImageWidth } from './RichTextImageResizeHandle';
 
 let editor: Editor | null = null;
@@ -251,5 +251,80 @@ describe('table: the keyboard never traps', () => {
     const e = make('<p>Text</p>');
     e.commands.setTextSelection(2);
     expect(pressKey(e, 'Tab')).toBe(false);
+  });
+});
+
+describe('link: paste and typing', () => {
+  // jsdom has no ClipboardEvent, which `view.pasteHTML` and TipTap's paste rules create.
+  beforeAll(() => {
+    vi.stubGlobal('ClipboardEvent', class extends Event {});
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const makeLinked = () => {
+    editor = new Editor({ extensions: [Document, Paragraph, Text, richTextLink], content: '<p></p>' });
+    return editor;
+  };
+  const hrefs = (e: Editor) =>
+    Array.from(new DOMParser().parseFromString(e.getHTML(), 'text/html').querySelectorAll('a')).map((a) =>
+      a.getAttribute('href'),
+    );
+
+  it('configures the link as before, with https as the default protocol', () => {
+    expect(richTextLink.options).toMatchObject({
+      openOnClick: false,
+      autolink: true,
+      defaultProtocol: 'https',
+      HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+    });
+  });
+
+  it('keeps the href of a pasted link whose text is an address', () => {
+    const e = makeLinked();
+    e.view.pasteHTML('<p>Mehr auf <a href="https://www.augsburg.de/">augsburg.de</a>.</p>');
+    expect(hrefs(e)).toEqual(['https://www.augsburg.de/']);
+  });
+
+  it('keeps the deep href of a pasted link', () => {
+    const e = makeLinked();
+    e.view.pasteHTML('<p><a href="https://www.fuggerei.de/de/besuch">fuggerei.de</a></p>');
+    expect(hrefs(e)).toEqual(['https://www.fuggerei.de/de/besuch']);
+  });
+
+  it('keeps a pasted mailto link', () => {
+    const e = makeLinked();
+    e.view.pasteHTML('<p><a href="mailto:info@fuggerei.de">info@fuggerei.de</a></p>');
+    expect(hrefs(e)).toEqual(['mailto:info@fuggerei.de']);
+  });
+
+  it('links an address in pasted text and gives it https', () => {
+    const e = makeLinked();
+    e.view.pasteText('Mehr auf augsburg.de');
+    expect(hrefs(e)).toEqual(['https://augsburg.de']);
+  });
+
+  it('links an address in pasted HTML that has no link yet', () => {
+    const e = makeLinked();
+    e.view.pasteHTML('<p>Seite: www.augsburg.de</p>');
+    expect(hrefs(e)).toEqual(['https://www.augsburg.de']);
+  });
+
+  it('links the addresses around a pasted link that already has a target', () => {
+    const e = makeLinked();
+    e.view.pasteHTML('<p>a.de <a href="https://www.fuggerei.de/de/besuch">fuggerei.de</a> b.de</p>');
+    expect(hrefs(e)).toEqual(['https://a.de', 'https://www.fuggerei.de/de/besuch', 'https://b.de']);
+  });
+
+  it('gives an address typed with a space https', () => {
+    const e = makeLinked();
+    e.commands.focus();
+    for (const char of 'augsburg.de ') {
+      const { from, to } = e.state.selection;
+      const handled = e.view.someProp('handleTextInput', (f) => f(e.view, from, to, char, () => e.state.tr.insertText(char, from, to)));
+      if (!handled) e.view.dispatch(e.state.tr.insertText(char, from, to));
+    }
+    expect(hrefs(e)).toEqual(['https://augsburg.de']);
   });
 });

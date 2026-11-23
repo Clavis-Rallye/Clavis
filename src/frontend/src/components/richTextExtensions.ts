@@ -1,6 +1,7 @@
 import Image from '@tiptap/extension-image';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
-import { findParentNode, type Extensions } from '@tiptap/core';
+import Link from '@tiptap/extension-link';
+import { findParentNode, PasteRule, type Extensions, type PasteRuleMatch } from '@tiptap/core';
 import { TextSelection, type Transaction } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { RichTextImageNodeView } from './RichTextImageResizeHandle';
@@ -109,6 +110,42 @@ export const richTextImage = RichTextImage.configure({
   inline: false,
   allowBase64: false,
   HTMLAttributes: { loading: 'lazy' },
+});
+
+/**
+ * The link mark. TipTap's own paste rule links every address-like text of a paste
+ * and replaces the link mark the text already had, so a pasted link named
+ * "fuggerei.de" lost its target. This rule finds the same text with the same
+ * checks and does nothing on a range that already carries a link.
+ */
+export const richTextLink = Link.extend({
+  addPasteRules() {
+    // The rule of TipTap's Link: the same linkify search, the same
+    // `isAllowedUri` and `shouldAutoLink` checks, the same mark attributes.
+    const [linkRule] = this.parent?.() ?? [];
+    const { type } = this;
+    return [
+      new PasteRule({
+        find: (text: string, event?: ClipboardEvent | null) =>
+          // linkify writes `http://` before an address without a scheme.
+          (linkRule.find as (text: string, event?: ClipboardEvent | null) => PasteRuleMatch[])(text, event).map((match) => {
+            const href = (match.data as { href?: string } | undefined)?.href;
+            if (!href || !href.startsWith('http://') || /^http:\/\//i.test(match.text)) return match;
+            return { ...match, data: { ...match.data, href: `${this.options.defaultProtocol}://${href.slice(7)}` } };
+          }),
+        handler: (props) => {
+          // Returns nothing and not `null`: `null` would drop the other matches of the paste.
+          if (props.state.doc.rangeHasMark(props.range.from, props.range.to, type)) return undefined;
+          return linkRule.handler(props);
+        },
+      }),
+    ];
+  },
+}).configure({
+  openOnClick: false,
+  autolink: true,
+  defaultProtocol: 'https',
+  HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
 });
 
 /** The extensions that go beyond the base kit, exported for headless tests. */

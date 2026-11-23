@@ -14,6 +14,28 @@ import { NodeSelection } from '@tiptap/pm/state';
 const PLUGIN_KEY = 'selectionMenu';
 const coarsePointer = '@media (pointer: coarse)';
 
+/** Bottom edge, in the viewport, of the toolbar the editor renders above its content. */
+const toolbarBottom = (editor: Editor): number => {
+  if (editor.isDestroyed) return 0;
+  for (let node = editor.view.dom.parentElement; node; node = node.parentElement) {
+    const bar = node.querySelector(':scope > [role="toolbar"]');
+    if (bar) return Math.max(0, bar.getBoundingClientRect().bottom);
+  }
+  return 0;
+};
+
+/**
+ * The flip check of the menu above the selection. Its top padding is the bottom
+ * edge of the editor's toolbar, so a menu that would reach under the toolbar
+ * flips below the selection. The viewport alone is the boundary, so the padding
+ * is a viewport coordinate; Floating UI reads the options anew on every move.
+ */
+const clearOfToolbar = (editor: Editor) => () => ({
+  boundary: [],
+  rootBoundary: 'viewport' as const,
+  padding: { top: toolbarBottom(editor) },
+});
+
 interface SelectionMenuProps {
   editor: Editor;
   /** Opens the same link dialog as the toolbar. */
@@ -34,8 +56,9 @@ type Tool = 'bold' | 'italic' | 'underline' | 'strike' | 'link';
  * The small menu on selected text: bold, italic, underline, strike-through and
  * link, so the toolbar is not the only way to reach them. It never takes the
  * focus (a press keeps the selection in the editor), Escape hides it and keeps
- * the selection. With a mouse it sits above the selection; on a touch screen it
- * sits below, where it leaves the system's own selection menu usable.
+ * the selection. With a mouse it sits above the selection, or below it where it would cover the
+ * editor's toolbar; on a touch screen it sits below, where it leaves the
+ * system's own selection menu usable.
  */
 const RichTextSelectionMenu: React.FC<SelectionMenuProps> = ({ editor, onOpenLink }) => {
   const { t } = useTranslation('common');
@@ -141,7 +164,11 @@ const RichTextSelectionMenu: React.FC<SelectionMenuProps> = ({ editor, onOpenLin
         shownRef.current = show;
         return show;
       }}
-      options={{ placement: coarse ? 'bottom' : 'top', offset: 8 }}
+      options={
+        coarse
+          ? { placement: 'bottom', offset: 8 }
+          : { placement: 'top', offset: 8, flip: clearOfToolbar(editor) }
+      }
       style={{ zIndex: 3 }}
     >
       <Box

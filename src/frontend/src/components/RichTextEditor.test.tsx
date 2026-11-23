@@ -300,6 +300,28 @@ describe('RichTextEditor', () => {
       }
     });
 
+    it('keeps the target of a pasted link whose text is an address', async () => {
+      const { box, lastHtml } = await setup();
+      // The HTML a Word file written with LibreOffice puts on the clipboard.
+      paste(box, {
+        html:
+          '<meta charset="utf-8"><p style="margin-bottom: 0cm; line-height: 100%"><span style="font-family: Calibri, sans-serif">Mehr auf ' +
+          '<a href="https://www.augsburg.de/"><span style="color: #0563c1"><u>augsburg.de</u></span></a>.</span></p>' +
+          '<p><a href="https://www.fuggerei.de/de/besuch">fuggerei.de</a></p>',
+        text: 'Mehr auf augsburg.de.\nfuggerei.de',
+      });
+      await waitFor(() => expect(lastHtml()).toContain('augsburg.de'));
+      expect(lastHtml()).toContain('href="https://www.augsburg.de/"');
+      expect(lastHtml()).toContain('href="https://www.fuggerei.de/de/besuch"');
+      expect(lastHtml()).not.toContain('http://');
+    });
+
+    it('links an address in pasted text with https', async () => {
+      const { box, lastHtml } = await setup();
+      paste(box, { text: 'Mehr auf augsburg.de' });
+      await waitFor(() => expect(lastHtml()).toContain('href="https://augsburg.de"'));
+    });
+
     it('pastes plain text as before', async () => {
       const { box, lastHtml } = await setup();
       paste(box, { text: 'Nur ein Satz' });

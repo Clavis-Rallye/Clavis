@@ -18,6 +18,20 @@ vi.mock('@tiptap/react', async (importOriginal) => {
   };
 });
 
+// The test reads the options the menu hands to the bubble menu.
+let bubbleOptions: Record<string, unknown> | undefined;
+vi.mock('@tiptap/react/menus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tiptap/react/menus')>();
+  const { createElement } = await import('react');
+  return {
+    ...actual,
+    BubbleMenu: (props: React.ComponentProps<typeof actual.BubbleMenu>) => {
+      bubbleOptions = props.options as Record<string, unknown> | undefined;
+      return createElement(actual.BubbleMenu, props);
+    },
+  };
+});
+
 import RichTextEditor from './RichTextEditor';
 
 // ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
@@ -67,6 +81,7 @@ const menuIn = async () => screen.findByRole('toolbar', MENU);
 
 afterEach(() => {
   editorUnderTest = null;
+  bubbleOptions = undefined;
   vi.restoreAllMocks();
   window.matchMedia = undefined as unknown as typeof window.matchMedia;
 });
@@ -206,5 +221,61 @@ describe('the selection menu', () => {
     select('Welt');
     const below = await menuIn();
     expect(parseFloat(below.parentElement?.style.top ?? 'NaN')).toBeGreaterThan(0);
+  });
+  describe('placement next to the editor\'s toolbar', () => {
+    const touch = () => {
+      window.matchMedia = ((query: string) => ({
+        matches: query.includes('pointer: coarse'),
+        media: query,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        onchange: null,
+        dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+    };
+    const editorToolbar = () => screen.getByRole('toolbar', { name: /^Beschreibung/ });
+    const flipOf = () => {
+      const flip = bubbleOptions?.flip as (state: unknown) => {
+        boundary: unknown[];
+        rootBoundary: string;
+        padding: { top: number };
+      };
+      expect(flip).toBeTypeOf('function');
+      return flip({});
+    };
+
+    it('keeps the menu above the selection and clear of the toolbar on a fine pointer', async () => {
+      await renderEditor();
+      expect(bubbleOptions).toMatchObject({ placement: 'top', offset: 8 });
+      vi.spyOn(editorToolbar(), 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 72, 600, 48));
+      expect(flipOf()).toEqual({ boundary: [], rootBoundary: 'viewport', padding: { top: 120 } });
+    });
+
+    it('reads the toolbar edge anew each time, so a scroll moves the padding', async () => {
+      await renderEditor();
+      const rect = vi.spyOn(editorToolbar(), 'getBoundingClientRect');
+      rect.mockReturnValue(new DOMRect(0, 72, 600, 48));
+      expect(flipOf().padding.top).toBe(120);
+      rect.mockReturnValue(new DOMRect(0, 10, 600, 48));
+      expect(flipOf().padding.top).toBe(58);
+    });
+
+    it('does not take the selection menu itself for the editor\'s toolbar', async () => {
+      await renderEditor();
+      select('Welt');
+      const menu = await menuIn();
+      vi.spyOn(editorToolbar(), 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 72, 600, 48));
+      vi.spyOn(menu, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 500, 200, 40));
+      expect(flipOf().padding.top).toBe(120);
+    });
+
+    it('keeps the menu below the selection on a touch screen', async () => {
+      touch();
+      await renderEditor();
+      expect(bubbleOptions).toMatchObject({ placement: 'bottom', offset: 8 });
+      expect(bubbleOptions?.flip).toBeUndefined();
+    });
   });
 });

@@ -4,7 +4,6 @@ import { Alert, Box } from '@mui/material';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import { AuthContext } from '../auth/AuthContext';
 import { onOrgMediaRefused } from '../api/media';
 import { cleanPastedHtml } from '../utils/cleanPastedHtml';
@@ -14,7 +13,7 @@ import RichTextImageMenu, { focusImageMenu } from './RichTextImageMenu';
 import RichTextSelectionMenu from './RichTextSelectionMenu';
 import RichTextTableMenu, { focusTableMenu } from './RichTextTableMenu';
 import RichTextImageSettingsDialog, { type ImageSettings } from './RichTextImageSettingsDialog';
-import { richTextImage, richTextTableExtensions } from './richTextExtensions';
+import { richTextImage, richTextLink, richTextTableExtensions } from './richTextExtensions';
 import RichTextLinkDialog from './RichTextLinkDialog';
 import RichTextToolbar from './RichTextToolbar';
 
@@ -115,11 +114,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         underline: false,
       }),
       Underline,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-      }),
+      richTextLink,
       richTextImage,
       ...richTextTableExtensions(),
     ],
