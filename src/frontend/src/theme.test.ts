@@ -1,3 +1,6 @@
+import { createElement } from 'react';
+import { render } from '@testing-library/react';
+import { Card, ThemeProvider } from '@mui/material';
 import { describe, it, expect } from 'vitest';
 import theme from './theme';
 
@@ -96,6 +99,24 @@ describe('MUI Theme', () => {
     it('draws the card border in the divider tone', () => {
       const card = asObject(asObject(theme.components?.MuiCard?.styleOverrides).root);
       expect(card.borderColor).toBe(theme.palette.divider);
+    });
+
+    it('clips the card instead of hiding its overflow, so a sticky child sticks to the page', () => {
+      const card = asObject(asObject(theme.components?.MuiCard?.styleOverrides).root);
+      expect(card.overflow).toBe('clip');
+      expect(card.display).toBe('flow-root');
+    });
+
+    it('computes the overflow of a rendered card as clip', () => {
+      const { container } = render(
+        createElement(
+          ThemeProvider,
+          { theme },
+          createElement(Card, null, 'content'),
+        ),
+      );
+      const style = window.getComputedStyle(container.firstElementChild as Element);
+      expect(style.overflow).toBe('clip');
     });
   });
 });
