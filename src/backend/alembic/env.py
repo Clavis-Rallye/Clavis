@@ -30,11 +30,13 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # ``alembic -x dbUrl=<url>`` overrides the database URL of the app settings.
+# Alembic's config is a ConfigParser, which interpolates ``%``, so a percent-encoded
+# password (``%40`` for ``@``) must double its percent signs on the way in.
 db_url = context.get_x_argument(as_dictionary=True).get("dbUrl")
 if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+    config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 else:
-    config.set_main_option("sqlalchemy.url", settings.database.database_url)
+    config.set_main_option("sqlalchemy.url", settings.database.database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
