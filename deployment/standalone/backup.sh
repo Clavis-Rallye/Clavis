@@ -18,8 +18,14 @@
 # disk does not survive the loss of the disk. The secrets in .env are needed for
 # a restore, so keep a copy of .env apart from the backups.
 #
+# Every file of a run gets mode 0600 and the backup directory 0700, whatever the
+# umask of the caller is, because the files hold personal data. A file that the
+# caller cannot change, because another user owns it, is named in a warning and
+# the run goes on.
+#
 # Restore: deployment/README.md, section "Backup and restore".
 set -eu
+umask 077
 
 cd "$(dirname "$0")"
 
@@ -28,6 +34,7 @@ BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-30}"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_DIR"
 BACKUP_DIR="$(cd "$BACKUP_DIR" && pwd)"
+chmod 700 "$BACKUP_DIR" || echo "Warning: cannot set mode 0700 on $BACKUP_DIR" >&2
 
 echo "==> Database -> $BACKUP_DIR/clavis-db-$stamp.dump"
 docker compose exec -T db pg_dump -U clavis -Fc clavis > "$BACKUP_DIR/clavis-db-$stamp.dump"
@@ -42,8 +49,10 @@ docker compose stop garage
 # Start the store again even when the copy fails.
 trap 'docker compose start garage >/dev/null' EXIT
 docker run --rm --volumes-from "$garage" -v "$BACKUP_DIR:/backup" alpine:3 sh -c "
+    umask 077 &&
     tar czf /backup/clavis-objects-$stamp.tar.gz -C / var/lib/garage/meta var/lib/garage/data &&
-    chown $(id -u):$(id -g) /backup/clavis-objects-$stamp.tar.gz"
+    chown $(id -u):$(id -g) /backup/clavis-objects-$stamp.tar.gz &&
+    chmod 600 /backup/clavis-objects-$stamp.tar.gz"
 docker compose start garage
 trap - EXIT
 
@@ -51,9 +60,17 @@ api="$(docker compose ps -q api)"
 if [ -n "$api" ]; then
     echo "==> Logs -> $BACKUP_DIR/clavis-logs-$stamp.tar.gz"
     docker run --rm --volumes-from "$api" -v "$BACKUP_DIR:/backup" alpine:3 sh -c "
+        umask 077 &&
         tar czf /backup/clavis-logs-$stamp.tar.gz -C / var/log/clavis &&
-        chown $(id -u):$(id -g) /backup/clavis-logs-$stamp.tar.gz"
+        chown $(id -u):$(id -g) /backup/clavis-logs-$stamp.tar.gz &&
+        chmod 600 /backup/clavis-logs-$stamp.tar.gz"
 fi
+
+# Close the files of this run and the earlier ones, whatever wrote them.
+for file in "$BACKUP_DIR"/clavis-*; do
+    [ -f "$file" ] || continue
+    chmod 600 "$file" || echo "Warning: cannot set mode 0600 on $file" >&2
+done
 
 echo "==> Deleting backups older than $BACKUP_KEEP_DAYS days"
 find "$BACKUP_DIR" -name 'clavis-*' -type f -mtime +"$BACKUP_KEEP_DAYS" -delete
