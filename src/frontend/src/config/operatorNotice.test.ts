@@ -434,15 +434,34 @@ describe('loadOperatorNotice warms the service worker cache', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores a rejected fetch in the warm-up', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(validNotice).mockRejectedValue(new TypeError('offline'));
-    const ready = Promise.resolve({} as ServiceWorkerRegistration);
-    stubServiceWorker({ ready });
+  it('ignores a rejected fetch in the warm-up and keeps warming the rest', async () => {
+    // The first answer loads; every warm-up fetch rejects. The warm-up must
+    // still try each URL and nothing must reach the load.
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(validNotice)
+      .mockRejectedValue(new TypeError('offline'));
+    const container = stubServiceWorker({ ready: Promise.resolve({} as ServiceWorkerRegistration) });
+    const fire = fireControllerChange(container);
 
     await loadOperatorNotice();
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    // No controller yet: no warm-up fetch has happened.
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(container, 'controller', {
+      configurable: true,
+      value: {} as ServiceWorker,
+    });
+    fire();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      '/operator/notice.json',
+      '/operator/notice.json',
+      '/operator/programme.svg',
+      '/operator/programme-negative.svg',
+    ]);
     expect(getOperatorNotice()).toEqual(parseOperatorNotice(example()));
   });
 
