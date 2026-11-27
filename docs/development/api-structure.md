@@ -28,6 +28,7 @@ GET    /api/public/runs/{run_id}/state   — Participant run state (incl. gradin
 GET    /api/public/organizations         — Public org directory (slug, name); no auth
 POST   /api/public/results/lookup        — A published run's frozen final standing, by slug in the body; no auth
 GET    /api/public/config                — Instance config for the app shell (brand_name, bootstrap_open, single_org_slug); no auth
+GET    /api/public/manifest.webmanifest  — Web manifest with name and short_name from BRAND_NAME; cached 5 min; no auth
 GET    /api/public/legal/{kind}          — Best-known legal text for imprint/privacy/accessibility, optional ?org=<slug>; no auth
 GET    /api/geocode/config               — Address search of the station form: suggestions allowed or not, and the sources; creator+
 GET    /api/geocode/suggest              — Hits while typing, from the regional place index or a Photon service; creator+

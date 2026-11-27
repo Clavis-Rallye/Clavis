@@ -6,6 +6,7 @@ Endpoints:
     GET /api/public/organizations           → {organizations: [{slug, name}]}
     POST /api/public/results/lookup         → published run result snapshot, by slug
     GET /api/public/config                  → {brand_name, bootstrap_open, single_org_slug, qa_feedback}
+    GET /api/public/manifest.webmanifest    → web manifest, name and short_name from the brand name
     GET /api/public/legal/{kind}            → {kind, source, text}
 
 ``/legal/{kind}`` answers the organization's own text (optional ``org`` query,
@@ -30,6 +31,7 @@ from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from jwt import PyJWTError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -492,6 +494,58 @@ async def get_public_config(
         bootstrap_open=len(org_rows) == 0 or settings.auth.allow_unlimited_org_registrations,
         single_org_slug=active_slugs[0] if len(active_slugs) == 1 else None,
         qa_feedback=settings.qa_feedback.enabled,
+    )
+
+
+# The web manifest without its name. The frontend links this manifest, so an
+# installed app carries the brand name of the instance. The fields equal the
+# manifest the 0.9.2 build wrote. `id` stays out: browsers then derive the
+# identity from start_url as before, and an installed app keeps its identity.
+_WEB_MANIFEST_FIELDS: dict[str, object] = {
+    "description": "Mobile-first city rallye platform for immigrants and newcomers",
+    "theme_color": "#1D47A4",
+    "background_color": "#FEF7FF",
+    "display": "standalone",
+    "start_url": "/",
+    "scope": "/",
+    "orientation": "portrait-primary",
+    "icons": [
+        {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+        {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    ],
+}
+
+
+@router.get(
+    "/manifest.webmanifest",
+    response_class=JSONResponse,
+    responses={
+        200: {
+            "description": "The web manifest, named after the brand",
+            "content": {"application/manifest+json": {}},
+        },
+    },
+)
+# 120 per minute per address. A group behind one address, the school's or the
+# city's Wi-Fi, opens the app at the same time, and each phone fetches the
+# manifest.
+@limiter.limit("120/minute")
+async def get_public_manifest(
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
+) -> JSONResponse:
+    """Return the web manifest with the brand name as `name` and `short_name`.
+
+    Open without sign-in, up to 120 requests per minute. It reads no database
+    and takes no input. Every other field is fixed and has no `id`. The media
+    type is `application/manifest+json`, and browsers may cache the answer for
+    five minutes.
+    """
+    brand_name = get_settings().brand_name
+    manifest = {"name": brand_name, "short_name": brand_name, **_WEB_MANIFEST_FIELDS}
+    return JSONResponse(
+        content=manifest,
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 
