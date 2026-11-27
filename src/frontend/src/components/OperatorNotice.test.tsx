@@ -96,6 +96,39 @@ describe('OperatorNotice', () => {
     expect(screen.getByText('This service is funded.')).toHaveAttribute('lang', 'en');
   });
 
+  // French is no app language. `i18n.language` stays `fr`, but the interface
+  // shows its fallback `en`, so the notice shows the English texts too.
+  it('follows the fallback language of the app for an unsupported browser language', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('fr');
+    });
+    __resetOperatorNoticeForTests(
+      makeNotice({
+        text: {
+          de: 'Dieses Angebot wird gefoerdert.',
+          en: 'This service is funded.',
+          fr: 'Ce service est financé.',
+        },
+        logos: [
+          {
+            src: 'programme.svg',
+            alt: {
+              de: 'Logo des Programms',
+              en: 'Logo of the programme',
+              fr: 'Logo du programme',
+            },
+            height: 48,
+          },
+        ],
+      }),
+    );
+    render(<OperatorNotice />);
+    expect(screen.getByText('This service is funded.')).toBeInTheDocument();
+    expect(screen.queryByText('Ce service est financé.')).toBeNull();
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'Logo of the programme');
+    expect(screen.getByRole('img')).not.toHaveAttribute('alt', 'Logo du programme');
+  });
+
   it('keeps the line breaks of the text', () => {
     __resetOperatorNoticeForTests(makeNotice({ text: { de: 'Zeile eins\nZeile zwei' } }));
     render(<OperatorNotice />);

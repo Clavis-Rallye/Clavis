@@ -23,7 +23,10 @@ const OperatorNotice: React.FC<OperatorNoticeProps> = ({ sx, align = 'center' })
   const notice = useOperatorNotice();
   if (!notice) return null;
 
-  const language = i18n.language;
+  // `language` stays the detected tag, `fr` for a French browser. The app has
+  // no French texts, so `resolvedLanguage` names the language the interface
+  // really shows. The notice must follow that, not the browser language.
+  const language = i18n.resolvedLanguage ?? i18n.language;
   const dark = theme.palette.mode === 'dark';
   const text = pickLocalized(notice.text, language, notice.text_lang);
   const justify = align === 'center' ? 'center' : 'flex-start';

@@ -49,7 +49,7 @@ export interface OperatorNotice {
 const NOTICE_URL = '/operator/notice.json';
 const LOAD_TIMEOUT_MS = 5000;
 // The contract holds at most a few kilobytes. A larger body is no notice.
-const MAX_BODY_CHARS = 65536;
+const MAX_BODY_BYTES = 65536;
 const MAX_LOGOS = 8;
 const MAX_LINKS = 8;
 const MAX_TEXT_CHARS = 2000;
@@ -230,14 +230,96 @@ function apply(notice: OperatorNotice | null): void {
   for (const listener of listeners) listener();
 }
 
-async function fetchNotice(signal: AbortSignal): Promise<OperatorNotice | null> {
+/**
+ * Reads the body of the answer with a cap of `MAX_BODY_BYTES`. Never
+ * buffers a large answer: a `Content-Length` above the cap is refused
+ * without reading, and a streamed body stops the request as soon as the
+ * cap passes. `null` means no notice. Without a readable stream it falls
+ * back to `response.text()` and checks the length afterwards.
+ */
+async function readBodyCapped(response: Response, controller: AbortController): Promise<string | null> {
+  const length = Number(response.headers?.get?.('Content-Length'));
+  if (Number.isFinite(length) && length > MAX_BODY_BYTES) return null;
+  if (response.body) {
+    const reader = response.body.getReader();
+    try {
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        if (received > MAX_BODY_BYTES) {
+          // The cap passed: stop the request, not just this reader.
+          await reader.cancel();
+          controller.abort();
+          return null;
+        }
+        chunks.push(value);
+      }
+      return decoder.decode(concatBytes(chunks));
+    } finally {
+      reader.releaseLock?.();
+    }
+  }
+  const body = await response.text();
+  if (body.length > MAX_BODY_BYTES) return null;
+  return body;
+}
+
+/** Joins byte chunks in one copy, for a single decode. */
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const chunk of chunks) total += chunk.byteLength;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+async function fetchNotice(signal: AbortSignal, controller: AbortController): Promise<OperatorNotice | null> {
   const response = await fetch(NOTICE_URL, { cache: 'no-cache', signal });
   if (response.status !== 200) return null;
-  const body = await response.text();
-  if (body.length > MAX_BODY_CHARS) return null;
+  const body = await readBodyCapped(response, controller);
+  if (body === null) return null;
   // A dev server answers an unknown path with its `index.html`. That throws
   // here and ends as no notice.
   return parseOperatorNotice(JSON.parse(body));
+}
+
+/**
+ * Fetches the notice file and its logos again after the first visit's load,
+ * so the service worker stores them in `operator-notice-cache`. Never
+ * delays the first render: the load calls it without awaiting. Never
+ * changes what shows: the results are ignored. Runs at most once per page
+ * load, and not at all when a worker already controls the page.
+ */
+async function warmServiceWorkerCache(notice: OperatorNotice): Promise<void> {
+  try {
+    const registration = navigator.serviceWorker;
+    if (!registration || registration.controller) return;
+    await navigator.serviceWorker.ready;
+    const urls = [NOTICE_URL];
+    for (const logo of notice.logos) {
+      urls.push(`/operator/${logo.src}`);
+      if (logo.src_dark) urls.push(`/operator/${logo.src_dark}`);
+    }
+    // Each fetch stands alone: one failure must not skip the rest.
+    for (const url of urls) {
+      try {
+        await fetch(url, { cache: 'no-cache' });
+      } catch {
+        // The warm-up is best effort.
+      }
+    }
+  } catch {
+    // A missing worker or a `ready` that never settles: the first visit
+    // stays unaffected, a later offline visit simply has no cache yet.
+  }
 }
 
 /**
@@ -258,8 +340,12 @@ export function loadOperatorNotice(): Promise<void> {
       }, LOAD_TIMEOUT_MS);
     });
     try {
-      const notice = await Promise.race([fetchNotice(controller.signal), timeout]);
-      if (notice) apply(notice);
+      const notice = await Promise.race([fetchNotice(controller.signal, controller), timeout]);
+      if (notice) {
+        apply(notice);
+        // Not awaited: the first render never waits on the worker.
+        void warmServiceWorkerCache(notice);
+      }
     } catch {
       // No file, offline, aborted, no JSON: no notice.
     } finally {

@@ -213,6 +213,237 @@ describe('pickLocalized', () => {
 const textResponse = (body: string, status = 200): Response =>
   ({ ok: status >= 200 && status < 300, status, text: () => Promise.resolve(body) }) as Response;
 
+/** A response stub with `headers`, an optional `body` and a throwing `text`. */
+function streamResponse(parts: string[], headers: Record<string, string> = {}): Response {
+  let sent = 0;
+  const body: ReadableStream<Uint8Array> = {
+    getReader: () => ({
+      read: () =>
+        sent < parts.length
+          ? Promise.resolve({ done: false as const, value: encoder.encode(parts[sent++]) })
+          : Promise.resolve({ done: true as const, value: undefined }),
+      cancel: vi.fn(() => Promise.resolve()),
+    }),
+  } as unknown as ReadableStream<Uint8Array>;
+  return {
+    ok: true,
+    status: 200,
+    headers: new Map(Object.entries(headers)) as unknown as Headers,
+    body,
+    text: () => {
+      throw new Error('text must not be called when a body exists');
+    },
+  } as unknown as Response;
+}
+
+const encoder = new TextEncoder();
+// The cap of the loader, mirrored here for building bodies at the bounds.
+const MAX_BODY_BYTES = 65536;
+
+describe('readBodyCapped', () => {
+  // The helper is internal, so the tests reach it through the load, the only
+  // caller. A `null` result shows no notice, a body shows one.
+
+  it('reads no body when Content-Length is above the limit', async () => {
+    __resetOperatorNoticeForTests();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        streamResponse([], { 'Content-Length': String(MAX_BODY_BYTES + 1) }),
+      ),
+    );
+    await expect(loadOperatorNotice()).resolves.toBeUndefined();
+    expect(getOperatorNotice()).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('reads a body without Content-Length through a stream below the limit', async () => {
+    __resetOperatorNoticeForTests();
+    const file = JSON.stringify(example());
+    expect(file.length).toBeLessThanOrEqual(MAX_BODY_BYTES);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse([file])));
+    await loadOperatorNotice();
+    expect(getOperatorNotice()).toEqual(parseOperatorNotice(example()));
+    vi.unstubAllGlobals();
+  });
+
+  it('cancels the reader when the stream passes the limit', async () => {
+    __resetOperatorNoticeForTests();
+    // Two chunks that pass the limit only together, plus a third that the
+    // cancelled reader must never read.
+    const third = vi.fn(() => Promise.resolve({ done: false, value: encoder.encode('x') }));
+    let sent = 0;
+    const parts = ['a'.repeat(MAX_BODY_BYTES - 1), 'b'.repeat(10)];
+    const cancel = vi.fn(() => Promise.resolve());
+    const response = {
+      ok: true,
+      status: 200,
+      headers: new Map() as unknown as Headers,
+      body: {
+        getReader: () => ({
+          read: () => {
+            if (sent === 2) return third();
+            return Promise.resolve({ done: false, value: encoder.encode(parts[sent++]) });
+          },
+          cancel,
+        }),
+      },
+      text: () => {
+        throw new Error('text must not be called when a body exists');
+      },
+    } as unknown as Response;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    await expect(loadOperatorNotice()).resolves.toBeUndefined();
+    expect(getOperatorNotice()).toBeNull();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(third).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('answers with text() and its length check when the answer has no body', async () => {
+    __resetOperatorNoticeForTests();
+    const file = example();
+    file.padding = ' '.repeat(MAX_BODY_BYTES);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(textResponse(JSON.stringify(file))));
+    await loadOperatorNotice();
+    expect(getOperatorNotice()).toBeNull();
+    vi.unstubAllGlobals();
+
+    __resetOperatorNoticeForTests();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(textResponse(JSON.stringify(example()))));
+    await loadOperatorNotice();
+    expect(getOperatorNotice()).toEqual(parseOperatorNotice(example()));
+    vi.unstubAllGlobals();
+  });
+});
+
+/** Stubs `navigator.serviceWorker` and gives the stub back for assertions. */
+function stubServiceWorker(overrides: Partial<ServiceWorkerContainer> = {}): ServiceWorkerContainer & {
+  ready: Promise<ServiceWorkerRegistration>;
+} {
+  const container = {
+    controller: null,
+    ready: new Promise<ServiceWorkerRegistration>(() => {}),
+    ...overrides,
+  } as ServiceWorkerContainer & { ready: Promise<ServiceWorkerRegistration> };
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: container,
+  });
+  return container;
+}
+
+describe('loadOperatorNotice warms the service worker cache', () => {
+  beforeEach(() => {
+    __resetOperatorNoticeForTests();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const validNotice = textResponse(JSON.stringify(example()));
+
+  it('fetches the notice file and every logo once after ready', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    const ready = Promise.resolve({} as ServiceWorkerRegistration);
+    stubServiceWorker({ ready });
+
+    await loadOperatorNotice();
+    // The warm-up runs after the load resolves.
+    await ready.catch(() => {});
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      '/operator/notice.json',
+      '/operator/notice.json',
+      '/operator/programme.svg',
+      '/operator/programme-negative.svg',
+    ]);
+    for (const call of vi.mocked(fetch).mock.calls) {
+      expect(call[1]).toMatchObject({ cache: 'no-cache' });
+    }
+  });
+
+  it('runs no warm-up without service worker support', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    stubServiceWorker(undefined as unknown as ServiceWorkerContainer);
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: undefined,
+    });
+
+    await loadOperatorNotice();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs no warm-up when the page is already controlled', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    stubServiceWorker({
+      controller: {} as ServiceWorker,
+      ready: new Promise<ServiceWorkerRegistration>(() => {}),
+    });
+
+    await loadOperatorNotice();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('still resolves when ready never settles', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    stubServiceWorker();
+    // No fake timers: a `ready` that never resolves must not hang the load.
+    await expect(loadOperatorNotice()).resolves.toBeUndefined();
+    expect(getOperatorNotice()).toEqual(parseOperatorNotice(example()));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a rejected fetch in the warm-up', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(validNotice).mockRejectedValue(new TypeError('offline'));
+    const ready = Promise.resolve({} as ServiceWorkerRegistration);
+    stubServiceWorker({ ready });
+
+    await loadOperatorNotice();
+    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(getOperatorNotice()).toEqual(parseOperatorNotice(example()));
+  });
+
+  it('runs the warm-up at most once per page load', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    const ready = Promise.resolve({} as ServiceWorkerRegistration);
+    stubServiceWorker({ ready });
+
+    await loadOperatorNotice();
+    await loadOperatorNotice();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      '/operator/notice.json',
+      '/operator/notice.json',
+      '/operator/programme.svg',
+      '/operator/programme-negative.svg',
+    ]);
+  });
+});
+
+
 describe('loadOperatorNotice', () => {
   beforeEach(() => {
     __resetOperatorNoticeForTests();
