@@ -18,6 +18,7 @@ import './index.css'
 import App from './App.tsx'
 import AppThemeProvider from './AppThemeProvider'
 import { loadInstanceConfig } from './config/instanceConfig'
+import { loadOperatorNotice } from './config/operatorNotice'
 import { registerSW } from 'virtual:pwa-register'
 
 registerSW({
@@ -33,6 +34,10 @@ registerSW({
   },
   immediate: true
 })
+
+// Started, not awaited: the operator notice must never delay the first
+// render. It shows when it arrives.
+void loadOperatorNotice()
 
 // Resolve the instance config (brand, bootstrap gate, single-org slug)
 // before the first render, so headlines, the document title and the
