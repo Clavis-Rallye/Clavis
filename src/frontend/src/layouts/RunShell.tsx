@@ -6,6 +6,11 @@ import {
   AppBar,
   Box,
   CircularProgress,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   ListItemIcon,
@@ -24,6 +29,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import PolicyIcon from '@mui/icons-material/Policy';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 import GavelIcon from '@mui/icons-material/Gavel';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CheckIcon from '@mui/icons-material/Check';
 import { getParticipantOverview, getTeam, listFeed } from '../api/runs';
@@ -38,6 +44,8 @@ import { feedMessage } from '../utils/feedMessage';
 import { TEAM_DISSOLVED_EVENT } from '../utils/windowEvents';
 import { useParticipantRunState } from '../hooks/useParticipantRunState';
 import { useInstanceConfig } from '../config/instanceConfig';
+import { useOperatorNotice } from '../config/operatorNotice';
+import OperatorNotice from '../components/OperatorNotice';
 import { useAuth } from '../auth/useAuth';
 import ParticipantTargets from '../components/ParticipantTargets';
 import GuestLogoutDialog from '../components/GuestLogoutDialog';
@@ -135,6 +143,11 @@ const RunShell: React.FC = () => {
   const [languageAnchor, setLanguageAnchor] = useState<HTMLElement | null>(null);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  // The operator notice lives in a dialog behind the overflow menu, so it
+  // takes no space from the task view (spec 095, C12).
+  const operatorNotice = useOperatorNotice();
+  const [operatorNoticeOpen, setOperatorNoticeOpen] = useState(false);
+  const overflowButtonRef = useRef<HTMLButtonElement>(null);
   // The text the live region holds. Only a pause that arrives while the frame
   // is open sets it, so a page opened during a pause shows the notice and does
   // not announce it. The frame stays mounted across page changes, so the text
@@ -475,6 +488,11 @@ const RunShell: React.FC = () => {
     navigate(path);
   };
 
+  const openOperatorNotice = () => {
+    closeOverflow();
+    setOperatorNoticeOpen(true);
+  };
+
   const [confirmGuestLogout, setConfirmGuestLogout] = useState(false);
 
   const doLogout = async () => {
@@ -562,6 +580,7 @@ const RunShell: React.FC = () => {
               aria-controls="run-overflow-menu"
               aria-haspopup="true"
               onClick={openOverflow}
+              ref={overflowButtonRef}
             >
               <MoreVertIcon />
             </IconButton>
@@ -603,12 +622,39 @@ const RunShell: React.FC = () => {
           <ListItemIcon><GavelIcon fontSize="small" /></ListItemIcon>
           <ListItemText>{t('participant.overflow.impressum')}</ListItemText>
         </MenuItem>
+        {/* Only with a notice, so without one the menu stays as it was. */}
+        {operatorNotice && (
+          <MenuItem onClick={openOperatorNotice}>
+            <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('participant.overflow.operatorNotice')}</ListItemText>
+          </MenuItem>
+        )}
         <Divider />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
           <ListItemText>{t('participant.overflow.logout')}</ListItemText>
         </MenuItem>
       </Menu>
+      <Dialog
+        open={operatorNoticeOpen && !!operatorNotice}
+        onClose={() => setOperatorNoticeOpen(false)}
+        aria-labelledby="operator-notice-dialog-title"
+        // MUI hands the focus back to the element that had it on open. That
+        // was the menu item, which is gone by then, so the menu button takes it.
+        slotProps={{ transition: { onExited: () => overflowButtonRef.current?.focus() } }}
+      >
+        <DialogTitle id="operator-notice-dialog-title">
+          {t('participant.overflow.operatorNotice')}
+        </DialogTitle>
+        <DialogContent>
+          <OperatorNotice align="start" sx={{ pt: 0 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOperatorNoticeOpen(false)}>
+            {t('participant.profile.close')}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <GuestLogoutDialog
         open={confirmGuestLogout}
         onConfirm={() => void doLogout()}
