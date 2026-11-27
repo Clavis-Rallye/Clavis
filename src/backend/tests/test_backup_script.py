@@ -29,22 +29,10 @@ DOCKER = """#!/bin/sh
 # Stand-in for docker. It covers exactly the calls of backup.sh.
 set -eu
 
-if [ "$1" = compose ]; then
-    # docker compose exec -T db pg_dump ... -> a few bytes
-    # docker compose ps -q garage|api      -> an id
-    # docker compose stop|start garage      -> exit 0
-    case "${4:-}" in
-        pg_dump) printf 'dump'; exit 0 ;;
-        stop | start) exit 0 ;;
-    esac
-    printf 'cid123\\n'
-    exit 0
-fi
-
+# docker run --rm --volumes-from <id> -v <host dir>:/backup alpine:3 sh -c "<text>":
+# write the archive named in the text under the host dir, with mode 0644.
+# The text itself is not run, so the test proves the host side of the script.
 if [ "$1" = run ]; then
-    # docker run --rm --volumes-from <id> -v <host dir>:/backup alpine:3 sh -c "<text>":
-    # write the archive named in the text under the host dir, with mode 0644.
-    # The text itself is not run, so the test proves the host side of the script.
     host=
     archive=
     prev=
@@ -64,7 +52,30 @@ if [ "$1" = run ]; then
     mkdir -p "$host"
     printf 'x' > "$host/$archive"
     chmod 644 "$host/$archive"
+    exit 0
 fi
+
+# docker compose exec -T db pg_dump ...  -> a few bytes
+# docker compose ps -q garage|api       -> an id
+# docker compose stop|start garage      -> exit 0
+cmd=
+service=
+
+for arg in "$@"; do
+    case "$cmd" in
+        "") [ "$arg" = compose ] && cmd=$arg ;;
+        compose) case "$arg" in exec | ps | stop | start) cmd=$arg ;; esac ;;
+        exec | ps) case "$arg" in -*) ;; *) [ -n "$service" ] || service=$arg ;; esac ;;
+        stop | start) service=$arg ;;
+    esac
+done
+
+case "$cmd:$service" in
+    exec:db) printf 'dump'; exit 0 ;;
+    ps:*) printf 'cid123\n'; exit 0 ;;
+    stop:garage | start:garage) exit 0 ;;
+    *) echo "unexpected docker call: $*" >&2; exit 1 ;;
+esac
 
 exit 0
 """
