@@ -137,6 +137,12 @@ services:
     environment:
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+    # The operator's notice folder (deployment/README.md, "A notice of the
+    # operator"). OPERATOR_NOTICE_DIR unset: an empty volume, and no notice
+    # shows. A path: that folder of the host, read-only. nginx serves it at
+    # /operator/.
+    volumes:
+      - ${OPERATOR_NOTICE_DIR:-operator_notice}:/usr/share/nginx/html/operator:ro
     networks:
       - web
     depends_on:
@@ -213,3 +219,5 @@ volumes:
   api_logs:
   caddy_data:
   caddy_config:
+  # Stays empty. The frontend mounts it when OPERATOR_NOTICE_DIR is unset.
+  operator_notice:

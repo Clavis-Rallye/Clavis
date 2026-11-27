@@ -91,6 +91,11 @@ ENTRYPOINT
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# The mount point of the operator's notice folder (deployment/README.md). It
+# stays empty in the image: without a mount, /operator/notice.json is a 404
+# and the app shows no notice.
+RUN mkdir -p /usr/share/nginx/html/operator
+
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

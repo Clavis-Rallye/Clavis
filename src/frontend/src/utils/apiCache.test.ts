@@ -82,4 +82,20 @@ describe('service worker rule order (vite.config.ts)', () => {
     );
     expect(first?.handler).toBe('NetworkFirst');
   });
+
+  // The operator changes the notice without a new build. The image rule
+  // would keep a logo for 30 days, and the navigation rule would store a
+  // directly opened file in pages-cache.
+  for (const mode of ['navigate', 'cors', 'no-cors']) {
+    for (const path of ['/operator/notice.json', '/operator/programme.svg']) {
+      it(`${path} (${mode}) meets the operator notice rule first`, async () => {
+        const { runtimeCaching } = await import('../../vite.config');
+        const first = (runtimeCaching as unknown as (Rule & { options?: { cacheName?: string } })[]).find(
+          (rule) => matches(rule, origin + path, mode),
+        );
+        expect(first?.handler).toBe('NetworkFirst');
+        expect(first?.options?.cacheName).toBe('operator-notice-cache');
+      });
+    }
+  }
 });
