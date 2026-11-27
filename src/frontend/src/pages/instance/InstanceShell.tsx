@@ -6,6 +6,7 @@ import { Link as RouterLink, useLocation } from 'react-router';
 import { useInstanceConfig } from '../../config/instanceConfig';
 import LanguageSwitcher from '../../components/LanguageSwitcher';
 import LegalLinks from '../../components/LegalLinks';
+import OperatorNotice from '../../components/OperatorNotice';
 import logoSmall from '../../assets/logos/logo-small.svg';
 
 interface InstanceShellProps {
@@ -103,6 +104,9 @@ const InstanceShell: React.FC<InstanceShellProps> = ({ title, onSignOut, maxWidt
             {children}
           </CardContent>
         </Card>
+        {/* The operator's notice, outside main like the legal links. The row
+            of links has no side padding here, so the notice has none. */}
+        <OperatorNotice />
         <LegalLinks />
       </Container>
     </Box>

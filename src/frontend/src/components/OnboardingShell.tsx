@@ -1,6 +1,8 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import LegalLinks from './LegalLinks';
+import OperatorNotice from './OperatorNotice';
+import { useOperatorNotice } from '../config/operatorNotice';
 
 /**
  * The onboarding page frame, designed for a 393 px phone viewport.
@@ -29,6 +31,7 @@ const OnboardingShell: React.FC<OnboardingShellProps> = ({
   contentSx,
   fillViewport,
 }) => {
+  const notice = useOperatorNotice();
   return (
     <Box
       sx={{
@@ -72,7 +75,22 @@ const OnboardingShell: React.FC<OnboardingShellProps> = ({
         {/* What stands under main, the progress bar and the legal links, is a
             footer landmark, so no content of the shell sits outside every
             landmark. */}
-        <Box component="footer">
+        <Box
+          component="footer"
+          sx={
+            fillViewport
+              ? {
+                  // The footer takes its natural height, so a notice makes main
+                  // smaller. The cap keeps at least half the viewport for main,
+                  // so the page's actions and its scrolling child stay usable
+                  // under a tall notice. Past the cap the footer scrolls itself.
+                  flexShrink: 0,
+                  maxHeight: '50%',
+                  overflowY: 'auto',
+                }
+              : undefined
+          }
+        >
           {progress && (
             // 24 px above the progress bar keep it off the action row on tall
             // pages such as the invite step with its QR code. The 40 px below
@@ -90,7 +108,13 @@ const OnboardingShell: React.FC<OnboardingShellProps> = ({
           {/* Every entry page carries imprint, privacy and accessibility.
               Outside main, so the route focus still lands on the page
               heading. */}
-          <LegalLinks sx={{ paddingInline: '40px', pt: progress ? 0 : 2 }} />
+          {/* The operator's notice stands above the legal links, with their
+              side gutter. After the progress bar its 40 px bottom padding is
+              the gap, as for the links. */}
+          <OperatorNotice sx={{ paddingInline: '40px', pt: progress ? 0 : 2 }} />
+          {/* Under a notice the links keep their own top padding, so they do
+              not touch its last line. */}
+          <LegalLinks sx={{ paddingInline: '40px', pt: progress && !notice ? 0 : 2 }} />
         </Box>
       </Box>
     </Box>

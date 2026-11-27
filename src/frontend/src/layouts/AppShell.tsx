@@ -35,6 +35,8 @@ import { useAuth } from '../auth/useAuth';
 import type { Role } from '../auth/ProtectedRoute';
 import { getOrg } from '../api/admin';
 import { useInstanceConfig } from '../config/instanceConfig';
+import { useOperatorNotice } from '../config/operatorNotice';
+import OperatorNotice from '../components/OperatorNotice';
 import { OrgContext } from '../contexts/OrgContext';
 import { resolveContentLocales, type Locale } from '../i18n/contentLocales';
 import logoSmall from '../assets/logos/logo-small.svg';
@@ -67,6 +69,7 @@ const AppShell: React.FC = () => {
   const { user, logout } = useAuth();
   const { t } = useTranslation('common');
   const { brand_name: brand } = useInstanceConfig();
+  const operatorNotice = useOperatorNotice();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -471,19 +474,18 @@ const AppShell: React.FC = () => {
         {renderDrawerContent(collapsed)}
       </Drawer>
 
-      {/* tabindex -1 lets the skip link hand the focus here. It draws no
-          outline of its own (index.css). */}
+      {/* The content column: the page in main, then the operator notice. The
+          column takes the width and the transition that main had. main keeps
+          the rest, so its look is unchanged without a notice. */}
       <Box
-        component="main"
-        id="main-content"
-        tabIndex={-1}
         sx={{
           flexGrow: 1,
           // A flex child defaults to min-width auto, so a wide table would grow
           // this box past the viewport and its own container would never
           // scroll. minWidth 0 lets the box shrink and moves the overflow inside.
           minWidth: 0,
-          p: { xs: 2, sm: 3 },
+          display: 'flex',
+          flexDirection: 'column',
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           bgcolor: 'background.default',
@@ -494,8 +496,35 @@ const AppShell: React.FC = () => {
             }),
         }}
       >
-        <Toolbar className="print-hidden" sx={{ minHeight: { xs: 64, sm: 72 } }} />
-        <Outlet />
+        {/* tabindex -1 lets the skip link hand the focus here. It draws no
+            outline of its own (index.css). */}
+        <Box
+          component="main"
+          id="main-content"
+          tabIndex={-1}
+          sx={{
+            // Grows, so a short page still pushes the notice to the bottom.
+            flexGrow: 1,
+            // Same reason as on the column: wide content scrolls inside.
+            minWidth: 0,
+            p: { xs: 2, sm: 3 },
+            bgcolor: 'background.default',
+          }}
+        >
+          <Toolbar className="print-hidden" sx={{ minHeight: { xs: 64, sm: 72 } }} />
+          <Outlet />
+        </Box>
+        {/* After the page, outside main: the notice is chrome, not content
+            of a route. Only with a notice, so no empty landmark shows. */}
+        {operatorNotice && (
+          <Box
+            component="footer"
+            className="print-hidden"
+            sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 3 } }}
+          >
+            <OperatorNotice />
+          </Box>
+        )}
       </Box>
     </Box>
     </OrgContext.Provider>

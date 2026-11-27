@@ -19,6 +19,7 @@ import { AnswerStateChip } from '../../components/AnswerState';
 import ErrorAlert from '../../components/ErrorAlert';
 import LanguageSwitcher from '../../components/LanguageSwitcher';
 import LegalLinks from '../../components/LegalLinks';
+import OperatorNotice from '../../components/OperatorNotice';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useInstanceConfig } from '../../config/instanceConfig';
 import logoSmall from '../../assets/logos/logo-small.svg';
@@ -249,6 +250,9 @@ const PublicResults: React.FC = () => {
             )}
           </CardContent>
         </Card>
+        {/* The operator's notice, outside main like the legal links. The row
+            of links has no side padding here, so the notice has none. */}
+        <OperatorNotice />
         <LegalLinks />
       </Container>
     </Box>

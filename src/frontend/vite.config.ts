@@ -86,6 +86,27 @@ export const runtimeCaching: RuntimeCachingRule[] = [
     handler: 'NetworkOnly'
   },
   {
+    // The operator's notice folder changes without a new build. The network
+    // answers first, so a changed notice shows after one reload; the cache
+    // answers only when the network fails, so a phone offline still shows the
+    // last notice. It stands before the image rule, which would keep a logo
+    // for 30 days, and before the navigation rule, which would store a
+    // directly opened file in pages-cache.
+    urlPattern: /^https?:\/\/[^/]+\/operator\/.*$/i,
+    handler: 'NetworkFirst',
+    options: {
+      cacheName: 'operator-notice-cache',
+      expiration: {
+        maxEntries: 20,
+        maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+      },
+      // Status 200 only: an opaque answer could be an error page.
+      cacheableResponse: {
+        statuses: [200]
+      }
+    }
+  },
+  {
     // Online navigations load the app shell. Offline ones get the cached
     // shell, or else the offline page.
     urlPattern: ({ request }) => request.mode === 'navigate',
@@ -186,6 +207,61 @@ export const runtimeCaching: RuntimeCachingRule[] = [
   }
 ]
 
+// The options of vite-plugin-pwa. Exported for src/operatorDelivery.test.ts.
+export const pwaOptions: Partial<VitePWAOptions> = {
+  registerType: 'autoUpdate',
+  includeAssets: ['offline.html', 'icon-192.png', 'icon-512.png'],
+  // The API serves the manifest from BRAND_NAME
+  // (GET /api/public/manifest.webmanifest, linked in index.html), so the
+  // installed app carries the installation's name. The build writes none.
+  manifest: false,
+  workbox: {
+    // A main chunk over workbox's 2-MiB default would drop out of the
+    // precache, and offline support depends on it.
+    maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+    // The staff, operator and content pages load through React.lazy.
+    // Workbox's default globPatterns would precache their chunks and
+    // fetch the whole app on the first visit over a weak connection.
+    // So precache only what the eager participant and public app needs
+    // (its non-JS assets, the entry chunk, the workbox runtime). The
+    // runtimeCaching rules load the other chunks on demand.
+    globPatterns: [
+      '**/*.{css,html,ico,png,svg,woff2}',
+      'assets/index-*.js',
+      'assets/workbox-window*.js',
+    ],
+    // A precached network diagnostic would report a stale verdict, and
+    // its updates would not reach users.
+    // The operator's notice folder is mounted at run time and changes
+    // without a build; the operator-notice-cache rule serves it.
+    globIgnores: ['netcheck.html', 'operator/**'],
+    // A hard navigation to a client-side route (/login, /dashboard) must
+    // get the app shell so React Router can render it. A fallback of
+    // /offline.html would answer every navigation, even online. The
+    // navigation rule of runtimeCaching serves the offline page only
+    // when the network is unreachable.
+    navigateFallback: '/index.html',
+    // The licence notices are legal text and must be served as the file.
+    // The LegalLinks row links there directly, so it is a navigation
+    // that navigateFallback would answer with index.html.
+    // A directly opened file of the operator's notice folder, and the old
+    // manifest path that nginx redirects to the API, are no app routes.
+    navigateFallbackDenylist: [
+      /^\/api/,
+      /^\/third-party-licenses\.txt$/,
+      /^\/operator\//,
+      /^\/manifest\.webmanifest$/,
+    ],
+    runtimeCaching,
+  },
+  devOptions: {
+    // A service worker in dev would hijack the dev server with its
+    // navigateFallback. Enable it only to test offline behaviour.
+    enabled: false,
+    type: 'module'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -194,71 +270,7 @@ export default defineConfig({
     // Emits third-party-licenses.txt beside the production bundle.
     // MIT/BSD/ISC/Apache-2.0 notices must travel with every copy.
     thirdPartyLicensesPlugin(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['offline.html', 'icon-192.png', 'icon-512.png'],
-      manifest: {
-        name: 'Clavis',
-        short_name: 'Clavis',
-        description: 'Mobile-first city rallye platform for immigrants and newcomers',
-        theme_color: '#1D47A4',
-        background_color: '#FEF7FF',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        orientation: 'portrait-primary',
-        icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      },
-      workbox: {
-        // A main chunk over workbox's 2-MiB default would drop out of the
-        // precache, and offline support depends on it.
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // The staff, operator and content pages load through React.lazy.
-        // Workbox's default globPatterns would precache their chunks and
-        // fetch the whole app on the first visit over a weak connection.
-        // So precache only what the eager participant and public app needs
-        // (its non-JS assets, the entry chunk, the workbox runtime). The
-        // runtimeCaching rules load the other chunks on demand.
-        globPatterns: [
-          '**/*.{css,html,ico,png,svg,woff2,webmanifest}',
-          'assets/index-*.js',
-          'assets/workbox-window*.js',
-        ],
-        // A precached network diagnostic would report a stale verdict, and
-        // its updates would not reach users.
-        globIgnores: ['netcheck.html'],
-        // A hard navigation to a client-side route (/login, /dashboard) must
-        // get the app shell so React Router can render it. A fallback of
-        // /offline.html would answer every navigation, even online. The
-        // navigation rule of runtimeCaching serves the offline page only
-        // when the network is unreachable.
-        navigateFallback: '/index.html',
-        // The licence notices are legal text and must be served as the file.
-        // The LegalLinks row links there directly, so it is a navigation
-        // that navigateFallback would answer with index.html.
-        navigateFallbackDenylist: [/^\/api/, /^\/third-party-licenses\.txt$/],
-        runtimeCaching,
-      },
-      devOptions: {
-        // A service worker in dev would hijack the dev server with its
-        // navigateFallback. Enable it only to test offline behaviour.
-        enabled: false,
-        type: 'module'
-      }
-    })
+    VitePWA(pwaOptions)
   ],
   server: {
     host: '0.0.0.0',

@@ -18,7 +18,7 @@ release you check out.
 The commands of this guide install one release. Set it once in the shell you use for the install:
 
 ```sh
-export CLAVIS_RELEASE=v0.9.2
+export CLAVIS_RELEASE=v0.9.3
 ```
 
 Every command below that names the release reads this variable.
@@ -416,6 +416,10 @@ it once at start from `GET /api/public/config`: the app shell, the page title an
 show it, and the mail signature uses it. There is one value per installation, never one per
 organization.
 
+`BRAND_NAME` also names the installed app. The API builds the web manifest from it and serves it at
+`GET /api/public/manifest.webmanifest`. A phone that has the app installed takes a new name when
+its browser next checks the manifest. The browser decides when that is.
+
 The legal texts of the installation (imprint, privacy statement, accessibility statement) are not
 settings. The operator writes them in the operator console or with `PUT /api/instance/legal`, and
 the database stores them. They show wherever no organization context exists. Inside an
@@ -439,6 +443,89 @@ The setting per layout:
 | Standalone server behind a proxy on another machine | The same | Your proxy's own address, so every client counts as the proxy | `FORWARDED_ALLOW_IPS=172.16.238.0/24,fd00:172:16:238::/64,<the address of your proxy>` |
 | Shared services | `172.18.0.0/16`, the `proxy_network` of this README | The address your proxy sets. Your proxy must replace the header, in nginx with `proxy_set_header X-Forwarded-For $remote_addr;` | The address of your proxy, if it is not in that subnet |
 | Quickstart on your own computer | `172.16.239.0/24,fd00:172:16:239::/64`, the `frontend` network | The address Caddy sees | Nothing |
+
+### A notice of the operator
+
+The operator can show a short notice with logos, a text and links. A funding programme, for
+example, may ask for its logo and a sentence on every page. The notice belongs to the
+installation, never to one organization. Without it, nothing shows.
+
+The notice is a folder on the host. The frontend container serves it at `/operator/`, from
+`/usr/share/nginx/html/operator`. Both stack files mount the folder that `OPERATOR_NOTICE_DIR`
+names, read-only:
+
+| Layout | Where `OPERATOR_NOTICE_DIR` goes | Unset |
+|---|---|---|
+| Standalone server | `deployment/standalone/.env` | The empty volume `clavis_operator_notice` |
+| Shared services | `deployment/.env` | The empty volume `clavis-operator-notice` |
+
+Use an absolute path, for example `OPERATOR_NOTICE_DIR=/srv/clavis-operator`. Then run
+`docker compose up -d` (shared services: with the prefix of that section) once, so the frontend
+container mounts the folder. Without the variable the stack starts as before.
+
+The file `notice.json` in the folder describes the notice. Version 1 of its contract:
+
+| Field | Rule |
+|---|---|
+| `version` | The number 1. Any other value means no notice |
+| `logos` | Required list, 0 to 8 entries. The order of the file is the order on the page |
+| `logos[].src` | Required. A file name inside the folder: it matches `^[A-Za-z0-9][A-Za-z0-9._-]*\.(svg\|png\|jpg\|jpeg\|webp)$`, without regard to the case of the ending. No slash, no scheme, no `..` |
+| `logos[].src_dark` | Optional. The file for the dark theme. The same rule as `src` |
+| `logos[].alt` | Required object, language code to text. At least one text is not empty |
+| `logos[].height` | Required integer from 16 to 200, in CSS pixels |
+| `text` | Required object, language code to plain text. At least one text is not empty. Each text has at most 2000 characters |
+| `text_lang` | Optional language code. When set, `text` must hold that language |
+| `links` | Optional list, 0 to 8 entries |
+| `links[].label` | Required, 1 to 200 characters |
+| `links[].url` | Required. An absolute URL with the scheme `https` or `http` |
+
+A language code matches `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$`, for example `de` or `en`. An unknown
+field is ignored. One broken rule anywhere makes the whole file invalid, and an invalid file shows
+no notice.
+
+Which text shows:
+
+- With `text_lang`, the text of that language shows in every language of the interface. Use it for
+  a statement that must stay in one language.
+- Without `text_lang`, the text of the interface language shows, else `en`, else `de`, else the
+  first entry. An `alt` text follows the same rule.
+
+An example with two files, `programme.svg` and `programme-negative.svg`, in the folder:
+
+```json
+{
+  "version": 1,
+  "logos": [
+    {"src": "programme.svg", "src_dark": "programme-negative.svg",
+     "alt": {"de": "Logo des Programms", "en": "Logo of the programme"}, "height": 48}
+  ],
+  "text": {"de": "Dieses Angebot wird gefoerdert.", "en": "This service is funded."},
+  "text_lang": "de",
+  "links": [{"label": "example.org/programme", "url": "https://example.org/programme"}]
+}
+```
+
+The notice shows on the entry pages before a rally, on the legal pages, on the public results, in
+the operator console and at the bottom of the app shell. In a running rally it is one entry in the
+menu, so it takes no room on the screen of a team.
+
+A change of a file shows after one reload of the page. No restart is needed: the container sends
+the files with `Cache-Control: no-cache`, and the app asks the network first. A phone without a
+network shows the last notice it loaded.
+
+When the notice does not show, check the file the browser gets:
+
+```sh
+curl -s https://<your domain>/operator/notice.json
+```
+
+A 404 means the folder is not mounted or the file is missing. A file that the command shows but the
+app does not is invalid: check it against the table above.
+
+Every file in the folder is public. Put nothing there that is not meant for every visitor. The app
+shows the logos in the order of the file and at the heights the file names. The operator answers
+for that order, for the sizes and for the wording, for example toward the funding programme and
+its rules on logos.
 
 ## Secrets
 

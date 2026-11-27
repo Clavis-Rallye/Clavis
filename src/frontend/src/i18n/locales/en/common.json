@@ -205,6 +205,9 @@
     "accessibility": "Accessibility",
     "licenses": "Licences"
   },
+  "operatorNotice": {
+    "label": "Notice from the operator"
+  },
   "removedMemberName": "Deleted member",
   "map": {
     "zoomIn": "Zoom in",

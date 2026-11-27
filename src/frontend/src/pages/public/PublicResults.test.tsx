@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -11,6 +11,10 @@ import {
   __resetInstanceConfigForTests,
 } from '../../config/instanceConfig';
 import type { PublicResults as PublicResultsData } from '../../services/publicResults';
+import {
+  __resetOperatorNoticeForTests,
+  type OperatorNotice as OperatorNoticeData,
+} from '../../config/operatorNotice';
 
 // The page renders from the lookup alone: mocking at the service
 // boundary keeps this file about the page, the service mapping has its own.
@@ -57,6 +61,25 @@ const renderPage = () =>
       <PublicResults />
     </MemoryRouter>,
   );
+
+// The operator notice stands directly above the legal links, outside main
+// (spec 095, C9).
+const operatorNotice: OperatorNoticeData = {
+  version: 1,
+  logos: [{ src: 'programme.svg', alt: { de: 'Logo des Programms' }, height: 48 }],
+  text: { de: 'Dieses Angebot wird gefoerdert.' },
+  links: [{ label: 'example.org/programme', url: 'https://example.org/programme' }],
+};
+
+function expectNoticeAboveLegalLinks() {
+  const region = screen.getByRole('region', { name: 'Hinweis des Betreibers' });
+  const nav = screen.getByRole('navigation', { name: 'Rechtliches' });
+  // Same parent, the notice right before the row of links.
+  expect(region.nextElementSibling).toBe(nav);
+  expect(nav.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  expect(screen.getByRole('main')).not.toContainElement(region);
+  return region;
+}
 
 describe('PublicResults', () => {
   beforeEach(() => {
@@ -234,5 +257,35 @@ describe('PublicResults', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('Team 2')).toBeInTheDocument());
+  });
+});
+
+describe('PublicResults operator notice', () => {
+  beforeEach(() => {
+    mockLookup.mockReset();
+    __resetInstanceConfigForTests();
+  });
+
+  afterEach(() => {
+    __resetOperatorNoticeForTests(null);
+  });
+
+  it('shows the notice above the legal links, outside main', async () => {
+    window.history.pushState({}, '', '/results#notice-slug');
+    mockLookup.mockResolvedValueOnce({ kind: 'ok', data: snapshot });
+    __resetOperatorNoticeForTests(operatorNotice);
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Herbst-Rallye' });
+    expectNoticeAboveLegalLinks();
+  });
+
+  it('shows no notice region without a notice', async () => {
+    window.history.pushState({}, '', '/results#notice-slug');
+    mockLookup.mockResolvedValueOnce({ kind: 'ok', data: snapshot });
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Herbst-Rallye' });
+    expect(screen.queryByRole('region', { name: 'Hinweis des Betreibers' })).toBeNull();
   });
 });

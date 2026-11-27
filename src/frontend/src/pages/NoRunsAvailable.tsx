@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useInstanceConfig } from '../config/instanceConfig';
 import LegalLinks from '../components/LegalLinks';
+import OperatorNotice from '../components/OperatorNotice';
 import logoSmall from '../assets/logos/logo-small.svg';
 
 /**
@@ -102,6 +103,9 @@ const NoRunsAvailable: React.FC = () => {
             </Box>
           </CardContent>
         </Card>
+        {/* The operator's notice, outside main like the legal links. The row
+            of links has no side padding here, so the notice has none. */}
+        <OperatorNotice />
         <LegalLinks />
       </Container>
     </Box>

@@ -205,6 +205,9 @@
     "accessibility": "Barrierefreiheit",
     "licenses": "Lizenzen"
   },
+  "operatorNotice": {
+    "label": "Hinweis des Betreibers"
+  },
   "removedMemberName": "Gelöschtes Mitglied",
   "map": {
     "zoomIn": "Vergrößern",

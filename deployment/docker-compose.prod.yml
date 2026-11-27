@@ -11,7 +11,7 @@
 # The images are ghcr.io/clavis-rallye/clavis-{api,frontend}:${IMAGE_TAG}. The
 # project publishes no images: build them on the host under that name, as
 # deployment/README.md, section "Shared services", shows. IMAGE_TAG in .env
-# names the tag of that build, for example 0.9.2. There is no tag "latest".
+# names the tag of that build, for example 0.9.3. There is no tag "latest".
 #
 # Secrets come from a .env file next to this file. See deployment/README.md
 # and .env.example.
@@ -196,6 +196,12 @@ services:
     environment:
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+    # The operator's notice folder (deployment/README.md, "A notice of the
+    # operator"). OPERATOR_NOTICE_DIR unset: an empty volume, and no notice
+    # shows. A path: that folder of the host, read-only. nginx serves it at
+    # /operator/.
+    volumes:
+      - ${OPERATOR_NOTICE_DIR:-operator_notice}:/usr/share/nginx/html/operator:ro
     networks:
       proxy:
         # Pinned for the same reason as clavis-api above.
@@ -237,3 +243,6 @@ networks:
 volumes:
   clavis_logs:
     name: clavis-logs
+  # Stays empty. The frontend mounts it when OPERATOR_NOTICE_DIR is unset.
+  operator_notice:
+    name: clavis-operator-notice
