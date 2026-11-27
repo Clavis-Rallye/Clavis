@@ -8,6 +8,10 @@ import { fetchLegalText, type PublicLegalText } from '../../services/publicLegal
 import { __resetInstanceConfigForTests } from '../../config/instanceConfig';
 import deLegal from '../../i18n/locales/de/legal.json';
 import enLegal from '../../i18n/locales/en/legal.json';
+import {
+  __resetOperatorNoticeForTests,
+  type OperatorNotice as OperatorNoticeData,
+} from '../../config/operatorNotice';
 
 vi.mock('../../services/publicLegal', () => ({ fetchLegalText: vi.fn() }));
 
@@ -53,6 +57,25 @@ const renderShell = (user: AuthUser | null, isLoading: boolean) =>
       </AuthContext.Provider>
     </MemoryRouter>,
   );
+
+// The operator notice stands directly above the legal links, outside main
+// (spec 095, C9).
+const operatorNotice: OperatorNoticeData = {
+  version: 1,
+  logos: [{ src: 'programme.svg', alt: { de: 'Logo des Programms' }, height: 48 }],
+  text: { de: 'Dieses Angebot wird gefoerdert.' },
+  links: [{ label: 'example.org/programme', url: 'https://example.org/programme' }],
+};
+
+function expectNoticeAboveLegalLinks() {
+  const region = screen.getByRole('region', { name: 'Hinweis des Betreibers' });
+  const nav = screen.getByRole('navigation', { name: 'Rechtliches' });
+  // Same parent, the notice right before the row of links.
+  expect(region.nextElementSibling).toBe(nav);
+  expect(nav.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  expect(screen.getByRole('main')).not.toContainElement(region);
+  return region;
+}
 
 describe('LegalShell', () => {
   beforeEach(() => {
@@ -255,5 +278,33 @@ describe('LegalShell', () => {
       renderShell({ ...authedUser, role: 'guest' } as AuthUser, false);
       expect(screen.getByRole('button', { name: 'Rallye' })).toBeEnabled();
     });
+  });
+});
+
+describe('LegalShell operator notice', () => {
+  beforeEach(() => {
+    mockFetchLegalText.mockReset();
+    __resetInstanceConfigForTests();
+  });
+
+  afterEach(() => {
+    __resetOperatorNoticeForTests(null);
+  });
+
+  it('shows the notice above the legal links, outside main', async () => {
+    mockFetchLegalText.mockResolvedValueOnce({ kind: 'privacy', source: 'none', text: null });
+    __resetOperatorNoticeForTests(operatorNotice);
+    renderShell(null, false);
+
+    await screen.findByRole('heading', { level: 1, name: 'Datenschutz' });
+    expectNoticeAboveLegalLinks();
+  });
+
+  it('shows no notice region without a notice', async () => {
+    mockFetchLegalText.mockResolvedValueOnce({ kind: 'privacy', source: 'none', text: null });
+    renderShell(null, false);
+
+    await screen.findByRole('heading', { level: 1, name: 'Datenschutz' });
+    expect(screen.queryByRole('region', { name: 'Hinweis des Betreibers' })).toBeNull();
   });
 });

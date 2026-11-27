@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useParams } from 'react-router';
@@ -8,6 +8,10 @@ import {
   DEFAULT_INSTANCE_CONFIG,
   __resetInstanceConfigForTests,
 } from '../config/instanceConfig';
+import {
+  __resetOperatorNoticeForTests,
+  type OperatorNotice as OperatorNoticeData,
+} from '../config/operatorNotice';
 
 // Navigation target stub — renders the :code param so the test can assert
 // where the join button navigated.
@@ -25,6 +29,25 @@ const renderPage = (entry = '/no-runs') =>
       </Routes>
     </MemoryRouter>,
   );
+
+// The operator notice stands directly above the legal links, outside main
+// (spec 095, C9).
+const operatorNotice: OperatorNoticeData = {
+  version: 1,
+  logos: [{ src: 'programme.svg', alt: { de: 'Logo des Programms' }, height: 48 }],
+  text: { de: 'Dieses Angebot wird gefoerdert.' },
+  links: [{ label: 'example.org/programme', url: 'https://example.org/programme' }],
+};
+
+function expectNoticeAboveLegalLinks() {
+  const region = screen.getByRole('region', { name: 'Hinweis des Betreibers' });
+  const nav = screen.getByRole('navigation', { name: 'Rechtliches' });
+  // Same parent, the notice right before the row of links.
+  expect(region.nextElementSibling).toBe(nav);
+  expect(nav.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  expect(screen.getByRole('main')).not.toContainElement(region);
+  return region;
+}
 
 describe('<NoRunsAvailable>', () => {
   beforeEach(() => {
@@ -110,5 +133,22 @@ describe('<NoRunsAvailable>', () => {
   it('shows the default brand when no config arrived', () => {
     renderPage();
     expect(screen.getByText('Clavis')).toBeInTheDocument();
+  });
+});
+
+describe('<NoRunsAvailable> operator notice', () => {
+  afterEach(() => {
+    __resetOperatorNoticeForTests(null);
+  });
+
+  it('shows the notice above the legal links, outside main', () => {
+    __resetOperatorNoticeForTests(operatorNotice);
+    renderPage();
+    expectNoticeAboveLegalLinks();
+  });
+
+  it('shows no notice region without a notice', () => {
+    renderPage();
+    expect(screen.queryByRole('region', { name: 'Hinweis des Betreibers' })).toBeNull();
   });
 });

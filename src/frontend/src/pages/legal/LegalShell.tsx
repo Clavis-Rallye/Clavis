@@ -9,6 +9,7 @@ import { fetchLegalText, type LegalKind } from '../../services/publicLegal';
 import { useInstanceConfig } from '../../config/instanceConfig';
 import SafeHtml from '../../components/SafeHtml';
 import LegalLinks from '../../components/LegalLinks';
+import OperatorNotice from '../../components/OperatorNotice';
 import ParticipantBottomNav from '../../components/ParticipantBottomNav';
 import { BOTTOM_NAV_HEIGHT, getLastRunId } from '../../components/participantNav';
 import logoSmall from '../../assets/logos/logo-small.svg';
@@ -147,6 +148,9 @@ const LegalShell: React.FC<LegalShellProps> = ({ title, slug, children }) => {
             </Box>
           </CardContent>
         </Card>
+        {/* The operator's notice, outside main like the legal links. The row
+            of links has no side padding here, so the notice has none. */}
+        <OperatorNotice />
         <LegalLinks />
       </Container>
       {showParticipantNav && <ParticipantBottomNav runId={lastRunId} active={false} />}
