@@ -296,13 +296,27 @@ async function fetchNotice(signal: AbortSignal, controller: AbortController): Pr
  * so the service worker stores them in `operator-notice-cache`. Never
  * delays the first render: the load calls it without awaiting. Never
  * changes what shows: the results are ignored. Runs at most once per page
- * load, and not at all when a worker already controls the page.
+ * load, and not at all when a worker already controlled the page before
+ * the first request of the notice started.
  */
-async function warmServiceWorkerCache(notice: OperatorNotice): Promise<void> {
+async function warmServiceWorkerCache(notice: OperatorNotice, wasControlled: boolean): Promise<void> {
   try {
-    const registration = navigator.serviceWorker;
-    if (!registration || registration.controller) return;
-    await navigator.serviceWorker.ready;
+    const container = navigator.serviceWorker;
+    if (!container || wasControlled) return;
+    await container.ready;
+    // `ready` can resolve before `clients.claim()` takes effect, so the page
+    // may still be uncontrolled. A fetch now would go past the worker again.
+    // One listener, removed after it fires. Detached: the load never waits
+    // on the warm-up, and a change that never comes leaves nothing behind.
+    if (!container.controller) {
+      await new Promise<void>((resolve) => {
+        const onChange = () => {
+          container.removeEventListener('controllerchange', onChange);
+          resolve();
+        };
+        container.addEventListener('controllerchange', onChange);
+      });
+    }
     const urls = [NOTICE_URL];
     for (const logo of notice.logos) {
       urls.push(`/operator/${logo.src}`);
@@ -329,6 +343,11 @@ async function warmServiceWorkerCache(notice: OperatorNotice): Promise<void> {
 export function loadOperatorNotice(): Promise<void> {
   if (loading) return loading;
   loading = (async () => {
+    const container = navigator.serviceWorker;
+    // Captured before the first request starts: a worker that claims the
+    // page while the answer is on its way must not suppress the warm-up,
+    // because the first request went past the worker.
+    const wasControlled = Boolean(container?.controller);
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     // The abort ends a real fetch and its body. The race also ends the load
@@ -344,7 +363,7 @@ export function loadOperatorNotice(): Promise<void> {
       if (notice) {
         apply(notice);
         // Not awaited: the first render never waits on the worker.
-        void warmServiceWorkerCache(notice);
+        void warmServiceWorkerCache(notice, wasControlled);
       }
     } catch {
       // No file, offline, aborted, no JSON: no notice.

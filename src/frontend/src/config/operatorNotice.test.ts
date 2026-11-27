@@ -326,6 +326,8 @@ function stubServiceWorker(overrides: Partial<ServiceWorkerContainer> = {}): Ser
   const container = {
     controller: null,
     ready: new Promise<ServiceWorkerRegistration>(() => {}),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     ...overrides,
   } as ServiceWorkerContainer & { ready: Promise<ServiceWorkerRegistration> };
   Object.defineProperty(navigator, 'serviceWorker', {
@@ -333,6 +335,23 @@ function stubServiceWorker(overrides: Partial<ServiceWorkerContainer> = {}): Ser
     value: container,
   });
   return container;
+}
+
+/**
+ * Collects the `controllerchange` listeners of the stub and gives a function
+ * that fires them once, like a worker that claims the page.
+ */
+function fireControllerChange(container: ServiceWorkerContainer): () => void {
+  const listeners: EventListenerOrEventListenerObject[] = [];
+  vi.mocked(container.addEventListener).mockImplementation((_type, listener) => {
+    listeners.push(listener);
+  });
+  return () => {
+    for (const listener of [...listeners]) {
+      if (typeof listener === 'function') listener(new Event('controllerchange'));
+      else listener.handleEvent(new Event('controllerchange'));
+    }
+  };
 }
 
 describe('loadOperatorNotice warms the service worker cache', () => {
@@ -355,11 +374,14 @@ describe('loadOperatorNotice warms the service worker cache', () => {
   it('fetches the notice file and every logo once after ready', async () => {
     vi.mocked(fetch).mockResolvedValue(validNotice);
     const ready = Promise.resolve({} as ServiceWorkerRegistration);
-    stubServiceWorker({ ready });
+    const container = stubServiceWorker({ ready });
+    const fire = fireControllerChange(container);
 
     await loadOperatorNotice();
     // The warm-up runs after the load resolves.
     await ready.catch(() => {});
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fire();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     await Promise.resolve();
 
@@ -427,10 +449,13 @@ describe('loadOperatorNotice warms the service worker cache', () => {
   it('runs the warm-up at most once per page load', async () => {
     vi.mocked(fetch).mockResolvedValue(validNotice);
     const ready = Promise.resolve({} as ServiceWorkerRegistration);
-    stubServiceWorker({ ready });
+    const container = stubServiceWorker({ ready });
+    const fire = fireControllerChange(container);
 
     await loadOperatorNotice();
     await loadOperatorNotice();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fire();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
@@ -440,6 +465,79 @@ describe('loadOperatorNotice warms the service worker cache', () => {
       '/operator/programme.svg',
       '/operator/programme-negative.svg',
     ]);
+  });
+
+  it('still warms up when a worker claims the page while the first answer is on its way', async () => {
+    // A deferred first answer: the worker registers and claims the page
+    // before it resolves. The warm-up must still run.
+    let answer: (response: Response) => void = () => {};
+    vi.mocked(fetch).mockReturnValue(
+      new Promise<Response>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    let resolveReady: (registration: ServiceWorkerRegistration) => void = () => {};
+    const container = stubServiceWorker({
+      ready: new Promise<ServiceWorkerRegistration>((resolve) => {
+        resolveReady = resolve;
+      }),
+    });
+
+    const load = loadOperatorNotice();
+    // A worker takes over while the first request is still open.
+    Object.defineProperty(container, 'controller', {
+      configurable: true,
+      value: {} as ServiceWorker,
+    });
+    resolveReady({} as ServiceWorkerRegistration);
+    answer(validNotice);
+    await load;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      '/operator/notice.json',
+      '/operator/notice.json',
+      '/operator/programme.svg',
+      '/operator/programme-negative.svg',
+    ]);
+  });
+
+  it('waits for controllerchange when ready resolves with no controller yet', async () => {
+    vi.mocked(fetch).mockResolvedValue(validNotice);
+    const container = stubServiceWorker({
+      ready: Promise.resolve({} as ServiceWorkerRegistration),
+    });
+    const fire = fireControllerChange(container);
+
+    await loadOperatorNotice();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    // `ready` has resolved, the page is still uncontrolled: no warm-up
+    // fetch yet, one `controllerchange` listener is waiting.
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(container.addEventListener)).toHaveBeenCalledWith(
+      'controllerchange',
+      expect.any(Function),
+    );
+
+    Object.defineProperty(container, 'controller', {
+      configurable: true,
+      value: {} as ServiceWorker,
+    });
+    fire();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input));
+    expect(urls).toEqual([
+      '/operator/notice.json',
+      '/operator/notice.json',
+      '/operator/programme.svg',
+      '/operator/programme-negative.svg',
+    ]);
+    expect(container.removeEventListener).toHaveBeenCalledWith(
+      'controllerchange',
+      expect.any(Function),
+    );
   });
 });
 
