@@ -91,6 +91,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   // paste handler, which runs later in the same paste, moves it into state.
   const pastedImagesLeftOut = useRef(0);
   const [pasteImagesLeftOut, setPasteImagesLeftOut] = useState(0);
+  // A paste over a budget of the cleaner is not inserted, and a note says so.
+  const pastedOverBudget = useRef(false);
+  const [pasteTooLarge, setPasteTooLarge] = useState(false);
 
   // The image dialog shows one generic message for every failed upload. A coded
   // refusal (no readable picture, too large) is no reason to try the same file
@@ -138,6 +141,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       transformPastedHTML: (html) => {
         const cleaned = cleanPastedHtml(html);
         pastedImagesLeftOut.current = cleaned.imagesLeftOut;
+        pastedOverBudget.current = cleaned.overBudget !== undefined;
         return cleaned.html;
       },
       handleDOMEvents: {
@@ -145,15 +149,21 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         // the next paste: every paste starts at zero.
         paste: () => {
           pastedImagesLeftOut.current = 0;
+          pastedOverBudget.current = false;
           return false;
         },
       },
       // Runs after the transform of the same paste, also for a paste of plain
       // text (count 0), which closes the note of the paste before.
       handlePaste: () => {
-        setPasteImagesLeftOut(pastedImagesLeftOut.current);
+        const overBudget = pastedOverBudget.current;
+        pastedOverBudget.current = false;
+        setPasteTooLarge(overBudget);
+        setPasteImagesLeftOut(overBudget ? 0 : pastedImagesLeftOut.current);
         pastedImagesLeftOut.current = 0;
-        return false;
+        // A paste over a budget is handled here: nothing is inserted, not even its plain text,
+        // which the editor would take when the markup comes back empty.
+        return overBudget;
       },
       // Alt+F10 moves the focus into the menu of the selected image, or of the
       // table the cursor is in. Without a menu the key keeps its meaning.
@@ -262,6 +272,11 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         {imageRefusal && (
           <Alert severity="error" sx={{ borderRadius: 0 }}>
             {t(imageRefusal)}
+          </Alert>
+        )}
+        {pasteTooLarge && (
+          <Alert severity="warning" sx={{ borderRadius: 0 }} onClose={() => setPasteTooLarge(false)}>
+            {t('richTextEditor.pasteTooLarge')}
           </Alert>
         )}
         {pasteImagesLeftOut > 0 && (

@@ -43,7 +43,12 @@ from app.routers.schemas import (
 )
 from app.services.audit import actor_from_user, record_audit_event
 from app.services.content_copy import copy_challenge
-from app.services.richtext import media_prefix_for, sanitize_multilingual, sanitize_optional_html
+from app.services.richtext import (
+    REFERENCE_ANSWER_MAX_LENGTH,
+    media_prefix_for,
+    sanitize_multilingual,
+    sanitize_optional_html,
+)
 from app.services.scoring_rules import (
     prune_scoring_rules,
     prune_scoring_rules_for_type_change,
@@ -183,10 +188,15 @@ async def create_challenge(
         challenge = await challenge_repo.create(
             challenge_type=body.challenge_type,
             title=body.title,
-            instructions=sanitize_multilingual(body.instructions, media_prefix_for(org.slug)),
+            instructions=sanitize_multilingual(body.instructions, media_prefix_for(org.slug), loc=("instructions",)),
             scoring_rules=scoring_rules,
             time_estimate_minutes=body.time_estimate_minutes,
-            suggested_solution=sanitize_optional_html(body.suggested_solution, media_prefix_for(org.slug)),
+            suggested_solution=sanitize_optional_html(
+                body.suggested_solution,
+                media_prefix_for(org.slug),
+                max_length=REFERENCE_ANSWER_MAX_LENGTH,
+                loc=("suggested_solution",),
+            ),
             created_by_user_id=current_user.id,
         )
         await db.commit()
@@ -274,7 +284,12 @@ async def update_challenge(
     # The reference answer is rich text (the editor works in all editorial fields). An explicit null clears it:
     # the editor sends null for an emptied field, and "not sent" alone keeps it.
     solution_sent = "suggested_solution" in body.model_fields_set
-    new_solution = sanitize_optional_html(body.suggested_solution, media_prefix_for(org.slug))
+    new_solution = sanitize_optional_html(
+        body.suggested_solution,
+        media_prefix_for(org.slug),
+        max_length=REFERENCE_ANSWER_MAX_LENGTH,
+        loc=("suggested_solution",),
+    )
     if solution_sent and new_solution != challenge.suggested_solution:
         changes["suggested_solution"] = {"from": challenge.suggested_solution, "to": new_solution}
 
@@ -287,7 +302,9 @@ async def update_challenge(
     if body.title is not None:
         update_kwargs["title"] = body.title
     if body.instructions is not None:
-        update_kwargs["instructions"] = sanitize_multilingual(body.instructions, media_prefix_for(org.slug))
+        update_kwargs["instructions"] = sanitize_multilingual(
+            body.instructions, media_prefix_for(org.slug), loc=("instructions",)
+        )
     if effective_scoring_rules != challenge.scoring_rules:
         update_kwargs["scoring_rules"] = effective_scoring_rules
     if body.time_estimate_minutes is not None:
@@ -404,7 +421,7 @@ async def duplicate_challenge(
     source = await challenge_repo.get_by_id(challenge_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
-    challenge = await copy_challenge(db, org.id, source, current_user.id)
+    challenge = await copy_challenge(db, org.id, org.slug, source, current_user.id)
     await db.commit()
     await db.refresh(challenge)
     record_audit_event(

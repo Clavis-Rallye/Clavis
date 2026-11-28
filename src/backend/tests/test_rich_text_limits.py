@@ -1,4 +1,7 @@
-"""Every rich text of a request has at most ``RICH_TEXT_MAX_LENGTH`` characters per language."""
+"""Every rich text of a request has at most ``RICH_TEXT_MAX_LENGTH`` characters per language.
+
+The limit holds twice: for the text that comes in, and for the cleaned text that the write stores.
+"""
 
 from typing import Any
 
@@ -124,3 +127,311 @@ async def test_a_route_answers_422_for_a_text_over_the_limit(client: AsyncClient
     exact = {**CHALLENGE_BASE, "instructions": {"de": "a" * RICH_TEXT_MAX_LENGTH}}
     accepted = await client.post(url, headers=headers, json=exact)
     assert accepted.status_code == 201, accepted.text
+
+
+# ---------------------------------------------------------------------------
+# The cleaned text. An ampersand comes in as one character and is stored as five (``&amp;``), so a text
+# inside the limit can be stored far over it. Every write path refuses it with a 422 that names the field.
+# ---------------------------------------------------------------------------
+
+
+def _ampersands(limit: int) -> str:
+    """A text of exactly ``limit`` characters that cleaning makes about five times as long."""
+    return "<p>" + "&" * (limit - 7) + "</p>"
+
+
+def _assert_refused_after_cleaning(response: Any, loc: list[str], limit: int) -> None:
+    assert response.status_code == 422, response.text
+    first = response.json()["detail"][0]
+    assert first["loc"] == ["body", *loc]
+    assert first["type"] == "string_too_long"
+    assert first["ctx"]["max_length"] == limit
+    assert f"at most {limit} characters after cleaning" in first["msg"]
+
+
+@pytest.mark.asyncio
+async def test_every_write_path_refuses_a_text_that_cleaning_makes_too_long(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    admin, org = await create_test_user_with_org(
+        db_session, email="cleaned@example.com", role=UserRole.ORG_ADMIN, org_slug="cleaned-org"
+    )
+    headers = get_auth_headers(admin)
+    base = f"/api/orgs/{org.slug}"
+    long_text = _ampersands(RICH_TEXT_MAX_LENGTH)
+    long_answer = _ampersands(REFERENCE_ANSWER_MAX_LENGTH)
+    long_header = _ampersands(2000)
+    tips = {"header": {"de": long_header}, "links": [{"label": {"de": "Mehr"}, "url": "https://example.org"}]}
+
+    # Create paths.
+    _assert_refused_after_cleaning(
+        await client.post(
+            f"{base}/rallyes/", headers=headers, json={"title": {"de": "T"}, "description": {"de": long_text}}
+        ),
+        ["description", "de"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.post(
+            f"{base}/stations/", headers=headers, json={"title": {"de": "T"}, "description": {"en": long_text}}
+        ),
+        ["description", "en"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.post(
+            f"{base}/stations/",
+            headers=headers,
+            json={"title": {"de": "T"}, "description": {"de": "<p>x</p>"}, "tips": tips},
+        ),
+        ["tips", "header", "de"],
+        2000,
+    )
+    _assert_refused_after_cleaning(
+        await client.post(
+            f"{base}/challenges/", headers=headers, json={**CHALLENGE_BASE, "instructions": {"de": long_text}}
+        ),
+        ["instructions", "de"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.post(
+            f"{base}/challenges/", headers=headers, json={**CHALLENGE_BASE, "suggested_solution": long_answer}
+        ),
+        ["suggested_solution"],
+        REFERENCE_ANSWER_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.put(base, headers=headers, json={"legal_privacy": long_text}),
+        ["legal_privacy"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    # Nothing was stored by a refused request.
+    for kind in ("rallyes", "stations", "challenges"):
+        listed = await client.get(f"{base}/{kind}/", headers=headers)
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["total"] == 0, kind
+
+    # Update paths.
+    rallye = (
+        await client.post(
+            f"{base}/rallyes/", headers=headers, json={"title": {"de": "T"}, "description": {"de": "<p>x</p>"}}
+        )
+    ).json()
+    station = (
+        await client.post(
+            f"{base}/stations/", headers=headers, json={"title": {"de": "T"}, "description": {"de": "<p>x</p>"}}
+        )
+    ).json()
+    challenge = (await client.post(f"{base}/challenges/", headers=headers, json=CHALLENGE_BASE)).json()
+    _assert_refused_after_cleaning(
+        await client.put(f"{base}/rallyes/{rallye['id']}", headers=headers, json={"description": {"de": long_text}}),
+        ["description", "de"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.put(f"{base}/stations/{station['id']}", headers=headers, json={"description": {"de": long_text}}),
+        ["description", "de"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.put(f"{base}/stations/{station['id']}", headers=headers, json={"tips": tips}),
+        ["tips", "header", "de"],
+        2000,
+    )
+    _assert_refused_after_cleaning(
+        await client.put(
+            f"{base}/challenges/{challenge['id']}", headers=headers, json={"instructions": {"de": long_text}}
+        ),
+        ["instructions", "de"],
+        RICH_TEXT_MAX_LENGTH,
+    )
+    _assert_refused_after_cleaning(
+        await client.put(
+            f"{base}/challenges/{challenge['id']}", headers=headers, json={"suggested_solution": long_answer}
+        ),
+        ["suggested_solution"],
+        REFERENCE_ANSWER_MAX_LENGTH,
+    )
+    unchanged = (await client.get(f"{base}/challenges/{challenge['id']}", headers=headers)).json()
+    assert unchanged["instructions"] == CHALLENGE_BASE["instructions"]
+    assert unchanged["suggested_solution"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_cleaned_text_inside_the_limit_is_stored_as_cleaned(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    creator, org = await create_test_user_with_org(
+        db_session, email="inside@example.com", role=UserRole.CREATOR, org_slug="inside-org"
+    )
+    text = "<p>" + "&" * 9998 + "abc</p>"
+    created = await client.post(
+        f"/api/orgs/{org.slug}/challenges/",
+        headers=get_auth_headers(creator),
+        json={**CHALLENGE_BASE, "instructions": {"de": text}},
+    )
+    assert created.status_code == 201, created.text
+    stored = created.json()["instructions"]["de"]
+    assert len(stored) == RICH_TEXT_MAX_LENGTH
+    # The stored text can be saved again as it is.
+    again = await client.put(
+        f"/api/orgs/{org.slug}/challenges/{created.json()['id']}",
+        headers=get_auth_headers(creator),
+        json={"instructions": {"de": stored}},
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()["instructions"]["de"] == stored
+
+
+@pytest.mark.asyncio
+async def test_a_text_stored_over_the_limit_before_this_rule_stays_readable_and_says_why_it_cannot_be_saved(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """A release before this rule could store a text over the limit. The update changes no stored text."""
+    from app.models.challenge import Challenge
+
+    creator, org = await create_test_user_with_org(
+        db_session, email="legacy@example.com", role=UserRole.CREATOR, org_slug="legacy-org"
+    )
+    headers = get_auth_headers(creator)
+    created = await client.post(f"/api/orgs/{org.slug}/challenges/", headers=headers, json=CHALLENGE_BASE)
+    assert created.status_code == 201, created.text
+    url = f"/api/orgs/{org.slug}/challenges/{created.json()['id']}"
+    legacy = "<p>" + "&amp;" * 12000 + "</p>"
+    assert len(legacy) > RICH_TEXT_MAX_LENGTH
+    challenge = await db_session.get(Challenge, created.json()["id"])
+    assert challenge is not None
+    challenge.instructions = {"de": legacy}
+    await db_session.commit()
+
+    read = await client.get(url, headers=headers)
+    assert read.status_code == 200, read.text
+    assert read.json()["instructions"]["de"] == legacy
+
+    # Saved again unchanged, the text is over the limit of the text that comes in.
+    refused = await client.put(url, headers=headers, json={"instructions": {"de": legacy}})
+    assert refused.status_code == 422
+    assert refused.json()["detail"][0]["type"] == "string_too_long"
+    assert refused.json()["detail"][0]["loc"][-1] == "instructions"
+    # Another field of the same record can still be saved, and the long text stays as it is.
+    other = await client.put(url, headers=headers, json={"title": {"de": "Neuer Titel"}})
+    assert other.status_code == 200, other.text
+    assert other.json()["instructions"]["de"] == legacy
+    # A shorter text is accepted.
+    shorter = await client.put(url, headers=headers, json={"instructions": {"de": "<p>kurz &amp; gut</p>"}})
+    assert shorter.status_code == 200, shorter.text
+
+
+@pytest.mark.asyncio
+async def test_the_operator_legal_text_is_refused_when_cleaning_makes_it_too_long(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from app.auth.instance import create_instance_admin
+    from app.auth.tokens import create_instance_admin_token
+
+    operator = await create_instance_admin(db_session, "operator-limit@example.com", "OperatorPass123!")
+    headers = {"Authorization": f"Bearer {create_instance_admin_token(operator.id)}"}
+    refused = await client.put(
+        "/api/instance/legal", headers=headers, json={"legal_imprint": _ampersands(RICH_TEXT_MAX_LENGTH)}
+    )
+    _assert_refused_after_cleaning(refused, ["legal_imprint"], RICH_TEXT_MAX_LENGTH)
+    stored = await client.get("/api/instance/legal", headers=headers)
+    assert stored.json()["legal_imprint"] is None
+
+
+# ---------------------------------------------------------------------------
+# A copy is a new write. It passes the write filter like any other write, so a text that an older release
+# stored outside the rules is cleaned in the copy, and one that is too long stops the copy.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_copy_passes_the_write_filter_and_the_original_stays(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from sqlalchemy import update
+
+    from app.models.challenge import Challenge
+    from app.models.rallye import Rallye
+    from app.models.station import Station
+
+    creator, org = await create_test_user_with_org(
+        db_session, email="copy@example.com", role=UserRole.CREATOR, org_slug="copy-org"
+    )
+    headers = get_auth_headers(creator)
+    base = f"/api/orgs/{org.slug}"
+    described = {"title": {"de": "T"}, "description": {"de": "<p>x</p>"}}
+    rallye = (await client.post(f"{base}/rallyes/", headers=headers, json=described)).json()
+    station = (await client.post(f"{base}/stations/", headers=headers, json=described)).json()
+    challenge = (await client.post(f"{base}/challenges/", headers=headers, json=CHALLENGE_BASE)).json()
+
+    # Texts as an older release could store them: an element outside the rules, and a script.
+    legacy = '<h1>Alt</h1><p onclick="x()">Text<script>alert(1)</script></p>'
+    cleaned = "<h2>Alt</h2><p>Text</p>"
+    await db_session.execute(update(Rallye).where(Rallye.id == rallye["id"]).values(description={"de": legacy}))
+    await db_session.execute(update(Station).where(Station.id == station["id"]).values(description={"de": legacy}))
+    await db_session.execute(
+        update(Challenge)
+        .where(Challenge.id == challenge["id"])
+        .values(instructions={"de": legacy}, suggested_solution=legacy)
+    )
+    await db_session.commit()
+
+    for kind, record, fields in (
+        ("rallyes", rallye, ("description",)),
+        ("stations", station, ("description",)),
+        ("challenges", challenge, ("instructions",)),
+    ):
+        copied = await client.post(f"{base}/{kind}/{record['id']}/duplicate", headers=headers)
+        assert copied.status_code == 201, copied.text
+        for field in fields:
+            assert copied.json()[field] == {"de": cleaned}, kind
+        original = await client.get(f"{base}/{kind}/{record['id']}", headers=headers)
+        for field in fields:
+            assert original.json()[field] == {"de": legacy}, kind
+    copied_challenge = await client.post(f"{base}/challenges/{challenge['id']}/duplicate", headers=headers)
+    assert copied_challenge.json()["suggested_solution"] == cleaned
+
+    # A text over the limit stops the copy, and nothing is stored.
+    too_long = "<p>" + "&amp;" * 12000 + "</p>"
+    await db_session.execute(update(Rallye).where(Rallye.id == rallye["id"]).values(description={"de": too_long}))
+    await db_session.execute(update(Station).where(Station.id == station["id"]).values(description={"de": too_long}))
+    await db_session.execute(
+        update(Challenge).where(Challenge.id == challenge["id"]).values(instructions={"de": too_long})
+    )
+    await db_session.commit()
+    for kind, record, field in (
+        ("rallyes", rallye, "description"),
+        ("stations", station, "description"),
+        ("challenges", challenge, "instructions"),
+    ):
+        before = (await client.get(f"{base}/{kind}/", headers=headers)).json()["total"]
+        refused = await client.post(f"{base}/{kind}/{record['id']}/duplicate", headers=headers)
+        assert refused.status_code == 422, (kind, refused.text)
+        first = refused.json()["detail"][0]
+        assert first["type"] == "string_too_long"
+        assert first["loc"] == ["body", field, "de"]
+        assert (await client.get(f"{base}/{kind}/", headers=headers)).json()["total"] == before, kind
+
+
+@pytest.mark.asyncio
+async def test_a_route_answers_422_for_tables_nested_too_deep(client: AsyncClient, db_session: AsyncSession) -> None:
+    creator, org = await create_test_user_with_org(
+        db_session, email="nested@example.com", role=UserRole.CREATOR, org_slug="nested-org"
+    )
+    nested = "<table><tr><td>" * 21 + "x" + "</td></tr></table>" * 21
+    refused = await client.post(
+        f"/api/orgs/{org.slug}/challenges/",
+        headers=get_auth_headers(creator),
+        json={**CHALLENGE_BASE, "instructions": {"de": "<p>ok</p>", "en": nested}},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == [
+        {
+            "type": "rich_text_too_nested",
+            "loc": ["body", "instructions", "en"],
+            "msg": "Tables should be nested at most 20 deep",
+            "ctx": {"max_nesting": 20},
+        }
+    ]

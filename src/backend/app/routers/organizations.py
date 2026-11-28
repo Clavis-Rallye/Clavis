@@ -55,9 +55,9 @@ router = APIRouter()
 slug_router = APIRouter()
 
 
-def _sanitize_legal(text: str | None, org_slug: str) -> str | None:
-    """One legal text through the rich-text allowlist. ``None`` stays ``None``."""
-    return None if text is None else sanitize_html(text, media_prefix_for(org_slug))
+def _sanitize_legal(text: str | None, org_slug: str, field: str) -> str | None:
+    """One legal text through the rich-text allowlist. ``None`` stays ``None``. ``field`` names it in an error."""
+    return None if text is None else sanitize_html(text, media_prefix_for(org_slug), loc=(field,))
 
 
 def _to_response(org: Organization) -> OrganizationResponse:
@@ -230,7 +230,7 @@ async def update_organization(
     }
     # A legal text is one HTML string, not a text per language. The
     # multilingual sanitiser would call .items() on it and end in a 500.
-    legal_values = {field: _sanitize_legal(getattr(body, field), org.slug) for field in legal_fields_in_payload}
+    legal_values = {field: _sanitize_legal(getattr(body, field), org.slug, field) for field in legal_fields_in_payload}
     for field in legal_fields_in_payload:
         if getattr(org, field) != legal_values[field]:
             changes[field] = {"from": getattr(org, field), "to": legal_values[field]}

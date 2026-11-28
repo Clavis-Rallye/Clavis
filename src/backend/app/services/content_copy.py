@@ -7,6 +7,12 @@ creator copies them. A copy is complete: every language of every text, the
 location, the tips, the scoring rules and the reference answer. Its title gets
 " (Kopie)" or " (Copy)" per language, like a duplicated rallye.
 
+A copy is a new write, so its rich texts pass the write filter like any other
+write. A text of the original that an older release stored outside the rules
+of the filter is cleaned in the copy, and one that is too long stops the copy
+with the error of the filter (``RichTextTooLongError``, a 422 that names the
+field). The original stays as it is.
+
 A station's title image gets its own object in the store. The original's key
 must not be shared, because replacing or removing an image, and the permanent
 delete, remove the object under that key.
@@ -26,6 +32,13 @@ from app.models.challenge import Challenge
 from app.models.station import Station
 from app.repositories.challenge import ChallengeRepository
 from app.repositories.station import StationRepository
+from app.services.richtext import (
+    REFERENCE_ANSWER_MAX_LENGTH,
+    media_prefix_for,
+    sanitize_multilingual,
+    sanitize_optional_html,
+    sanitize_station_tips,
+)
 from app.storage import get_minio_client
 
 logger = structlog.get_logger("app")
@@ -52,16 +65,19 @@ def _copy_image(org_id: UUID, station_id: UUID, source_key: str) -> str | None:
     return target_key
 
 
-async def copy_station(db: AsyncSession, org_id: UUID, source: Station, user_id: UUID | None) -> Station:
+async def copy_station(db: AsyncSession, org_id: UUID, org_slug: str, source: Station, user_id: UUID | None) -> Station:
     """A complete copy of a library station, flushed but not committed."""
     repo = StationRepository(db, organization_id=org_id)
+    # The texts pass the filter before the first write, so a refused text leaves nothing behind.
+    description = sanitize_multilingual(source.description or {}, media_prefix_for(org_slug), loc=("description",))
+    tips = sanitize_station_tips(copy.deepcopy(source.tips), org_slug) if source.tips is not None else None
     station = await repo.create(
         title=copy_title(source.title),
-        description=copy.deepcopy(source.description or {}),
+        description=description,
         address=source.address,
         location_lat=source.location_lat,
         location_lng=source.location_lng,
-        tips=copy.deepcopy(source.tips) if source.tips is not None else None,
+        tips=tips,
         created_by_user_id=user_id,
     )
     if source.title_image_key:
@@ -72,15 +88,22 @@ async def copy_station(db: AsyncSession, org_id: UUID, source: Station, user_id:
     return station
 
 
-async def copy_challenge(db: AsyncSession, org_id: UUID, source: Challenge, user_id: UUID | None) -> Challenge:
+async def copy_challenge(
+    db: AsyncSession, org_id: UUID, org_slug: str, source: Challenge, user_id: UUID | None
+) -> Challenge:
     """A complete copy of a library challenge, flushed but not committed."""
     repo = ChallengeRepository(db, organization_id=org_id)
+    prefix = media_prefix_for(org_slug)
+    instructions = sanitize_multilingual(source.instructions or {}, prefix, loc=("instructions",))
+    suggested_solution = sanitize_optional_html(
+        source.suggested_solution, prefix, max_length=REFERENCE_ANSWER_MAX_LENGTH, loc=("suggested_solution",)
+    )
     return await repo.create(
         challenge_type=source.challenge_type,
         title=copy_title(source.title),
-        instructions=copy.deepcopy(source.instructions or {}),
+        instructions=instructions,
         scoring_rules=copy.deepcopy(source.scoring_rules or {}),
         time_estimate_minutes=source.time_estimate_minutes,
-        suggested_solution=source.suggested_solution,
+        suggested_solution=suggested_solution,
         created_by_user_id=user_id,
     )

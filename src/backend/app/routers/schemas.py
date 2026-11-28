@@ -16,7 +16,7 @@ from pydantic_core import PydanticCustomError
 from app.models.challenge import ChallengeType
 from app.models.feed_event import FeedEventType
 from app.models.run import RunState
-from app.services.richtext import RICH_TEXT_MAX_LENGTH
+from app.services.richtext import REFERENCE_ANSWER_MAX_LENGTH, RICH_TEXT_MAX_LENGTH, TIPS_HEADER_MAX_LENGTH
 
 # Email addresses are matched case-insensitively. Normalize every inbound email
 # to lowercase at the validation boundary, so storage and lookups never see
@@ -1023,7 +1023,6 @@ class RallyeListResponse(BaseModel):
 # Bounds of a station's tips. The frontend mirrors them in utils/stationTips.ts.
 # The heading is rich text, so its bound counts the markup too. A bound of 120
 # refused a heading of two short sentences.
-TIPS_HEADER_MAX_LENGTH = 2000
 TIPS_LABEL_MAX_LENGTH = 200
 
 
@@ -1325,7 +1324,7 @@ class ChallengeCreateRequest(BaseModel):
             "the editor's HTML, sanitised on write. The bound counts the markup too"
         ),
         examples=["<p>The <strong>Goldener Saal</strong> in the Augsburger Rathaus.</p>"],
-        max_length=10000,
+        max_length=REFERENCE_ANSWER_MAX_LENGTH,
     )
 
     _instructions_bounded = field_validator("instructions")(_refuse_overlong_rich_text)
@@ -1363,7 +1362,7 @@ class ChallengeUpdateRequest(BaseModel):
             "Reviewer-facing reference answer (not shown to participants). Rich text, "
             "sanitised on write. null clears it, a missing field keeps it"
         ),
-        max_length=10000,
+        max_length=REFERENCE_ANSWER_MAX_LENGTH,
     )
 
     _instructions_bounded = field_validator("instructions")(_refuse_overlong_rich_text)

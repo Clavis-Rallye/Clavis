@@ -228,7 +228,7 @@ async def create_station(
     try:
         station = await station_repo.create(
             title=body.title,
-            description=sanitize_multilingual(body.description, media_prefix_for(org.slug)),
+            description=sanitize_multilingual(body.description, media_prefix_for(org.slug), loc=("description",)),
             address=body.address,
             location_lat=body.location_lat,
             location_lng=body.location_lng,
@@ -322,7 +322,9 @@ async def update_station(
     if body.title is not None:
         update_kwargs["title"] = body.title
     if body.description is not None:
-        update_kwargs["description"] = sanitize_multilingual(body.description, media_prefix_for(org.slug))
+        update_kwargs["description"] = sanitize_multilingual(
+            body.description, media_prefix_for(org.slug), loc=("description",)
+        )
     if body.address is not None:
         update_kwargs["address"] = body.address
     if body.location_lat is not None:
@@ -442,7 +444,7 @@ async def duplicate_station(
     source = await station_repo.get_by_id(station_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Station not found")
-    station = await copy_station(db, org.id, source, current_user.id)
+    station = await copy_station(db, org.id, org.slug, source, current_user.id)
     await db.commit()
     await db.refresh(station)
     record_audit_event(

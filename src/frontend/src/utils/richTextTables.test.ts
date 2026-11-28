@@ -84,4 +84,43 @@ describe('flattenTablesOutsideContract', () => {
     expect(flattenTablesOutsideContract(template.content)).toBe(true);
     expect(template.innerHTML).toBe('<p>a · b · c · d</p>');
   });
+
+  // The trimming cuts a line once, by the count of nodes that go, and an element learns from its
+  // children whether it holds text.
+  it('removes many line breaks and spaces at both ends of a cell and keeps those inside', () => {
+    const edge = '<br> '.repeat(2000);
+    const root = body(`<table><tbody><tr><td>${edge}<strong>${edge}A<br>B${edge}</strong>${edge}</td><td>b</td><td>c</td><td>d</td></tr></tbody></table>`);
+    expect(flattenTablesOutsideContract(root)).toBe(true);
+    expect(root.innerHTML).toBe('<p><strong>A<br>B</strong> · b · c · d</p>');
+  });
+
+  it('takes images out of deeply nested inline elements and keeps the ones with text', () => {
+    const open = '<strong><em>'.repeat(40);
+    const close = '</em></strong>'.repeat(40);
+    const img = `<img src="${MEDIA}" alt="x">`;
+    const root = body(`<table><tbody><tr><td>${open}${img}${close}</td><td>${open}${img}text${close}</td><td>c</td><td>d</td></tr></tbody></table>`);
+    flattenTablesOutsideContract(root);
+    expect(root.innerHTML).toBe(`<p>${open}text${close} · c · d</p>${img}${img}`);
+  });
+
+  it('keeps spaces between two words and trims a long run of them at the end', () => {
+    const run = ' '.repeat(20_000);
+    const root = body(WIDE_ROW(`x${run}y${run}`));
+    flattenTablesOutsideContract(root);
+    expect(root.innerHTML).toBe(`<p>x${run}y · b · c · d</p>`);
+  });
+
+  // A wide limit on purpose. A trim that starts again at every run of spaces took a second for
+  // this cell and grew with the square. A walk from the edge takes a few milliseconds.
+  it(
+    'trims a cell with a long run of spaces inside its text within five seconds',
+    () => {
+      const root = body(WIDE_ROW('x' + ' '.repeat(49_000) + 'y'));
+      const start = performance.now();
+      flattenTablesOutsideContract(root);
+      expect(performance.now() - start).toBeLessThan(5000);
+      expect(root.querySelector('p')?.textContent?.length).toBe(49_002 + ' · b · c · d'.length);
+    },
+    30_000,
+  );
 });

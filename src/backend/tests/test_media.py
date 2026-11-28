@@ -9,9 +9,11 @@ from httpx import AsyncClient
 from minio import Minio
 from minio.error import S3Error
 from PIL import Image
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.organization import Organization
 from app.models.user import UserRole
 from app.storage import MAX_FILE_SIZE, ensure_bucket, get_minio_client
 from tests.factories import create_test_user, get_auth_headers
@@ -239,6 +241,93 @@ async def test_an_archived_organisations_legal_image_is_members_only(
     await db_session.commit()
 
     assert (await client.get(in_imprint)).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_only_a_real_image_source_of_a_legal_text_opens_an_image(
+    client: AsyncClient, db_session: AsyncSession, org_a, storage_bucket: Minio
+) -> None:
+    """Text that looks like a source inside another attribute opens nothing.
+
+    The decision reads parsed ``img`` elements. A search over the text of the tag took the first thing that
+    looked like ``src=``, here the address inside ``alt``, and opened that image to anyone.
+    """
+    slug = org_a.slug
+    admin = await create_test_user(db_session, email="admin@org-a.test", role=UserRole.ORG_ADMIN, organization=org_a)
+    headers = get_auth_headers(admin)
+    shown = (await _upload(client, slug, headers, name="logo.png")).json()["url"]
+    hidden = (await _upload(client, slug, headers, name="intern.png")).json()["url"]
+
+    # Through the write filter, which keeps the alt text.
+    saved = await client.put(
+        f"/api/orgs/{slug}",
+        headers=headers,
+        json={"legal_imprint": f"""<p><img alt=" src='{hidden}' " src="{shown}"></p>"""},
+    )
+    assert saved.status_code == 200, saved.text
+    assert hidden in saved.json()["legal_imprint"]
+    assert (await client.get(shown)).status_code == 200
+    assert (await client.get(hidden)).status_code == 401
+
+    # As stored text of an older release, in every place a source-like text can stand.
+    decoys = [
+        f"""<img alt=' src="{hidden}" ' src="{shown}">""",
+        f"""<a href="https://example.org/?q=<img src='{hidden}'>">x</a><img src="{shown}">""",
+        f"""<!-- <img src="{hidden}"> --><p>&lt;img src="{hidden}"&gt; src="{hidden}"</p><img src="{shown}">""",
+        f"""<img src="{shown}" src="{hidden}">""",
+        f"""<img src="{hidden}?x=1"><img src="{hidden}#x"><img src="{shown}">""",
+        # A figure inside a figure: the write filter and the renderer remove it, so nothing of it is public.
+        f"""<figure><figure><img src="{hidden}"></figure></figure><img src="{shown}">""",
+        # The prefix of the real image written with a character reference: a browser reads the same address.
+        f"""<img src="{shown.replace("/api/", "&#47;api/", 1)}"><p>src="{hidden}"</p>""",
+    ]
+    for text in decoys:
+        await db_session.execute(
+            update(Organization).where(Organization.slug == slug).values(legal_privacy=text, legal_imprint=None)
+        )
+        await db_session.commit()
+        assert (await client.get(shown)).status_code == 200, text
+        assert (await client.get(hidden)).status_code == 401, text
+
+    # An element that two parsers read in different ways: such a text opens no image at all. The first
+    # case shows no image in the renderer of the frontend, and a parser with scripting on finds one.
+    closed = [
+        f"""<noscript><p title="</noscript><img src="{hidden}">"></p>""",
+        f"""<template><img src="{hidden}"></template><img src="{shown}">""",
+        f"""<video controls><p>Fallback <img src="{hidden}"></p></video><img src="{shown}">""",
+        f"""<select><img src="{hidden}"></select><textarea><img src="{hidden}"></textarea><img src="{shown}">""",
+    ]
+    for text in closed:
+        await db_session.execute(
+            update(Organization).where(Organization.slug == slug).values(legal_privacy=text, legal_imprint=None)
+        )
+        await db_session.commit()
+        assert (await client.get(shown)).status_code == 401, text
+        assert (await client.get(hidden)).status_code == 401, text
+    # A member still reads both.
+    assert (await client.get(shown, headers=headers)).status_code == 200
+    assert (await client.get(hidden, headers=headers)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_legal_image_with_a_percent_encoded_name_is_open(
+    client: AsyncClient, db_session: AsyncSession, org_a, storage_bucket: Minio
+) -> None:
+    """The key of the request and the key of the source are compared in one form, percent-decoded."""
+    slug = org_a.slug
+    admin = await create_test_user(db_session, email="admin@org-a.test", role=UserRole.ORG_ADMIN, organization=org_a)
+    url = (await _upload(client, slug, get_auth_headers(admin), name="logo.png")).json()["url"]
+    encoded = url.replace("logo.png", "%6cogo.png")
+    assert encoded != url
+    await db_session.execute(
+        update(Organization)
+        .where(Organization.slug == slug)
+        .values(legal_imprint=f'<p><img src="{encoded}" alt="Logo"></p>')
+    )
+    await db_session.commit()
+
+    assert (await client.get(url)).status_code == 200
+    assert (await client.get(encoded)).status_code == 200
 
 
 @pytest.mark.asyncio

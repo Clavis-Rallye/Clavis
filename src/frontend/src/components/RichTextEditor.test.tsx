@@ -9,6 +9,7 @@ import { AuthContext } from '../auth/AuthContext';
 import i18n from '../i18n';
 import apiClient, { ApiError } from '../api/client';
 import { WEB_PASTE_HTML, WORD_PASTE_HTML } from '../utils/pasteFixtures';
+import { PASTE_BUDGET } from '../utils/cleanPastedHtml';
 
 // ProseMirror scrolls the cursor into view and asks for rectangles jsdom lacks.
 const emptyRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
@@ -249,6 +250,19 @@ describe('RichTextEditor', () => {
       const box = await screen.findByRole('textbox', { name: 'Beschreibung' });
       return { box, onChange, lastHtml: () => onChange.mock.calls.at(-1)?.[0] as string };
     };
+
+    it('refuses a paste over a budget with a note and inserts nothing, not even its plain text', async () => {
+      const { box, onChange } = await setup();
+      const deep = '<div>'.repeat(PASTE_BUDGET.depth + 1) + 'zu tief' + '</div>'.repeat(PASTE_BUDGET.depth + 1);
+      paste(box, { html: deep, text: 'zu tief' });
+      expect(await screen.findByText(/zu groß|too large/)).toBeInTheDocument();
+      expect(box.textContent).toBe('');
+      expect(onChange).not.toHaveBeenCalled();
+      // The next paste that fits closes the note and is inserted.
+      paste(box, { html: '<p>passt</p>', text: 'passt' });
+      await waitFor(() => expect(box.textContent).toBe('passt'));
+      expect(screen.queryByText(/zu groß|too large/)).toBeNull();
+    });
 
     it('turns the Word sample into the editor\'s list, formatting and table', async () => {
       const { box, lastHtml } = await setup();

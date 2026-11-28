@@ -923,10 +923,10 @@ async def _legal_response(db: AsyncSession, setting: InstanceSetting | None) -> 
     )
 
 
-def _sanitize_legal_text(value: str | None) -> str | None:
+def _sanitize_legal_text(value: str | None, field: str) -> str | None:
     if value is None:
         return None
-    return sanitize_html(value, _LEGAL_MEDIA_PREFIX)
+    return sanitize_html(value, _LEGAL_MEDIA_PREFIX, loc=(field,))
 
 
 @operator_router.get(
@@ -988,7 +988,9 @@ async def update_instance_legal(
     setting = await repo.get()
 
     fields_in_payload = body.model_fields_set & set(_LEGAL_FIELD_TO_KIND)
-    new_values: dict[str, Any] = {field: _sanitize_legal_text(getattr(body, field)) for field in fields_in_payload}
+    new_values: dict[str, Any] = {
+        field: _sanitize_legal_text(getattr(body, field), field) for field in fields_in_payload
+    }
 
     changed_fields = [
         field
