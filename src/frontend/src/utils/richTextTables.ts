@@ -28,9 +28,23 @@ import contract from './richTextContract.json';
 export const TABLE_MAX_COLUMNS: number = contract.tables.maxColumns;
 export const TABLE_CELL_SEPARATOR: string = contract.tables.cellSeparator;
 
-const LEADING_SPACE = /^[ \t\n\r\f\u00a0]+/;
-const TRAILING_SPACE = /[ \t\n\r\f\u00a0]+$/;
-const isBlank = (text: string): boolean => text.replace(LEADING_SPACE, '') === '';
+const SPACE = new Set([' ', '\t', '\n', '\r', '\f', '\u00a0']);
+
+// Both trims walk from the edge and stop at the first other character. A pattern that ends in `$`
+// starts again at every run of spaces inside the text, which costs the square of its length.
+function trimStart(text: string): string {
+  let start = 0;
+  while (start < text.length && SPACE.has(text[start])) start += 1;
+  return start === 0 ? text : text.slice(start);
+}
+
+function trimEnd(text: string): string {
+  let end = text.length;
+  while (end > 0 && SPACE.has(text[end - 1])) end -= 1;
+  return end === text.length ? text : text.slice(0, end);
+}
+
+const isBlank = (text: string): boolean => trimStart(text) === '';
 
 /** Elements that stay in the current line of a cell, whole and with everything inside. */
 const INLINE_TAGS = new Set(['strong', 'em', 'u', 's', 'a', 'br', 'code']);
@@ -90,7 +104,7 @@ function trimEdge(nodes: Node[], atStart: boolean): void {
     const node = atStart ? nodes[gone] : nodes[nodes.length - 1 - gone];
     if (node.nodeType === 3) {
       const text = node as Text;
-      text.data = text.data.replace(atStart ? LEADING_SPACE : TRAILING_SPACE, '');
+      text.data = atStart ? trimStart(text.data) : trimEnd(text.data);
       if (text.data !== '') break;
     } else if (nameOf(node) !== 'br') {
       trimEdge(Array.from(node.childNodes), atStart);

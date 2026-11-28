@@ -363,6 +363,12 @@ describe('cleanPastedHtml budgets', () => {
     expect(cleanPastedHtml(html)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'nodes' });
   });
 
+  it('counts the separators it makes when blocks of a heading become one line', () => {
+    const html = '<h2>' + '<p>x</p>'.repeat(34_000) + '</h2>';
+    expect(html.length).toBeLessThan(PASTE_BUDGET.characters);
+    expect(cleanPastedHtml(html)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'nodes' });
+  });
+
   it('holds the budgets that the comment promises', () => {
     expect(PASTE_BUDGET).toEqual({ characters: 3_000_000, nodes: 100_000, depth: 100 });
     // The longest text the server stores fits many times, with the markup of Word around it.

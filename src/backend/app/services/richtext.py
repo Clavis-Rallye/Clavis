@@ -192,6 +192,9 @@ def _is_media_source(src: str, media_prefix: str) -> bool:
     """
     if any(ord(char) < 0x20 or char == "\x7f" or char.isspace() for char in src) or "\\" in src:
         return False
+    # U+FEFF is white space for the frontend (``\s`` in JavaScript) and not for ``str.isspace``.
+    if "\ufeff" in src:
+        return False
     if "?" in src or "#" in src:
         return False
     lowered = src.lower()
@@ -354,14 +357,15 @@ RENDERER_DROPS_WITH_CONTENT: frozenset[str] = frozenset(
 # Elements that two HTML parsers read in different ways: with scripting on or off, as raw text or as
 # elements, inside or outside foreign content. A legal text of an older release that names one of them
 # shows no public image at all. The legal texts of the editor never hold one.
-_PARSER_SENSITIVE: frozenset[str] = RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame"}
+# ``form`` is here for another reason: a field named like a method of the form makes the renderer remove
+# the whole form with the image in it.
+_PARSER_SENSITIVE: frozenset[str] = RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame", "form"}
 
 # A legal text of an older release can be longer than the limit. Beyond this length no image of it is
 # public: the answer of an open route must not cost unbounded work.
 _SHOWN_IMAGES_MAX_LENGTH = 4 * RICH_TEXT_MAX_LENGTH
 
 
-@lru_cache(maxsize=64)
 def image_object_keys(html: str | None, media_prefix: str) -> frozenset[str]:
     """The object keys of the images that a stored legal text shows from ``media_prefix``.
 
@@ -378,10 +382,16 @@ def image_object_keys(html: str | None, media_prefix: str) -> frozenset[str]:
     the limit, and one that the filter refuses.
 
     The key is the part after the prefix, percent-decoded, which is the form the media route receives.
-    The answer for one text is kept: the route asks again for every image of a legal page.
+    The answer for one text is kept: the route asks again for every image of a legal page. The length is
+    checked before that, so a text that is too long is never kept.
     """
     if not html or "<" not in html or len(html) > _SHOWN_IMAGES_MAX_LENGTH:
         return frozenset()
+    return _shown_image_keys(html, media_prefix)
+
+
+@lru_cache(maxsize=64)
+def _shown_image_keys(html: str, media_prefix: str) -> frozenset[str]:
     lowered = html.lower()
     if any(f"<{tag}" in lowered for tag in _PARSER_SENSITIVE):
         return frozenset()

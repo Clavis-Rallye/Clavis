@@ -285,6 +285,7 @@ export function cleanPastedHtml(html: string): CleanedPaste {
       if (!isBlock(node)) {
         result.push(node);
       } else if (!['img', 'hr'].includes(nameOf(node))) {
+        count();
         result.push(...inlineOnly(Array.from(node.childNodes)), doc.createTextNode(' '));
       }
     }

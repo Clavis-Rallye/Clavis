@@ -981,7 +981,7 @@ def test_leading_and_trailing_breaks_of_a_cell_leave_no_trace() -> None:
 KEY = "11111111-1111-1111-1111-111111111111/media/real.png"
 IMG = f'<img src="{REAL}">'
 
-_SENSITIVE = sorted(RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame"})
+_SENSITIVE = sorted(RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame", "form"})
 
 
 @pytest.mark.parametrize("element", _SENSITIVE)
@@ -1007,6 +1007,8 @@ def test_a_text_that_names_a_parser_sensitive_element_shows_no_public_image(elem
         f"<!-- {IMG} -->",
         f'<img src="{REAL}"',
         f"<p>&lt;img src=&quot;{REAL}&quot;&gt;</p>",
+        # A field named like a method of the form makes the renderer remove the whole form.
+        f'<form><input name="removeChild">{IMG}</form>',
     ],
 )
 def test_an_image_that_the_renderer_does_not_show_is_not_public(html: str) -> None:
@@ -1022,9 +1024,6 @@ def test_an_image_that_the_renderer_does_not_show_is_not_public(html: str) -> No
         f'<div class="x"><span>{IMG}</span></div>',
         f"<table><tr><td>{IMG}</td></tr></table>",
         f"<h1>Impressum</h1><pre>Zeile</pre>{IMG}",
-        # Measured in the renderer of the frontend: both show the image.
-        f"<form><form>{IMG}",
-        f"<table><form>{IMG}",
         # The prefix written with a character reference is the same address for a browser.
         f'<img src="&#47;api/orgs/stadt-augsburg/media/{KEY}">',
         f'<IMG SRC="{REAL}">',
@@ -1067,3 +1066,21 @@ def test_the_answer_follows_the_text_and_the_prefix() -> None:
         {KEY.replace("real", "other")}
     )
     assert image_object_keys(first, "/api/orgs/another-org/media/") == frozenset()
+
+
+def test_a_source_with_the_white_space_of_the_frontend_is_no_media_source() -> None:
+    # U+FEFF is white space for the renderer of the frontend and not for str.isspace.
+    src = f"{PREFIX}11111111-1111-1111-1111-111111111111/media/x\ufeff.png"
+    assert sanitize_html(f'<p>a</p><img src="{src}">', PREFIX) == "<p>a</p>"
+    assert image_object_keys(f'<img src="{src}">', PREFIX) == frozenset()
+
+
+def test_a_text_over_the_bound_is_not_kept_for_later() -> None:
+    from app.services import richtext
+
+    richtext._shown_image_keys.cache_clear()
+    for filler in ("a", "b"):
+        assert image_object_keys(IMG + filler * (4 * RICH_TEXT_MAX_LENGTH), PREFIX) == frozenset()
+    assert richtext._shown_image_keys.cache_info().currsize == 0
+    assert image_object_keys(f"<p>{IMG}</p>", PREFIX) == frozenset({KEY})
+    assert richtext._shown_image_keys.cache_info().currsize == 1

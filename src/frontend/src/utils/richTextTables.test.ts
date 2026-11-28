@@ -102,4 +102,25 @@ describe('flattenTablesOutsideContract', () => {
     flattenTablesOutsideContract(root);
     expect(root.innerHTML).toBe(`<p>${open}text${close} · c · d</p>${img}${img}`);
   });
+
+  it('keeps spaces between two words and trims a long run of them at the end', () => {
+    const run = ' '.repeat(20_000);
+    const root = body(WIDE_ROW(`x${run}y${run}`));
+    flattenTablesOutsideContract(root);
+    expect(root.innerHTML).toBe(`<p>x${run}y · b · c · d</p>`);
+  });
+
+  // A wide limit on purpose. A trim that starts again at every run of spaces took a second for
+  // this cell and grew with the square. A walk from the edge takes a few milliseconds.
+  it(
+    'trims a cell with a long run of spaces inside its text within five seconds',
+    () => {
+      const root = body(WIDE_ROW('x' + ' '.repeat(49_000) + 'y'));
+      const start = performance.now();
+      flattenTablesOutsideContract(root);
+      expect(performance.now() - start).toBeLessThan(5000);
+      expect(root.querySelector('p')?.textContent?.length).toBe(49_002 + ' · b · c · d'.length);
+    },
+    30_000,
+  );
 });
