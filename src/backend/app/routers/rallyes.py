@@ -496,10 +496,14 @@ async def duplicate_rallye(
             detail="Rallye not found",
         )
 
+    # A copy is a new write: its description passes the write filter before anything is stored.
+    description = sanitize_multilingual(
+        dict(source.description or {}), media_prefix_for(org.slug), loc=("description",)
+    )
     try:
         new_rallye = await rallye_repo.create(
             title=_suffix_title(source.title),
-            description=dict(source.description),
+            description=description,
             is_published=False,
             created_by_user_id=current_user.id,
         )
@@ -1237,7 +1241,7 @@ async def copy_rallye_station(
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Station not found")
 
-    station = await copy_station(db, org.id, source, current_user.id)
+    station = await copy_station(db, org.id, org.slug, source, current_user.id)
     link.station_id = station.id
     await db.commit()
     await db.refresh(link, attribute_names=["station"])
@@ -1289,7 +1293,7 @@ async def copy_rallye_station_challenge(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
 
     challenge_repo = ChallengeRepository(db, organization_id=org.id)
-    challenge = await copy_challenge(db, org.id, link.challenge, current_user.id)
+    challenge = await copy_challenge(db, org.id, org.slug, link.challenge, current_user.id)
     link.challenge_id = challenge.id
     await db.commit()
     await db.refresh(link, attribute_names=["challenge"])

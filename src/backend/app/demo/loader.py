@@ -26,6 +26,12 @@ from app.repositories.rallye_station import RallyeStationRepository
 from app.repositories.rallye_station_challenge import RallyeStationChallengeRepository
 from app.repositories.station import StationRepository
 from app.services.audit import record_audit_event
+from app.services.richtext import (
+    REFERENCE_ANSWER_MAX_LENGTH,
+    media_prefix_for,
+    sanitize_multilingual,
+    sanitize_optional_html,
+)
 from app.services.scoring_rules import validate_scoring_rules
 
 DEMO_CONTENT_PATH = Path(__file__).with_name("content.json")
@@ -118,9 +124,12 @@ async def load_demo_content(
         await rallye_repo.soft_delete(stale_rallye.id)
 
     # Published on arrival, so the presenter can start a run at once instead of publishing it in the editor first.
+    # The demo texts pass the write filter like every other write, so the demo content can hold nothing
+    # that a creator could not store. A text the filter refuses stops the load with its error.
+    prefix = media_prefix_for(org.slug)
     rallye = await rallye_repo.create(
         title=rallye_data["title"],
-        description=rallye_data["description"],
+        description=sanitize_multilingual(rallye_data["description"], prefix, loc=("description",)),
         is_published=True,
     )
     stations_loaded = 0
@@ -128,7 +137,7 @@ async def load_demo_content(
     for station_order, station_data in enumerate(rallye_data["stations"]):
         station = await station_repo.create(
             title=station_data["title"],
-            description=station_data["description"],
+            description=sanitize_multilingual(station_data["description"], prefix, loc=("description",)),
             address=station_data.get("address"),
             location_lat=station_data.get("location_lat"),
             location_lng=station_data.get("location_lng"),
@@ -142,10 +151,15 @@ async def load_demo_content(
             challenge = await challenge_repo.create(
                 challenge_type=ChallengeType(challenge_data["challenge_type"]),
                 title=challenge_data["title"],
-                instructions=challenge_data["instructions"],
+                instructions=sanitize_multilingual(challenge_data["instructions"], prefix, loc=("instructions",)),
                 scoring_rules=challenge_data["scoring_rules"],
                 time_estimate_minutes=challenge_data.get("time_estimate_minutes"),
-                suggested_solution=challenge_data.get("suggested_solution"),
+                suggested_solution=sanitize_optional_html(
+                    challenge_data.get("suggested_solution"),
+                    prefix,
+                    max_length=REFERENCE_ANSWER_MAX_LENGTH,
+                    loc=("suggested_solution",),
+                ),
             )
             await rallye_station_challenge_repo.create(
                 rallye_station_id=link.id,

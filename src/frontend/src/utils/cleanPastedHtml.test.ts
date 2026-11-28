@@ -340,6 +340,29 @@ describe('cleanPastedHtml budgets', () => {
     expect('overBudget' in result).toBe(false);
   });
 
+  // The built document can be deeper and larger than the parsed one.
+  it('refuses a Word list whose levels rise without end, before it builds the nesting', () => {
+    const paragraphs = Array.from(
+      { length: 3000 },
+      (_, index) => `<p style="mso-list:l0 level${index + 1} lfo1">x</p>`,
+    ).join('');
+    expect(paragraphs.length).toBeLessThan(PASTE_BUDGET.characters);
+    expect(cleanPastedHtml(paragraphs)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'depth' });
+  });
+
+  it('keeps a Word list of a normal depth', () => {
+    const paragraphs = [1, 2, 3, 2, 1].map((level) => `<p style="mso-list:l0 level${level} lfo1">L${level}</p>`).join('');
+    const result = cleanPastedHtml(paragraphs);
+    expect(result.overBudget).toBeUndefined();
+    expect(result.html).toContain('<li><p>L3</p></li>');
+  });
+
+  it('refuses a preformatted block whose lines become more nodes than the budget', () => {
+    const html = '<pre>' + 'x\n'.repeat(PASTE_BUDGET.nodes) + '</pre>';
+    expect(html.length).toBeLessThan(PASTE_BUDGET.characters);
+    expect(cleanPastedHtml(html)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'nodes' });
+  });
+
   it('holds the budgets that the comment promises', () => {
     expect(PASTE_BUDGET).toEqual({ characters: 3_000_000, nodes: 100_000, depth: 100 });
     // The longest text the server stores fits many times, with the markup of Word around it.

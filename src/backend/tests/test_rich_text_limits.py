@@ -338,3 +338,100 @@ async def test_the_operator_legal_text_is_refused_when_cleaning_makes_it_too_lon
     _assert_refused_after_cleaning(refused, ["legal_imprint"], RICH_TEXT_MAX_LENGTH)
     stored = await client.get("/api/instance/legal", headers=headers)
     assert stored.json()["legal_imprint"] is None
+
+
+# ---------------------------------------------------------------------------
+# A copy is a new write. It passes the write filter like any other write, so a text that an older release
+# stored outside the rules is cleaned in the copy, and one that is too long stops the copy.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_copy_passes_the_write_filter_and_the_original_stays(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from sqlalchemy import update
+
+    from app.models.challenge import Challenge
+    from app.models.rallye import Rallye
+    from app.models.station import Station
+
+    creator, org = await create_test_user_with_org(
+        db_session, email="copy@example.com", role=UserRole.CREATOR, org_slug="copy-org"
+    )
+    headers = get_auth_headers(creator)
+    base = f"/api/orgs/{org.slug}"
+    described = {"title": {"de": "T"}, "description": {"de": "<p>x</p>"}}
+    rallye = (await client.post(f"{base}/rallyes/", headers=headers, json=described)).json()
+    station = (await client.post(f"{base}/stations/", headers=headers, json=described)).json()
+    challenge = (await client.post(f"{base}/challenges/", headers=headers, json=CHALLENGE_BASE)).json()
+
+    # Texts as an older release could store them: an element outside the rules, and a script.
+    legacy = '<h1>Alt</h1><p onclick="x()">Text<script>alert(1)</script></p>'
+    cleaned = "<h2>Alt</h2><p>Text</p>"
+    await db_session.execute(update(Rallye).where(Rallye.id == rallye["id"]).values(description={"de": legacy}))
+    await db_session.execute(update(Station).where(Station.id == station["id"]).values(description={"de": legacy}))
+    await db_session.execute(
+        update(Challenge)
+        .where(Challenge.id == challenge["id"])
+        .values(instructions={"de": legacy}, suggested_solution=legacy)
+    )
+    await db_session.commit()
+
+    for kind, record, fields in (
+        ("rallyes", rallye, ("description",)),
+        ("stations", station, ("description",)),
+        ("challenges", challenge, ("instructions",)),
+    ):
+        copied = await client.post(f"{base}/{kind}/{record['id']}/duplicate", headers=headers)
+        assert copied.status_code == 201, copied.text
+        for field in fields:
+            assert copied.json()[field] == {"de": cleaned}, kind
+        original = await client.get(f"{base}/{kind}/{record['id']}", headers=headers)
+        for field in fields:
+            assert original.json()[field] == {"de": legacy}, kind
+    copied_challenge = await client.post(f"{base}/challenges/{challenge['id']}/duplicate", headers=headers)
+    assert copied_challenge.json()["suggested_solution"] == cleaned
+
+    # A text over the limit stops the copy, and nothing is stored.
+    too_long = "<p>" + "&amp;" * 12000 + "</p>"
+    await db_session.execute(update(Rallye).where(Rallye.id == rallye["id"]).values(description={"de": too_long}))
+    await db_session.execute(update(Station).where(Station.id == station["id"]).values(description={"de": too_long}))
+    await db_session.execute(
+        update(Challenge).where(Challenge.id == challenge["id"]).values(instructions={"de": too_long})
+    )
+    await db_session.commit()
+    for kind, record, field in (
+        ("rallyes", rallye, "description"),
+        ("stations", station, "description"),
+        ("challenges", challenge, "instructions"),
+    ):
+        before = (await client.get(f"{base}/{kind}/", headers=headers)).json()["total"]
+        refused = await client.post(f"{base}/{kind}/{record['id']}/duplicate", headers=headers)
+        assert refused.status_code == 422, (kind, refused.text)
+        first = refused.json()["detail"][0]
+        assert first["type"] == "string_too_long"
+        assert first["loc"] == ["body", field, "de"]
+        assert (await client.get(f"{base}/{kind}/", headers=headers)).json()["total"] == before, kind
+
+
+@pytest.mark.asyncio
+async def test_a_route_answers_422_for_tables_nested_too_deep(client: AsyncClient, db_session: AsyncSession) -> None:
+    creator, org = await create_test_user_with_org(
+        db_session, email="nested@example.com", role=UserRole.CREATOR, org_slug="nested-org"
+    )
+    nested = "<table><tr><td>" * 21 + "x" + "</td></tr></table>" * 21
+    refused = await client.post(
+        f"/api/orgs/{org.slug}/challenges/",
+        headers=get_auth_headers(creator),
+        json={**CHALLENGE_BASE, "instructions": {"de": "<p>ok</p>", "en": nested}},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == [
+        {
+            "type": "rich_text_too_nested",
+            "loc": ["body", "instructions", "en"],
+            "msg": "Tables should be nested at most 20 deep",
+            "ctx": {"max_nesting": 20},
+        }
+    ]

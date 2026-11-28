@@ -27,7 +27,7 @@ from app.api_docs import install_api_docs
 from app.exceptions import CodedHTTPException
 from app.middleware.rate_limit import limiter
 from app.middleware.request_context import request_context_middleware
-from app.services.richtext import RichTextTooLongError
+from app.services.richtext import RichTextTooLongError, RichTextTooNestedError
 
 
 @asynccontextmanager
@@ -185,31 +185,16 @@ async def _multipart_too_large_handler(_request: Request, _exc: Exception) -> JS
     )
 
 
-async def _rich_text_too_long_handler(_request: Request, exc: Exception) -> JSONResponse:
-    """Answer 422 for a rich text that is too long, in the shape of a validation error of the body.
+async def _rich_text_refused_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Answer 422 for a rich text that the write filter refuses, in the shape of a validation error of the body.
 
-    The write filter raises it for a text that is too long as it would be stored: cleaning can make a text
-    longer than it came in. ``loc`` names the field, and for a text in several languages the language, so
-    the client marks the field like any other validation error.
+    The filter refuses a text that is too long as it would be stored, because cleaning can make a text
+    longer than it came in, and a text with tables nested too deep. ``loc`` names the field, and for a text
+    in several languages the language, so the client marks the field like any other validation error.
     """
-    if not isinstance(exc, RichTextTooLongError):  # pragma: no cover - defensive
+    if not isinstance(exc, RichTextTooLongError | RichTextTooNestedError):  # pragma: no cover - defensive
         raise exc
-    message = f"String should have at most {exc.max_length} characters"
-    if exc.cleaned:
-        message += " after cleaning. Special characters and links take more room in the stored text"
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={
-            "detail": [
-                {
-                    "type": "string_too_long",
-                    "loc": ["body", *exc.loc],
-                    "msg": message,
-                    "ctx": {"max_length": exc.max_length},
-                }
-            ]
-        },
-    )
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": [exc.detail()]})
 
 
 async def _coded_http_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
@@ -266,7 +251,8 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_exception_handler(MultiPartException, _multipart_too_large_handler)
     app.add_exception_handler(CodedHTTPException, _coded_http_exception_handler)
-    app.add_exception_handler(RichTextTooLongError, _rich_text_too_long_handler)
+    app.add_exception_handler(RichTextTooLongError, _rich_text_refused_handler)
+    app.add_exception_handler(RichTextTooNestedError, _rich_text_refused_handler)
 
     from app.routers import (
         admin,

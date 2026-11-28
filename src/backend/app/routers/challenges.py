@@ -421,7 +421,7 @@ async def duplicate_challenge(
     source = await challenge_repo.get_by_id(challenge_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
-    challenge = await copy_challenge(db, org.id, source, current_user.id)
+    challenge = await copy_challenge(db, org.id, org.slug, source, current_user.id)
     await db.commit()
     await db.refresh(challenge)
     record_audit_event(

@@ -26,14 +26,29 @@ export interface CleanedPaste {
  *
  * - `characters`: the markup on the clipboard. Word writes about twenty times the visible text, so
  *   three million characters hold far more than the longest text the server stores.
- * - `nodes` and `depth`: the parsed document. The cleaning walks it with one function call for
- *   each level of depth.
+ * - `nodes` and `depth`: the parsed document, and the document that the cleaning builds. The
+ *   cleaning walks both with one function call for each level of depth. The built document can
+ *   be larger and deeper than the parsed one: a list of Word is flat paragraphs with a level
+ *   each, and every line of a preformatted block becomes nodes. So the cleaning counts the nodes
+ *   it makes and the levels of a list it opens, and stops at the budget.
  */
 export const PASTE_BUDGET = { characters: 3_000_000, nodes: 100_000, depth: 100 } as const;
 export type PasteBudget = keyof typeof PASTE_BUDGET;
 
+/** Thrown inside the cleaning when the document it builds goes over a budget. */
+class PasteOverBudgetError extends Error {
+  readonly budget: PasteBudget;
+
+  constructor(budget: PasteBudget) {
+    super(`paste over budget: ${budget}`);
+    this.budget = budget;
+  }
+}
+
+const refused = (budget: PasteBudget): CleanedPaste => ({ html: '', imagesLeftOut: 0, overBudget: budget });
+
 /**
- * The budget that the parsed document is over, or `null`. One walk without recursion, which ends
+ * The budget that a document is over, or `null`. One walk without recursion, which ends
  * at the first budget that is exceeded.
  */
 function overParsedBudget(root: Node): PasteBudget | null {
@@ -190,13 +205,21 @@ const allowedValue = (list: string[], value: string | null): string | null =>
   value !== null && list.includes(value) ? value : null;
 
 export function cleanPastedHtml(html: string): CleanedPaste {
-  if (html.length > PASTE_BUDGET.characters) return { html: '', imagesLeftOut: 0, overBudget: 'characters' };
+  if (html.length > PASTE_BUDGET.characters) return refused('characters');
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const over = overParsedBudget(doc.documentElement);
-  if (over) return { html: '', imagesLeftOut: 0, overBudget: over };
+  if (over) return refused(over);
   let imagesLeftOut = 0;
+  // Every node the cleaning makes is counted, so the document it builds stays inside the budget
+  // whatever the input expands to.
+  let made = 0;
+  const count = (): void => {
+    made += 1;
+    if (made > PASTE_BUDGET.nodes) throw new PasteOverBudgetError('nodes');
+  };
 
   const el = (tag: string, attributes: Record<string, string> = {}, children: Node[] = []): HTMLElement => {
+    count();
     const element = doc.createElement(tag);
     for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
     for (const child of children) element.appendChild(child);
@@ -227,6 +250,7 @@ export function cleanPastedHtml(html: string): CleanedPaste {
   };
 
   const textNode = (text: string, context: Context): Node => {
+    count();
     let node: Node = doc.createTextNode(text);
     for (const mark of [...MARK_ORDER].reverse()) {
       if (context.marks.has(mark)) node = el(mark, {}, [node]);
@@ -328,6 +352,8 @@ export function cleanPastedHtml(html: string): CleanedPaste {
     const roots: Node[] = [];
     const stack: Frame[] = [];
     const open = (level: number, ordered: boolean, parent: HTMLElement | null) => {
+      // Each open list adds a list and an item to the depth of the built document.
+      if ((stack.length + 1) * 2 > PASTE_BUDGET.depth) throw new PasteOverBudgetError('depth');
       const list = el(ordered ? 'ol' : 'ul');
       if (parent) parent.appendChild(list);
       else roots.push(list);
@@ -503,10 +529,20 @@ export function cleanPastedHtml(html: string): CleanedPaste {
     }
   };
 
-  const root = el('div', {}, blockify(walkChildren(doc.body, { marks: new Set(), inFigure: false })));
-  tidy(root);
-  flattenTablesOutsideContract(root);
-  return { html: root.innerHTML, imagesLeftOut };
+  try {
+    const root = el('div', {}, blockify(walkChildren(doc.body, { marks: new Set(), inFigure: false })));
+    const overBuilt = overParsedBudget(root);
+    if (overBuilt) return refused(overBuilt);
+    tidy(root);
+    flattenTablesOutsideContract(root);
+    return { html: root.innerHTML, imagesLeftOut };
+  } catch (error) {
+    if (error instanceof PasteOverBudgetError) return refused(error.budget);
+    // The walk calls itself once for each level. A document that is still too deep for the
+    // engine is over the depth budget, whatever the count said.
+    if (error instanceof RangeError) return refused('depth');
+    throw error;
+  }
 }
 
 /**

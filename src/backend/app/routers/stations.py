@@ -444,7 +444,7 @@ async def duplicate_station(
     source = await station_repo.get_by_id(station_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Station not found")
-    station = await copy_station(db, org.id, source, current_user.id)
+    station = await copy_station(db, org.id, org.slug, source, current_user.id)
     await db.commit()
     await db.refresh(station)
     record_audit_event(

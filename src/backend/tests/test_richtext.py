@@ -17,12 +17,15 @@ from app.services.richtext import (
     ALLOWED_TAGS,
     LINK_REL,
     REFERENCE_ANSWER_MAX_LENGTH,
+    RENDERER_DROPS_WITH_CONTENT,
     RICH_TEXT_MAX_LENGTH,
     TABLE_CELL_SEPARATOR,
     TABLE_MAX_COLUMNS,
+    TABLE_MAX_NESTING,
     TIPS_HEADER_MAX_LENGTH,
     URL_SCHEMES,
     RichTextTooLongError,
+    RichTextTooNestedError,
     _flatten_tables_outside_contract,
     _is_media_source,
     image_object_keys,
@@ -473,15 +476,24 @@ def test_a_foreign_image_in_a_wide_table_goes_and_the_words_of_its_row_stay() ->
     assert cleaned == "<p>eins · zwei · drei · vier</p>"
 
 
-def test_a_table_nested_two_hundred_deep_loses_no_word() -> None:
+def _tables_with_a_word_each(depth: int) -> str:
     html = "<p>kern</p>"
-    for level in range(200):
+    for level in range(depth):
         html = f"<table><tbody><tr><td><p>w{level}</p>{html}</td><td>x</td></tr></tbody></table>"
-    cleaned = sanitize_html(html, PREFIX)
+    return html
+
+
+def test_tables_nested_as_deep_as_the_bound_lose_no_word() -> None:
+    cleaned = sanitize_html(_tables_with_a_word_each(TABLE_MAX_NESTING), PREFIX)
     assert "kern" in cleaned
-    for level in range(200):
+    for level in range(TABLE_MAX_NESTING):
         assert f"w{level}" in cleaned
     assert cleaned.count("<table") == 1
+
+
+def test_a_table_nested_two_hundred_deep_is_refused_and_nothing_is_cut() -> None:
+    with pytest.raises(RichTextTooNestedError):
+        sanitize_html(_tables_with_a_word_each(200), PREFIX)
 
 
 def test_deeply_nested_inline_and_block_markup_in_a_wide_table_does_not_raise() -> None:
@@ -817,7 +829,7 @@ DECOY = f"{PREFIX}11111111-1111-1111-1111-111111111111/media/decoy.png"
 )
 def test_only_the_src_of_a_real_image_element_is_an_image_source(html: str) -> None:
     assert image_sources(html) == {REAL}
-    assert image_object_keys(html, PREFIX) == {"11111111-1111-1111-1111-111111111111/media/real.png"}
+    assert image_object_keys(html, PREFIX) == frozenset({"11111111-1111-1111-1111-111111111111/media/real.png"})
 
 
 def test_an_image_source_is_decoded_like_a_browser_reads_it() -> None:
@@ -891,12 +903,153 @@ def test_many_small_wide_tables_and_deeply_nested_tables_are_flattened_in_linear
     assert len(many) <= RICH_TEXT_MAX_LENGTH
     cleaned = sanitize_html(many, PREFIX)
     assert cleaned == "<p>a · b · c · d</p>" * 700
-    nested = "<table><tr><td>" * 1500 + "x" + "</td></tr></table>" * 1500
-    assert len(nested) <= RICH_TEXT_MAX_LENGTH
     assert _seconds(lambda value: sanitize_html(value, PREFIX), many) < 2
-    assert _seconds(lambda value: sanitize_html(value, PREFIX), nested) < 2
+
+
+def _nested_tables(depth: int, content: str) -> str:
+    return "<table><tr><td>" * depth + content + "</td></tr></table>" * depth
+
+
+def test_tables_nested_to_the_bound_are_flattened_and_one_more_is_refused() -> None:
+    # Each table around another reads the content of the inner one again, so the depth has a bound.
+    assert TABLE_MAX_NESTING == 20
+    at_the_bound = sanitize_html(_nested_tables(TABLE_MAX_NESTING, "<em>x</em>y"), PREFIX)
+    assert at_the_bound == "<table><tbody><tr><td><p><em>x</em>y</p></td></tr></tbody></table>"
+    with pytest.raises(RichTextTooNestedError) as caught:
+        sanitize_html(_nested_tables(TABLE_MAX_NESTING + 1, "x"), PREFIX, loc=("description", "de"))
+    assert caught.value.loc == ("description", "de")
+    assert caught.value.detail() == {
+        "type": "rich_text_too_nested",
+        "loc": ["body", "description", "de"],
+        "msg": "Tables should be nested at most 20 deep",
+        "ctx": {"max_nesting": 20},
+    }
+
+
+def test_tables_side_by_side_do_not_count_as_nested() -> None:
+    side_by_side = "<table><tr><td>a</td></tr></table>" * 300
+    assert sanitize_html(side_by_side, PREFIX) == "<table><tbody><tr><td>a</td></tr></tbody></table>" * 300
+
+
+def test_deeply_nested_tables_are_refused_at_once_whatever_they_hold() -> None:
+    # 700 tables around 2,000 inline elements: before the bound, the table rule read the 2,000 elements
+    # once for each table around them.
+    text = _nested_tables(700, "<em>x</em>" * 2000)
+    assert len(text) <= RICH_TEXT_MAX_LENGTH
+
+    def refused(value: str) -> None:
+        with pytest.raises(RichTextTooNestedError):
+            sanitize_html(value, PREFIX)
+
+    assert _seconds(refused, text) < 2
+
+
+def test_the_work_of_the_table_rule_at_the_bound_grows_with_the_size_not_with_its_square(monkeypatch) -> None:
+    """A count of steps, not a clock: the same answer on a fast and on a slow machine."""
+    from app.services import richtext
+
+    calls = {"n": 0}
+    original = richtext._take_images
+
+    def counted(parent, images):  # type: ignore[no-untyped-def]
+        calls["n"] += 1
+        return original(parent, images)
+
+    monkeypatch.setattr(richtext, "_take_images", counted)
+
+    def steps(elements: int) -> int:
+        calls["n"] = 0
+        sanitize_html(_nested_tables(TABLE_MAX_NESTING, "<em>x</em>" * elements), PREFIX)
+        return calls["n"]
+
+    small, large = steps(500), steps(2000)
+    assert small == (TABLE_MAX_NESTING - 1) * 500
+    assert large == (TABLE_MAX_NESTING - 1) * 2000
 
 
 def test_leading_and_trailing_breaks_of_a_cell_leave_no_trace() -> None:
     cell = "<br><br> <strong><br>A</strong> <br>"
     assert sanitize_html(_wide_table(cell), PREFIX) == "<p><strong>A</strong> · b · c · d</p>"
+
+
+# ---------------------------------------------------------------------------
+# An image is public only when the renderer shows it. A legal text of an older release is stored as it
+# came in, so an image inside content that the renderer throws away must open nothing.
+# ---------------------------------------------------------------------------
+
+KEY = "11111111-1111-1111-1111-111111111111/media/real.png"
+
+
+# ``svg`` and ``math`` are not in the list: a browser ends them at an ``img`` and shows the image.
+_WRAPPERS_THAT_HIDE = sorted(
+    RENDERER_DROPS_WITH_CONTENT
+    - {"head", "colgroup", "desc", "foreignobject", "annotation-xml", "selectedcontent", "svg", "math"}
+) + ["select", "textarea"]
+
+
+@pytest.mark.parametrize("wrapper", _WRAPPERS_THAT_HIDE)
+def test_an_image_inside_content_that_the_renderer_removes_is_not_shown(wrapper: str) -> None:
+    html = f'<p>a</p><{wrapper}><img src="{REAL}"></{wrapper}><p>b</p>'
+    assert image_object_keys(html, PREFIX) == frozenset(), wrapper
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        f'<svg><desc><img src="{REAL}"></desc></svg>',
+        f'<math><mtext><img src="{REAL}"></mtext></math>',
+        f'<svg><foreignObject><img src="{REAL}"></foreignObject></svg>',
+        f'<template><div><p><img src="{REAL}"></p></div></template>',
+        f'<video controls><source src="x.mp4"><p>Fallback <img src="{REAL}"></p></video>',
+        f'<![CDATA[<img src="{REAL}">]]>',
+        f'<img src="{REAL}"',
+    ],
+)
+def test_an_image_in_a_place_no_browser_shows_is_not_shown(html: str) -> None:
+    assert image_object_keys(html, PREFIX) == frozenset()
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        f'<p><img src="{REAL}"></p>',
+        f'<a href="https://example.org"><img src="{REAL}"></a>',
+        f'<figure><img src="{REAL}"><figcaption>x</figcaption></figure>',
+        f'<div class="x"><span><img src="{REAL}"></span></div>',
+        f'<table><tr><td><img src="{REAL}"></td></tr></table>',
+        # A browser ends this comment at "--!>", so the image after it is real.
+        f'<!-- x --!><img src="{REAL}">',
+        # The prefix written with a character reference is the same address for a browser.
+        f'<img src="&#47;api/orgs/stadt-augsburg/media/{KEY}">',
+        f'<IMG SRC="{REAL}">',
+        # A browser ends svg and math at an img and shows the image after them.
+        f'<svg><img src="{REAL}"></svg>',
+        f'<math><img src="{REAL}"></math>',
+    ],
+)
+def test_an_image_that_the_renderer_shows_is_shown(html: str) -> None:
+    assert PREFIX == "/api/orgs/stadt-augsburg/media/"
+    assert image_object_keys(html, PREFIX) == frozenset({KEY})
+
+
+def test_the_list_of_removed_content_is_the_list_of_the_renderer() -> None:
+    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "utils" / "sanitizeRichText.ts").read_text(
+        encoding="utf-8"
+    )
+    start = source.index("const FORBID_CONTENTS = [")
+    listed = set(re.findall(r"'([a-z-]+)'", source[start : source.index("];", start)]))
+    assert listed == set(RENDERER_DROPS_WITH_CONTENT)
+
+
+def test_a_text_far_over_the_limit_shows_no_image_and_costs_no_work() -> None:
+    html = f'<img src="{REAL}">' + "a" * (4 * RICH_TEXT_MAX_LENGTH)
+    assert image_object_keys(html, PREFIX) == frozenset()
+
+
+def test_the_answer_follows_the_text_and_the_prefix() -> None:
+    first = f'<p><img src="{REAL}"></p>'
+    assert image_object_keys(first, PREFIX) == frozenset({KEY})
+    assert image_object_keys(first.replace("real.png", "other.png"), PREFIX) == frozenset(
+        {KEY.replace("real", "other")}
+    )
+    assert image_object_keys(first, "/api/orgs/another-org/media/") == frozenset()

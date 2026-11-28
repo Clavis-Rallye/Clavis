@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator, Mapping
+from functools import lru_cache
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import unquote
@@ -59,6 +60,42 @@ class RichTextTooLongError(ValueError):
         self.loc = loc
         self.cleaned = cleaned
         super().__init__(f"Text must be at most {max_length} characters" + (" after cleaning" if cleaned else ""))
+
+    def detail(self) -> dict[str, Any]:
+        """The error as one entry of a 422 answer, in the shape of a validation error of the body."""
+        message = f"String should have at most {self.max_length} characters"
+        if self.cleaned:
+            message += " after cleaning. Special characters and links take more room in the stored text"
+        return {
+            "type": "string_too_long",
+            "loc": ["body", *self.loc],
+            "msg": message,
+            "ctx": {"max_length": self.max_length},
+        }
+
+
+# A table inside a table inside a table: the editor makes none, and every table inside a cell becomes
+# paragraphs. Each table around another reads the content of the inner one again, so the work of the table
+# rule grows with the depth times the size. This bound keeps it linear in the size.
+TABLE_MAX_NESTING = 20
+
+
+class RichTextTooNestedError(ValueError):
+    """A rich text holds tables nested deeper than ``TABLE_MAX_NESTING``. The API answers 422 with the field."""
+
+    def __init__(self, loc: tuple[str, ...] = ()) -> None:
+        self.max_nesting = TABLE_MAX_NESTING
+        self.loc = loc
+        super().__init__(f"Tables must be nested at most {TABLE_MAX_NESTING} deep")
+
+    def detail(self) -> dict[str, Any]:
+        """The error as one entry of a 422 answer, in the shape of a validation error of the body."""
+        return {
+            "type": "rich_text_too_nested",
+            "loc": ["body", *self.loc],
+            "msg": f"Tables should be nested at most {self.max_nesting} deep",
+            "ctx": {"max_nesting": self.max_nesting},
+        }
 
 
 ALLOWED_TAGS: set[str] = {
@@ -282,16 +319,76 @@ def image_sources(html: str | None) -> set[str]:
     return finder.sources
 
 
-def image_object_keys(html: str | None, media_prefix: str) -> set[str]:
+# What the renderer of the frontend removes with everything inside it (``FORBID_CONTENTS`` in
+# ``src/frontend/src/utils/sanitizeRichText.ts``). A test compares the two lists.
+RENDERER_DROPS_WITH_CONTENT: frozenset[str] = frozenset(
+    {
+        "annotation-xml",
+        "audio",
+        "colgroup",
+        "desc",
+        "foreignobject",
+        "head",
+        "iframe",
+        "math",
+        "mi",
+        "mn",
+        "mo",
+        "ms",
+        "mtext",
+        "noembed",
+        "noframes",
+        "noscript",
+        "plaintext",
+        "script",
+        "selectedcontent",
+        "style",
+        "svg",
+        "template",
+        "title",
+        "video",
+        "xmp",
+    }
+)
+
+# A browser of today keeps an image inside ``select``, an older one drops it while it parses. No such image
+# is public, so the answer does not depend on the browser.
+_NOT_SHOWN_IN_EVERY_BROWSER: frozenset[str] = frozenset({"select"})
+
+# A legal text of an older release can be longer than the limit. Beyond this length no image of it is
+# public: the answer of an open route must not cost unbounded work.
+_SHOWN_IMAGES_MAX_LENGTH = 4 * RICH_TEXT_MAX_LENGTH
+
+
+@lru_cache(maxsize=64)
+def image_object_keys(html: str | None, media_prefix: str) -> frozenset[str]:
     """The object keys of the images that a stored document shows from ``media_prefix``.
 
-    Only a source in the strict form of ``_is_media_source`` counts. The key is the part after the prefix,
-    percent-decoded, which is the form the media route receives. The media route compares this key with
-    the requested one to decide whether an image is public (``routers/media.py``).
+    The media route opens an object to anyone on this answer (``routers/media.py``), and a legal text of an
+    older release is stored as it came in. So the answer is not "every ``img`` in the text" but "every image
+    that the renderer shows": the text is cleaned with the allowlist of the write filter, and what the
+    renderer removes with its content goes with its content, for example an image inside ``template`` or
+    ``video``. ``nh3`` parses like a browser, so raw text, comments and attribute values are no elements.
+    Then the ``src`` of each ``img`` that is left counts when it has the strict form of ``_is_media_source``.
+    The key is the part after the prefix, percent-decoded, which is the form the media route receives.
+
+    The answer for one text is kept: the route asks again for every image of a legal page.
     """
-    if not html or media_prefix not in html:
-        return set()
-    return {unquote(src[len(media_prefix) :]) for src in image_sources(html) if _is_media_source(src, media_prefix)}
+    if not html or "<" not in html or len(html) > _SHOWN_IMAGES_MAX_LENGTH:
+        return frozenset()
+    shown = nh3.clean(
+        html,
+        tags=ALLOWED_TAGS | _LEGACY_TAGS,
+        clean_content_tags=set(RENDERER_DROPS_WITH_CONTENT | _NOT_SHOWN_IN_EVERY_BROWSER),
+        attributes=_NH3_ATTRIBUTES,
+        tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
+        url_schemes=URL_SCHEMES,
+        link_rel=LINK_REL,
+        strip_comments=True,
+    )
+    return frozenset(
+        unquote(src[len(media_prefix) :]) for src in image_sources(shown) if _is_media_source(src, media_prefix)
+    )
 
 
 def is_html(text: str) -> bool:
@@ -703,6 +800,9 @@ def _flatten_tables_outside_contract(html: str) -> str:
     One walk over the tree. An element is done after everything below it, so an inner table is paragraphs
     before the table around it is read. The walk carries whether a cell stands above an element, and the
     list of children of an element is built once, with the paragraphs of its flattened tables in place.
+
+    A table around another reads the content of the inner one again. So tables nested deeper than
+    ``TABLE_MAX_NESTING`` raise ``RichTextTooNestedError``, and the work stays linear in the size.
     """
     if "<table" not in html:
         return html
@@ -711,15 +811,21 @@ def _flatten_tables_outside_contract(html: str) -> str:
     builder.close()
     replacements: dict[_Element, list[_Node]] = {}
     with_replaced_child: set[_Element] = set()
-    # (element, a cell stands above it, everything below it is done)
-    stack: list[tuple[_Element, bool, bool]] = [(builder.root, False, False)]
+    # (element, a cell stands above it, the count of tables above it, everything below it is done)
+    stack: list[tuple[_Element, bool, int, bool]] = [(builder.root, False, 0, False)]
     while stack:
-        element, inside_cell, below_done = stack.pop()
+        element, inside_cell, tables_above, below_done = stack.pop()
         if not below_done:
-            stack.append((element, inside_cell, True))
+            if element.tag == "table":
+                if tables_above >= TABLE_MAX_NESTING:
+                    raise RichTextTooNestedError
+                tables_above += 1
+            stack.append((element, inside_cell, tables_above, True))
             child_inside_cell = inside_cell or element.tag in ("td", "th")
             stack.extend(
-                (child, child_inside_cell, False) for child in reversed(element.children) if isinstance(child, _Element)
+                (child, child_inside_cell, tables_above, False)
+                for child in reversed(element.children)
+                if isinstance(child, _Element)
             )
             continue
         if element in with_replaced_child:
@@ -840,7 +946,8 @@ def sanitize_html(
     A text longer than ``RICH_TEXT_MAX_LENGTH`` raises ``RichTextTooLongError`` before any other work, so the
     filter never works on more. The cleaned text is what the write stores, and it can be longer than the
     text that came in. So it is measured again, against ``max_length`` of the field, and a text that is too
-    long is refused, never cut. ``loc`` names the field in the error.
+    long is refused, never cut. Tables nested deeper than ``TABLE_MAX_NESTING`` raise
+    ``RichTextTooNestedError``. ``loc`` names the field in both errors.
     """
     if len(html) > RICH_TEXT_MAX_LENGTH:
         raise RichTextTooLongError(RICH_TEXT_MAX_LENGTH, loc)
@@ -858,7 +965,10 @@ def sanitize_html(
         strip_comments=True,
     )
     mapped = map_legacy_elements(cleaned)
-    result = _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+    try:
+        result = _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+    except RichTextTooNestedError:
+        raise RichTextTooNestedError(loc) from None
     if len(result) > max_length:
         raise RichTextTooLongError(max_length, loc, cleaned=True)
     return result

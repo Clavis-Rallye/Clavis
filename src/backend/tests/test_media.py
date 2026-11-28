@@ -276,6 +276,12 @@ async def test_only_a_real_image_source_of_a_legal_text_opens_an_image(
         f"""<!-- <img src="{hidden}"> --><p>&lt;img src="{hidden}"&gt; src="{hidden}"</p><img src="{shown}">""",
         f"""<img src="{shown}" src="{hidden}">""",
         f"""<img src="{hidden}?x=1"><img src="{hidden}#x"><img src="{shown}">""",
+        # Inside content that the renderer removes with everything in it, the image is never shown.
+        f"""<template><img src="{hidden}"></template><img src="{shown}">""",
+        f"""<video controls><p>Fallback <img src="{hidden}"></p></video><img src="{shown}">""",
+        f"""<noscript><img src="{hidden}"></noscript><select><img src="{hidden}"></select><img src="{shown}">""",
+        # The prefix of the real image written with a character reference: a browser reads the same address.
+        f"""<img src="{shown.replace("/api/", "&#47;api/", 1)}"><textarea><img src="{hidden}"></textarea>""",
     ]
     for text in decoys:
         await db_session.execute(
