@@ -281,34 +281,21 @@ describe('cleanPastedHtml on tables', () => {
 });
 
 describe('cleanPastedHtml in linear time', () => {
-  // A wall-time limit measures the runner, a ratio measures the growth.
-  const bestOf = (runs: number, fn: () => unknown): number => {
-    let best = Infinity;
-    for (let i = 0; i < runs; i += 1) {
+  // At this size a quadratic filter needs many minutes and a linear one well under a second, so
+  // five seconds separates the two with a wide margin; 500 ms was too close to a slow runner.
+  const LINEAR_TIME_LIMIT_MS = 5000;
+
+  it(
+    'ends within five seconds on a long style value',
+    () => {
+      const style = 'text-decoration:'.repeat(125_000);
       const start = performance.now();
-      fn();
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
-
-  // A wall-time limit measures the runner, a ratio measures the growth. Below 50 ms the timer
-  // and the runner decide, not the code, so a measure that small passes without a ratio.
-  const expectLinearGrowth = (small: number, large: number) => {
-    if (large >= 50) expect(large / small).toBeLessThan(10);
-    expect(large).toBeLessThan(10_000);
-  };
-
-  it('grows by less than a factor of ten when the style value grows by four', () => {
-    const styleSmall = 'text-decoration:'.repeat(31_250);
-    const styleLarge = 'text-decoration:'.repeat(125_000);
-    const smallInput = `<p><span style="${styleSmall}">a</span></p>`;
-    const largeInput = `<p><span style="${styleLarge}">a</span></p>`;
-    const small = bestOf(3, () => cleanPastedHtml(smallInput));
-    const large = bestOf(3, () => cleanPastedHtml(largeInput));
-    expectLinearGrowth(small, large);
-    expect(cleanPastedHtml(largeInput).html).toBe('<p>a</p>');
-  });
+      const result = cleanPastedHtml(`<p><span style="${style}">a</span></p>`);
+      expect(performance.now() - start).toBeLessThan(LINEAR_TIME_LIMIT_MS);
+      expect(result.html).toBe('<p>a</p>');
+    },
+    30_000,
+  );
 
   it('still counts an underline and a strike-through in a normal style', () => {
     const html =

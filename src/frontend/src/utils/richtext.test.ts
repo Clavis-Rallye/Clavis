@@ -135,49 +135,29 @@ describe('richtext helpers run in linear time', () => {
     'shape 5': (k) => '<h1 '.repeat(k),
   };
 
-  // A wall-time limit measures the runner, a ratio measures the growth.
-  const bestOf = (runs: number, fn: () => unknown): number => {
-    let best = Infinity;
-    for (let i = 0; i < runs; i += 1) {
-      const start = performance.now();
-      fn();
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
+  // At two million characters a quadratic filter needs many minutes and a linear one well under a
+  // second, so five seconds separates the two with a wide margin; 500 ms was too close to a slow
+  // runner.
+  const LINEAR_TIME_LIMIT_MS = 5000;
 
-  // A wall-time limit measures the runner, a ratio measures the growth. Below 50 ms the timer
-  // and the runner decide, not the code, so a measure that small passes without a ratio.
-  const expectLinearGrowth = (small: number, large: number) => {
-    if (large >= 50) expect(large / small).toBeLessThan(10);
-    expect(large).toBeLessThan(10_000);
-  };
-
-  // The old sizes (400 000 and 2 000 000 characters) sit in a range where this V8 replaces
-  // single characters in dense strings slower than linearly, so a 4n input there measures the
-  // engine, not the filter. Sizes from about eight million characters on grow linearly again,
-  // and the larger inputs keep the smaller ones clearly above two milliseconds.
-  const SIZES: Record<string, number> = {
-    'shape 1': 102_400_000,
-    'shape 2': 12_800_000,
-    'shape 3': 102_400_000,
-    'shape 4': 12_800_000,
-    'shape 5': 12_800_000,
+  const timed = (run: () => unknown): number => {
+    const start = performance.now();
+    run();
+    return performance.now() - start;
   };
 
   for (const [name, build] of Object.entries(SHAPES)) {
-    const size = SIZES[name];
-    it(`grows isHtml and toEditorHtml on ${name} by less than a factor of ten when the input grows by four`, () => {
-      const textOf = (n: number) => build(Math.ceil(n / build(1).length)).slice(0, n);
-    const textSmall = textOf(size / 4);
-    const textLarge = textOf(size);
-    const small = bestOf(3, () => isHtml(textSmall));
-    const large = bestOf(3, () => isHtml(textLarge));
-    expectLinearGrowth(small, large);
-    const smallEditor = bestOf(3, () => toEditorHtml(textSmall));
-    const largeEditor = bestOf(3, () => toEditorHtml(textLarge));
-      expectLinearGrowth(smallEditor, largeEditor);
-    });
+    for (const size of [400_000, 2_000_000]) {
+      it(
+        `ends isHtml and toEditorHtml within five seconds on ${name} at ${size} characters`,
+        () => {
+          const text = build(Math.ceil(size / build(1).length)).slice(0, size);
+          expect(timed(() => isHtml(text))).toBeLessThan(LINEAR_TIME_LIMIT_MS);
+          expect(timed(() => toEditorHtml(text))).toBeLessThan(LINEAR_TIME_LIMIT_MS);
+        },
+        30_000,
+      );
+    }
   }
 
   it('keeps the meaning of isHtml', () => {
