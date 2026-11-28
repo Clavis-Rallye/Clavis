@@ -194,6 +194,7 @@
     "selectionMenu": "Format selection",
     "pasteImagesLeftOut_one": "{{count}} image was left out. Add images with the image button.",
     "pasteImagesLeftOut_other": "{{count}} images were left out. Add images with the image button.",
+    "pasteTooLarge": "The pasted content is too large and was not inserted. Paste it in smaller parts.",
     "tableColumnLimit": "At most three columns",
     "tooLong": "The text is too long: {{count}} of at most {{max}} characters, formatting included."
   },

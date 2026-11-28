@@ -18,7 +18,7 @@ release you check out.
 The commands of this guide install one release. Set it once in the shell you use for the install:
 
 ```sh
-export CLAVIS_RELEASE=v0.9.3
+export CLAVIS_RELEASE=v0.9.4
 ```
 
 Every command below that names the release reads this variable.

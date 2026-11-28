@@ -15,6 +15,47 @@ export interface CleanedPaste {
   html: string;
   /** Images that were not taken over because they are not on the media route. */
   imagesLeftOut: number;
+  /** Set when the paste was over a budget. Then `html` is empty and nothing was cleaned. */
+  overBudget?: PasteBudget;
+}
+
+/**
+ * The budgets of one paste. The cleaning runs in one go on the thread of the page, so a paste
+ * that is too large would freeze the tab. A paste over a budget is refused before any of that
+ * work, and the editor says so.
+ *
+ * - `characters`: the markup on the clipboard. Word writes about twenty times the visible text, so
+ *   three million characters hold far more than the longest text the server stores.
+ * - `nodes` and `depth`: the parsed document. The cleaning walks it with one function call for
+ *   each level of depth.
+ */
+export const PASTE_BUDGET = { characters: 3_000_000, nodes: 100_000, depth: 100 } as const;
+export type PasteBudget = keyof typeof PASTE_BUDGET;
+
+/**
+ * The budget that the parsed document is over, or `null`. One walk without recursion, which ends
+ * at the first budget that is exceeded.
+ */
+function overParsedBudget(root: Node): PasteBudget | null {
+  let nodes = 0;
+  let depth = 0;
+  let node: Node | null = root;
+  while (node) {
+    nodes += 1;
+    if (nodes > PASTE_BUDGET.nodes) return 'nodes';
+    if (node.firstChild) {
+      depth += 1;
+      if (depth > PASTE_BUDGET.depth) return 'depth';
+      node = node.firstChild;
+      continue;
+    }
+    while (node && node !== root && !node.nextSibling) {
+      node = node.parentNode;
+      depth -= 1;
+    }
+    node = node && node !== root ? node.nextSibling : null;
+  }
+  return null;
 }
 
 type Mark = 'strong' | 'em' | 'u' | 's';
@@ -149,7 +190,10 @@ const allowedValue = (list: string[], value: string | null): string | null =>
   value !== null && list.includes(value) ? value : null;
 
 export function cleanPastedHtml(html: string): CleanedPaste {
+  if (html.length > PASTE_BUDGET.characters) return { html: '', imagesLeftOut: 0, overBudget: 'characters' };
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  const over = overParsedBudget(doc.documentElement);
+  if (over) return { html: '', imagesLeftOut: 0, overBudget: over };
   let imagesLeftOut = 0;
 
   const el = (tag: string, attributes: Record<string, string> = {}, children: Node[] = []): HTMLElement => {
@@ -522,19 +566,39 @@ function trimLineBreaks(root: Element): void {
 
 const KEEP_EMPTY = new Set(['hr', 'img', 'br', 'td', 'th']);
 
-function isEmptyElement(element: Element): boolean {
-  const name = nameOf(element);
-  if (KEEP_EMPTY.has(name)) return false;
-  if (name === 'tr' || name === 'tbody' || name === 'table') return element.childElementCount === 0;
-  return !hasText(element) && !element.querySelector('img, hr');
-}
-
-/** Removes the elements that hold nothing, from the inside out. */
-function prune(element: Element): void {
-  for (const child of Array.from(element.children)) prune(child);
-  for (const child of Array.from(element.children)) {
-    if (isEmptyElement(child)) child.remove();
+/**
+ * Removes the elements that hold nothing, from the inside out, and says what `element` holds
+ * after that: text, or an image or a divider. An element holds nothing when it has no text and no
+ * image or divider below it. A row, a table body and a table hold nothing when no element is left
+ * in them. A cell, a line break, an image and a divider always stay.
+ *
+ * One walk: every element learns from its children what it holds. Reading the text of the whole
+ * subtree for each element would cost the depth times the size.
+ */
+function prune(element: Element): { text: boolean; media: boolean } {
+  let text = false;
+  let media = false;
+  for (const child of Array.from(element.childNodes)) {
+    if (child.nodeType === 3) {
+      if (/\S/.test((child as Text).data)) text = true;
+      continue;
+    }
+    if (!isElement(child)) continue;
+    const name = nameOf(child);
+    const below = prune(child);
+    const empty = KEEP_EMPTY.has(name)
+      ? false
+      : name === 'tr' || name === 'tbody' || name === 'table'
+        ? child.childElementCount === 0
+        : !below.text && !below.media;
+    if (empty) {
+      child.remove();
+      continue;
+    }
+    if (below.text) text = true;
+    if (below.media || name === 'img' || name === 'hr') media = true;
   }
+  return { text, media };
 }
 
 /** `<strong>a</strong><strong>b</strong>` becomes `<strong>ab</strong>`, down the tree. */

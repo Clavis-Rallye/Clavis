@@ -79,44 +79,65 @@ function looseRuns(parent: Node, runs: Node[][] = []): Node[][] {
   return runs;
 }
 
-/** Removes white space and `br` from one edge of a run of nodes, going into elements at the edge. */
+/**
+ * Removes white space and `br` from one edge of a run of nodes, going into elements at the edge.
+ * The run is cut once at the end, by the count of nodes that went. A removal from the front for
+ * each node would move the rest of the array each time.
+ */
 function trimEdge(nodes: Node[], atStart: boolean): void {
-  while (nodes.length > 0) {
-    const node = atStart ? nodes[0] : nodes[nodes.length - 1];
+  let gone = 0;
+  while (gone < nodes.length) {
+    const node = atStart ? nodes[gone] : nodes[nodes.length - 1 - gone];
     if (node.nodeType === 3) {
       const text = node as Text;
       text.data = text.data.replace(atStart ? LEADING_SPACE : TRAILING_SPACE, '');
-      if (text.data !== '') return;
+      if (text.data !== '') break;
     } else if (nameOf(node) !== 'br') {
       trimEdge(Array.from(node.childNodes), atStart);
-      if (node.childNodes.length > 0) return;
+      if (node.childNodes.length > 0) break;
     }
     node.parentNode?.removeChild(node);
-    if (atStart) nodes.shift();
-    else nodes.pop();
+    gone += 1;
   }
+  if (gone > 0) nodes.splice(atStart ? 0 : nodes.length - gone, gone);
 }
 
 const hasText = (nodes: Node[]): boolean => nodes.some((node) => !isBlank(node.textContent ?? ''));
 
 /**
- * Moves every `img` and `figure` below `parent`, also deep inside inline elements, into `images`
- * in document order. An inline element that lost an image and holds no text other than white
- * space goes away with it, so no empty link is left. Returns whether it moved anything.
+ * Finds every `img` and `figure` below `parent`, also deep inside inline elements, and puts them
+ * into `images` in document order. An inline element that held an image and holds no text other
+ * than white space goes away with it, so no empty link is left. The text of a figure, its caption,
+ * counts as text of the elements around it. An image does not leave its place here: it moves when
+ * the table is replaced.
+ *
+ * One walk: every element learns from its children whether it holds text. Reading the text of the
+ * whole subtree for each element would cost the depth times the size.
  */
-function takeImages(parent: Node, images: Node[]): boolean {
+function takeImages(parent: Node, images: Node[]): { took: boolean; text: boolean } {
   let took = false;
+  let text = false;
   for (const child of Array.from(parent.childNodes)) {
     const name = nameOf(child);
     if (name === 'img' || name === 'figure') {
       images.push(child);
       took = true;
-    } else if (child.nodeType === 1 && takeImages(child, images)) {
-      took = true;
-      if (isBlank(child.textContent ?? '')) parent.removeChild(child);
+      if (!isBlank(child.textContent ?? '')) text = true;
+    } else if (child.nodeType === 1) {
+      const below = takeImages(child, images);
+      if (below.took) {
+        took = true;
+        if (!below.text) {
+          parent.removeChild(child);
+          continue;
+        }
+      }
+      if (below.text) text = true;
+    } else if (child.nodeType === 3 && !isBlank((child as Text).data)) {
+      text = true;
     }
   }
-  return took;
+  return { took, text };
 }
 
 /**
@@ -139,7 +160,8 @@ function linesOf(nodes: Node[], images: Node[]): Node[][] {
         const name = nameOf(child);
         if (name === 'img' || name === 'figure') images.push(child);
         else if (INLINE_TAGS.has(name)) {
-          if (takeImages(child, images) && isBlank(child.textContent ?? '')) continue;
+          const below = takeImages(child, images);
+          if (below.took && !below.text) continue;
           current.push(child);
         } else if (name === 'hr') endLine();
         else {

@@ -16,12 +16,16 @@ from app.services.richtext import (
     ALLOWED_ATTRIBUTES,
     ALLOWED_TAGS,
     LINK_REL,
+    REFERENCE_ANSWER_MAX_LENGTH,
     RICH_TEXT_MAX_LENGTH,
     TABLE_CELL_SEPARATOR,
     TABLE_MAX_COLUMNS,
+    TIPS_HEADER_MAX_LENGTH,
     URL_SCHEMES,
+    RichTextTooLongError,
     _flatten_tables_outside_contract,
     _is_media_source,
+    image_object_keys,
     image_sources,
     is_html,
     map_legacy_elements,
@@ -29,6 +33,7 @@ from app.services.richtext import (
     sanitize_html,
     sanitize_multilingual,
     sanitize_optional_html,
+    sanitize_station_tips,
 )
 
 PREFIX = media_prefix_for("stadt-augsburg")
@@ -548,9 +553,18 @@ def test_sanitize_html_of_the_longest_text_of_nested_or_attribute_heavy_markup_e
 
 
 def test_sanitize_html_of_a_long_pre_with_many_lines_is_fast() -> None:
+    # Each line of three characters becomes a paragraph of eight, so the cleaned text is over the limit and
+    # the filter refuses it. It must still end fast.
     text = "<pre>" + "a\n\n" * (RICH_TEXT_MAX_LENGTH // 4 - 3) + "</pre>"
     assert len(text) <= RICH_TEXT_MAX_LENGTH
-    assert _seconds(lambda value: sanitize_html(value, PREFIX), text) < 1
+
+    def refused(value: str) -> None:
+        with pytest.raises(RichTextTooLongError):
+            sanitize_html(value, PREFIX)
+
+    assert _seconds(refused, text) < 1
+    shorter = "<pre>" + "a\n\n" * 6000 + "</pre>"
+    assert _seconds(lambda value: sanitize_html(value, PREFIX), shorter) < 1
 
 
 def test_one_character_over_the_limit_raises_at_once() -> None:
@@ -692,3 +706,197 @@ def test_a_figure_around_an_image_with_an_unclean_source_goes_with_its_caption()
 def test_a_clean_image_of_the_organization_stays_in_both_places() -> None:
     html = f'<figure><img src="{MEDIA}a.png"><figcaption>c</figcaption></figure>'
     assert sanitize_html(html, MEDIA) == html
+
+
+# ---------------------------------------------------------------------------
+# The limit holds for the text that is stored. Cleaning can make a text longer than it came in.
+# ---------------------------------------------------------------------------
+
+
+def test_a_text_that_cleaning_makes_too_long_is_refused_and_never_cut() -> None:
+    # 50,000 characters come in. Each ampersand is stored as five characters, so the stored text
+    # would have 249,972.
+    text = "<p>" + "&" * (RICH_TEXT_MAX_LENGTH - 7) + "</p>"
+    assert len(text) == RICH_TEXT_MAX_LENGTH
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_html(text, PREFIX, loc=("description", "de"))
+    assert caught.value.max_length == RICH_TEXT_MAX_LENGTH
+    assert caught.value.cleaned is True
+    assert caught.value.loc == ("description", "de")
+    assert "after cleaning" in str(caught.value)
+
+
+def test_a_cleaned_text_of_exactly_the_limit_passes_and_one_more_is_refused() -> None:
+    # "<p>" and "</p>" are 7 characters, each ampersand is stored as 5: 7 + 5 * 9998 + 3 = 50,000.
+    exact = "<p>" + "&" * 9998 + "abc</p>"
+    assert len(sanitize_html(exact, PREFIX)) == RICH_TEXT_MAX_LENGTH
+    with pytest.raises(RichTextTooLongError):
+        sanitize_html("<p>" + "&" * 9998 + "abcd</p>", PREFIX)
+
+
+def test_a_stored_text_can_be_saved_again_unchanged() -> None:
+    stored = sanitize_html("<p>" + "&" * 9998 + "abc</p>", PREFIX)
+    assert sanitize_html(stored, PREFIX) == stored
+
+
+def test_a_link_counts_with_the_rel_that_cleaning_adds() -> None:
+    link = '<a href="https://example.org">x</a>'
+    stored = sanitize_html(f"<p>{link}</p>", PREFIX)
+    assert 'rel="noopener noreferrer"' in stored
+    many = "<p>" + link * (RICH_TEXT_MAX_LENGTH // len(link) - 1) + "</p>"
+    assert len(many) <= RICH_TEXT_MAX_LENGTH
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_html(many, PREFIX)
+    assert caught.value.cleaned is True
+
+
+def test_the_text_that_comes_in_keeps_its_own_limit_and_is_not_cleaned_first() -> None:
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_html("<p>" + "a" * RICH_TEXT_MAX_LENGTH, PREFIX, loc=("legal_imprint",))
+    assert caught.value.cleaned is False
+    assert caught.value.loc == ("legal_imprint",)
+
+
+def test_the_reference_answer_keeps_its_smaller_limit_after_cleaning() -> None:
+    text = "<p>" + "&" * 2500 + "</p>"
+    assert len(text) <= REFERENCE_ANSWER_MAX_LENGTH
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_optional_html(text, PREFIX, max_length=REFERENCE_ANSWER_MAX_LENGTH, loc=("suggested_solution",))
+    assert caught.value.max_length == REFERENCE_ANSWER_MAX_LENGTH
+    assert caught.value.loc == ("suggested_solution",)
+    assert sanitize_optional_html("<p>" + "&" * 1000 + "</p>", PREFIX, max_length=REFERENCE_ANSWER_MAX_LENGTH)
+
+
+def test_the_tips_header_keeps_its_smaller_limit_after_cleaning_and_names_the_language() -> None:
+    header = "<p>" + "&" * 500 + "</p>"
+    assert len(header) <= TIPS_HEADER_MAX_LENGTH
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_station_tips({"header": {"de": "<p>kurz</p>", "en": header}, "links": []}, "stadt-augsburg")
+    assert caught.value.max_length == TIPS_HEADER_MAX_LENGTH
+    assert caught.value.loc == ("tips", "header", "en")
+
+
+def test_the_language_of_a_multilingual_text_is_named() -> None:
+    with pytest.raises(RichTextTooLongError) as caught:
+        sanitize_multilingual({"de": "<p>ok</p>", "uk": "<p>" + "&" * 20000 + "</p>"}, PREFIX, loc=("description",))
+    assert caught.value.loc == ("description", "uk")
+
+
+def test_plain_text_without_a_tag_is_measured_as_it_is() -> None:
+    plain = "a & b " * 300
+    assert sanitize_html(plain, PREFIX, max_length=TIPS_HEADER_MAX_LENGTH) == plain
+    with pytest.raises(RichTextTooLongError):
+        sanitize_html("a" * (TIPS_HEADER_MAX_LENGTH + 1), PREFIX, max_length=TIPS_HEADER_MAX_LENGTH)
+
+
+# ---------------------------------------------------------------------------
+# Image sources come from parsed img elements. The media route opens an object to anyone on this answer.
+# ---------------------------------------------------------------------------
+
+REAL = f"{PREFIX}11111111-1111-1111-1111-111111111111/media/real.png"
+DECOY = f"{PREFIX}11111111-1111-1111-1111-111111111111/media/decoy.png"
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        # A source-like text inside another quoted attribute of the image, before the real source.
+        f"""<img alt=" src='{DECOY}' " src="{REAL}">""",
+        f"""<img alt=' src="{DECOY}" ' src="{REAL}">""",
+        # Inside an attribute of another element, with a whole image tag in the value.
+        f"""<a href="https://example.org/?q=<img src='{DECOY}'>">x</a><img src="{REAL}">""",
+        # In a comment and in plain text.
+        f"""<!-- <img src="{DECOY}"> --><img src="{REAL}">""",
+        f"""<p>&lt;img src="{DECOY}"&gt;</p><img src="{REAL}">""",
+        # A browser takes the first of two src attributes.
+        f"""<img src="{REAL}" src="{DECOY}">""",
+        # Upper case and no quotes are still a real source.
+        f"""<IMG SRC={REAL}><p>src="{DECOY}"</p>""",
+    ],
+    ids=["alt-single", "alt-double", "other-attribute", "comment", "escaped-text", "two-src", "upper-case"],
+)
+def test_only_the_src_of_a_real_image_element_is_an_image_source(html: str) -> None:
+    assert image_sources(html) == {REAL}
+    assert image_object_keys(html, PREFIX) == {"11111111-1111-1111-1111-111111111111/media/real.png"}
+
+
+def test_an_image_source_is_decoded_like_a_browser_reads_it() -> None:
+    assert image_sources('<img src="/a&amp;b.png">') == {"/a&b.png"}
+    assert image_sources(None) == set()
+    assert image_sources("no tag at all") == set()
+
+
+def test_an_object_key_counts_only_for_a_strict_source_under_the_prefix() -> None:
+    key = "11111111-1111-1111-1111-111111111111/media/a b.png"
+    assert image_object_keys(f'<img src="{PREFIX}11111111-1111-1111-1111-111111111111/media/a%20b.png">', PREFIX) == {
+        key
+    }
+    refused = [
+        "/api/orgs/other-org/media/11111111-1111-1111-1111-111111111111/media/a.png",
+        f"https://example.org{PREFIX}x/media/a.png",
+        f"{PREFIX}x/media/a.png?download=1",
+        f"{PREFIX}x/media/a.png#top",
+        f"{PREFIX}x/media/../../secret.png",
+        f"{PREFIX}x/media/%2e%2e/secret.png",
+        PREFIX,
+    ]
+    for src in refused:
+        assert image_object_keys(f'<img src="{src}">', PREFIX) == set(), src
+
+
+def test_an_image_address_with_a_query_or_a_fragment_is_not_stored() -> None:
+    # The paste cleaner and the renderer of the frontend refuse both, so the write filter does too.
+    assert sanitize_html(f'<p>a</p><img src="{PREFIX}a.png?variant=thumb">', PREFIX) == "<p>a</p>"
+    assert sanitize_html(f'<p>a</p><img src="{PREFIX}a.png#x">', PREFIX) == "<p>a</p>"
+    assert sanitize_html(f'<p>a</p><img src="{PREFIX}">', PREFIX) == "<p>a</p>"
+
+
+# ---------------------------------------------------------------------------
+# The table rule does linear work. The limits are wide on purpose: at this size work that grows with the
+# square takes many seconds, and linear work a few hundredths of one.
+# ---------------------------------------------------------------------------
+
+
+def _wide_table(cell: str) -> str:
+    return f"<table><tbody><tr><td>{cell}</td><td>b</td><td>c</td><td>d</td></tr></tbody></table>"
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        "<br>" * 12000 + "A",
+        "A" + "<br>" * 12000,
+        "<strong>" + "<br>" * 12000 + "A</strong>",
+        "x<br>" * 9000,
+        f'<a href="https://example.org">{"<img src=" + chr(34) + PREFIX + "a.png" + chr(34) + ">"}</a>' * 600,
+    ],
+    ids=["leading-breaks", "trailing-breaks", "breaks-in-an-inline", "many-lines", "many-images"],
+)
+def test_a_wide_table_with_a_heavy_cell_is_flattened_in_linear_time(cell: str) -> None:
+    text = _wide_table(cell)
+    assert len(text) <= RICH_TEXT_MAX_LENGTH
+    assert _seconds(lambda value: sanitize_html(value, PREFIX), text) < 2
+
+
+def test_images_deep_inside_inline_elements_are_taken_in_linear_time() -> None:
+    depth = 3600
+    cell = "<strong><em>" * (depth // 2) + f'<img src="{PREFIX}a.png">text' + "</em></strong>" * (depth // 2)
+    text = _wide_table(cell)
+    assert len(text) <= RICH_TEXT_MAX_LENGTH
+    assert _seconds(lambda value: sanitize_html(value, PREFIX), text) < 2
+
+
+def test_many_small_wide_tables_and_deeply_nested_tables_are_flattened_in_linear_time() -> None:
+    many = "<table><tr><td>a</td><td>b</td><td>c</td><td>d</td></tr></table>" * 700
+    assert len(many) <= RICH_TEXT_MAX_LENGTH
+    cleaned = sanitize_html(many, PREFIX)
+    assert cleaned == "<p>a · b · c · d</p>" * 700
+    nested = "<table><tr><td>" * 1500 + "x" + "</td></tr></table>" * 1500
+    assert len(nested) <= RICH_TEXT_MAX_LENGTH
+    assert _seconds(lambda value: sanitize_html(value, PREFIX), many) < 2
+    assert _seconds(lambda value: sanitize_html(value, PREFIX), nested) < 2
+
+
+def test_leading_and_trailing_breaks_of_a_cell_leave_no_trace() -> None:
+    cell = "<br><br> <strong><br>A</strong> <br>"
+    assert sanitize_html(_wide_table(cell), PREFIX) == "<p><strong>A</strong> · b · c · d</p>"

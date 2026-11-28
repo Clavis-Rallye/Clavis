@@ -55,6 +55,7 @@ from app.routers.stations import is_creator
 from app.services.audit import actor_from_user, record_audit_event
 from app.services.content_copy import copy_challenge, copy_station
 from app.services.richtext import (
+    REFERENCE_ANSWER_MAX_LENGTH,
     media_prefix_for,
     sanitize_multilingual,
     sanitize_optional_html,
@@ -187,7 +188,7 @@ async def create_rallye(
         rallye = await rallye_repo.create(
             organization_id=org.id,
             title=body.title,
-            description=sanitize_multilingual(body.description, media_prefix_for(org.slug)),
+            description=sanitize_multilingual(body.description, media_prefix_for(org.slug), loc=("description",)),
             is_published=False,
             created_by_user_id=current_user.id,
         )
@@ -261,7 +262,9 @@ async def update_rallye(
     if body.title is not None:
         update_kwargs["title"] = body.title
     if body.description is not None:
-        update_kwargs["description"] = sanitize_multilingual(body.description, media_prefix_for(org.slug))
+        update_kwargs["description"] = sanitize_multilingual(
+            body.description, media_prefix_for(org.slug), loc=("description",)
+        )
     if body.is_published is not None:
         update_kwargs["is_published"] = body.is_published
 
@@ -683,7 +686,7 @@ async def create_and_link_station(
     try:
         station = await station_repo.create(
             title=body.title,
-            description=sanitize_multilingual(body.description, media_prefix_for(org.slug)),
+            description=sanitize_multilingual(body.description, media_prefix_for(org.slug), loc=("description",)),
             address=body.address,
             location_lat=body.location_lat,
             location_lng=body.location_lng,
@@ -996,10 +999,15 @@ async def create_and_link_challenge(
         challenge = await challenge_repo.create(
             challenge_type=body.challenge_type,
             title=body.title,
-            instructions=sanitize_multilingual(body.instructions, media_prefix_for(org.slug)),
+            instructions=sanitize_multilingual(body.instructions, media_prefix_for(org.slug), loc=("instructions",)),
             scoring_rules=scoring_rules,
             time_estimate_minutes=body.time_estimate_minutes,
-            suggested_solution=sanitize_optional_html(body.suggested_solution, media_prefix_for(org.slug)),
+            suggested_solution=sanitize_optional_html(
+                body.suggested_solution,
+                media_prefix_for(org.slug),
+                max_length=REFERENCE_ANSWER_MAX_LENGTH,
+                loc=("suggested_solution",),
+            ),
             created_by_user_id=current_user.id,
         )
         sort_order = await rsc_repo.next_sort_order(rallye_station_id)

@@ -34,12 +34,32 @@ import re
 from collections.abc import Iterator, Mapping
 from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import unquote
 
 import nh3
 
 # The longest rich text of one language. The city's longest legal text has 16,220 characters, and tables and
 # figures add markup. At this length the filter, ``nh3`` included, stays near 0.1 s.
 RICH_TEXT_MAX_LENGTH = 50_000
+# Two fields have a smaller limit: the header of the station tips and the reference answer of a challenge.
+TIPS_HEADER_MAX_LENGTH = 2_000
+REFERENCE_ANSWER_MAX_LENGTH = 10_000
+
+
+class RichTextTooLongError(ValueError):
+    """A rich text is longer than its limit, as it came in or as it would be stored.
+
+    Cleaning can make a text longer: ``&`` is stored as ``&amp;``, and a link gets its ``rel``. So the limit
+    holds twice, for the text that came in and for the text that the write would store. ``loc`` names the
+    field of the request, and the API answers 422 with it (``app/main.py``).
+    """
+
+    def __init__(self, max_length: int, loc: tuple[str, ...] = (), *, cleaned: bool = False) -> None:
+        self.max_length = max_length
+        self.loc = loc
+        self.cleaned = cleaned
+        super().__init__(f"Text must be at most {max_length} characters" + (" after cleaning" if cleaned else ""))
+
 
 ALLOWED_TAGS: set[str] = {
     "p",
@@ -112,7 +132,6 @@ _NH3_ATTRIBUTE_VALUES: dict[str, dict[str, set[str]]] = {
 # or ``>``, and nothing runs over raw input that has not passed ``nh3``.
 _TAG_START = re.compile(r"<[a-z]", re.IGNORECASE)
 _IMG_TAG = re.compile(r"<img\b[^<>]*>", re.IGNORECASE)
-_SRC_ATTR = re.compile(r"""\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
 _TAG_OR_SPACE = re.compile(r"<[^<>]+>|&nbsp;|\s")
 
 
@@ -130,17 +149,20 @@ def _is_media_source(src: str, media_prefix: str) -> bool:
     """True when ``src`` is a clean address under the organisation's media route and cannot climb out of it.
 
     The strict form: no character below 0x20 or 0x7F, no white space, no backslash, no percent-encoded dot,
-    slash or backslash, and no ``.`` or ``..`` segment of the path. Only then the prefix is compared.
+    slash or backslash, no query, no fragment, and no ``.`` or ``..`` segment of the path. Only then the
+    prefix is compared. The paste cleaner and the renderer of the frontend (``isOwnMediaSrc``) refuse a
+    query and a fragment too, so an address that is stored also shows.
     """
     if any(ord(char) < 0x20 or char == "\x7f" or char.isspace() for char in src) or "\\" in src:
+        return False
+    if "?" in src or "#" in src:
         return False
     lowered = src.lower()
     if any(escape in lowered for escape in _ENCODED_PATH_CHARACTERS):
         return False
-    path = src.split("?", 1)[0].split("#", 1)[0]
-    if any(segment in (".", "..") for segment in path.split("/")):
+    if any(segment in (".", "..") for segment in src.split("/")):
         return False
-    return src.startswith(media_prefix)
+    return src.startswith(media_prefix) and len(src) > len(media_prefix)
 
 
 class _ForeignImageFinder(HTMLParser):
@@ -228,16 +250,48 @@ def _strip_foreign_images(html: str, media_prefix: str) -> str:
     return "".join(parts)
 
 
+class _ImageSourceFinder(HTMLParser):
+    """Collect the ``src`` of every ``img`` element of a document.
+
+    The parser knows where an attribute starts and ends, and it decodes the value. Text that looks like a
+    ``src`` inside another quoted attribute, in a comment or in plain text is no source.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.sources: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "img":
+            return
+        for name, value in attrs:
+            if name == "src":
+                # A browser takes the first of two attributes with one name.
+                if value:
+                    self.sources.add(value)
+                return
+
+
 def image_sources(html: str | None) -> set[str]:
-    """The ``src`` of every ``<img>`` in a stored document."""
-    if not html:
+    """The ``src`` of every ``<img>`` element in a stored document, read from the parsed elements."""
+    if not html or "<" not in html:
         return set()
-    sources: set[str] = set()
-    for tag in _IMG_TAG.findall(html):
-        match = _SRC_ATTR.search(tag)
-        if match:
-            sources.add(match.group(1) or match.group(2) or "")
-    return sources
+    finder = _ImageSourceFinder()
+    finder.feed(html)
+    finder.close()
+    return finder.sources
+
+
+def image_object_keys(html: str | None, media_prefix: str) -> set[str]:
+    """The object keys of the images that a stored document shows from ``media_prefix``.
+
+    Only a source in the strict form of ``_is_media_source`` counts. The key is the part after the prefix,
+    percent-decoded, which is the form the media route receives. The media route compares this key with
+    the requested one to decide whether an image is public (``routers/media.py``).
+    """
+    if not html or media_prefix not in html:
+        return set()
+    return {unquote(src[len(media_prefix) :]) for src in image_sources(html) if _is_media_source(src, media_prefix)}
 
 
 def is_html(text: str) -> bool:
@@ -298,6 +352,16 @@ def _detach(node: _Node) -> None:
 def _append(parent: _Element, node: _Node) -> None:
     """Append ``node`` to ``parent`` and take it out of its old parent first, like ``appendChild``."""
     _detach(node)
+    node.parent = parent
+    parent.children.append(node)
+
+
+def _adopt(parent: _Element, node: _Node) -> None:
+    """Append ``node`` to ``parent`` without a search in its old parent.
+
+    Only for a node whose old parent is thrown away with a flattened table, or that has none. ``_append``
+    searches the old list for every node, and a cell with many nodes would cost the square of their number.
+    """
     node.parent = parent
     parent.children.append(node)
 
@@ -423,101 +487,148 @@ def _loose_runs(table: _Element) -> list[list[_Node]]:
 
 
 def _trim_edge(nodes: list[_Node], at_start: bool) -> None:
-    """Remove white space and ``br`` from one edge of a run of nodes, going into elements at the edge."""
-    frames: list[tuple[_Element | None, list[_Node]]] = [(None, nodes)]
-    while frames:
-        owner, work = frames[-1]
-        if not work:
-            frames.pop()
-            if owner is None or owner.children:
-                return
-            _detach(owner)
-            frames[-1][1].pop(0 if at_start else -1)
+    """Remove white space and ``br`` from one edge of a run of nodes, going into elements at the edge.
+
+    The nodes of a run still stand in the list of a cell or of a block that the flattened table throws
+    away, so a removed node only leaves ``nodes``. An element at the edge loses its own children the same
+    way, and it goes when none is left. Every list is cut once at the end, by the count of nodes that go:
+    a removal from the front for each node would move the rest of the list each time.
+    """
+    lists: list[list[_Node]] = [nodes]
+    owners: list[_Element | None] = [None]
+    gone: list[int] = [0]
+
+    while True:
+        work, count = lists[-1], gone[-1]
+        if count == len(work):
+            owner = owners[-1]
+            if owner is None:
+                break
+            # Nothing of this element is left, so it goes too.
+            lists.pop()
+            owners.pop()
+            gone.pop()
+            work.clear()
+            owner.parent = None
+            gone[-1] += 1
             continue
-        node = work[0] if at_start else work[-1]
+        node = work[count] if at_start else work[len(work) - 1 - count]
         if isinstance(node, _Text):
             node.data = node.data.lstrip(_TABLE_SPACE) if at_start else node.data.rstrip(_TABLE_SPACE)
             if node.data:
-                return
+                break
         elif isinstance(node, _Element) and node.tag != "br":
-            frames.append((node, list(node.children)))
+            lists.append(node.children)
+            owners.append(node)
+            gone.append(0)
             continue
-        _detach(node)
-        work.pop(0 if at_start else -1)
+        node.parent = None
+        gone[-1] += 1
+
+    for work, count in zip(lists, gone, strict=True):
+        if count:
+            if at_start:
+                del work[:count]
+            else:
+                del work[len(work) - count :]
 
 
-def _take_images(parent: _Element, images: list[_Node]) -> bool:
+def _take_images(parent: _Element, images: list[_Node]) -> tuple[bool, bool]:
     """Collect every ``img`` and ``figure`` below ``parent``, also deep inside inline elements.
 
     An inline element that held an image and holds no other text than white space goes away with it, so no
-    empty link is left. Returns whether it found an image.
+    empty link is left. The text of a figure, its caption, counts as text of the elements around it, as it
+    does in the frontend. An image does not leave its place here: ``_flattened`` takes it out at the end.
+    Returns whether it found an image, and whether ``parent`` holds such text.
+
+    One walk: every element learns from its children whether it holds text, and its list of children is
+    built once. A scan of the whole subtree for each element would cost the depth times the size.
     """
-    frames: list[tuple[_Element, Iterator[_Node], list[bool]]] = [(parent, iter(list(parent.children)), [False])]
-    while frames:
-        element, children, took = frames[-1]
-        descended = False
-        for child in children:
+    # One frame for each open element: the element, the index of its next child, the children it keeps,
+    # whether an image was found below it, whether text was found below it.
+    frames: list[tuple[_Element, list[int], list[_Node], list[bool]]] = [(parent, [0], [], [False, False])]
+    while True:
+        element, position, kept, found = frames[-1]
+        if position[0] < len(element.children):
+            child = element.children[position[0]]
+            position[0] += 1
             if _tag(child) in ("img", "figure"):
+                # The image stays where it is until the table is replaced, as in the frontend: the
+                # trimming of a line still sees it.
                 images.append(child)
-                took[0] = True
+                kept.append(child)
+                found[0] = True
+                if _has_text(child):
+                    found[1] = True
             elif isinstance(child, _Element):
-                frames.append((child, iter(list(child.children)), [False]))
-                descended = True
-                break
-        if descended:
+                frames.append((child, [0], [], [False, False]))
+            else:
+                kept.append(child)
+                if isinstance(child, _Text) and child.data.strip(_TABLE_SPACE):
+                    found[1] = True
             continue
         frames.pop()
+        element.children = kept
+        took, has_text = found
         if not frames:
-            return took[0]
-        if took[0]:
-            frames[-1][2][0] = True
-            if not _has_text(element):
-                _detach(element)
-    return False
+            return took, has_text
+        above = frames[-1]
+        if took:
+            above[3][0] = True
+            if not has_text:
+                element.parent = None
+                continue
+        above[2].append(element)
+        if has_text:
+            above[3][1] = True
 
 
 def _lines_of(nodes: list[_Node], images: list[_Node]) -> list[list[_Node]]:
     """The lines of a run of nodes: the content of a cell, or loose content of a table.
 
     Images and figures leave into ``images``. A block ends the line before and after its own lines, ``hr``
-    only ends the line. Unknown elements, ``h1`` and ``pre`` count as blocks, ``code`` as inline.
+    only ends the line. Unknown elements, ``h1`` and ``pre`` count as blocks, ``code`` as inline. A line
+    without text other than white space is left out: each line learns that while it is built.
     """
     lines: list[list[_Node]] = []
     current: list[_Node] = []
+    current_has_text = False
     # A ``None`` on the stack ends the line, it closes a block.
     stack: list[_Node | None] = list(reversed(nodes))
     while stack:
         child = stack.pop()
-        if child is None:
-            if current:
-                lines.append(current)
-            current = []
-        elif isinstance(child, _Text):
+        ends_line = child is None
+        if isinstance(child, _Text):
             current.append(child)
+            if child.data.strip(_TABLE_SPACE):
+                current_has_text = True
         elif isinstance(child, _Element):
             if child.tag in ("img", "figure"):
                 images.append(child)
             elif child.tag in _INLINE_TAGS:
-                if _take_images(child, images) and not _has_text(child):
+                took, has_text = _take_images(child, images)
+                if took and not has_text:
                     continue
                 current.append(child)
+                if has_text:
+                    current_has_text = True
             elif child.tag == "hr":
-                if current:
-                    lines.append(current)
-                current = []
+                ends_line = True
             else:
-                if current:
-                    lines.append(current)
-                current = []
+                ends_line = True
                 stack.append(None)
                 stack.extend(reversed(child.children))
-    if current:
+        if ends_line:
+            if current and current_has_text:
+                lines.append(current)
+            current = []
+            current_has_text = False
+    if current and current_has_text:
         lines.append(current)
-    kept = [line for line in lines if any(_has_text(node) for node in line)]
-    for line in kept:
+    for line in lines:
         _trim_edge(line, True)
         _trim_edge(line, False)
-    return kept
+    return lines
 
 
 def _join_lines(lines: list[list[_Node]]) -> list[_Node]:
@@ -529,22 +640,12 @@ def _join_lines(lines: list[list[_Node]]) -> list[_Node]:
     return content
 
 
-def _inside_cell(table: _Element) -> bool:
-    ancestor = table.parent
-    while ancestor is not None:
-        if ancestor.tag in ("td", "th"):
-            return True
-        ancestor = ancestor.parent
-    return False
-
-
-def _flatten_table(table: _Element) -> bool:
-    """Replace one table by paragraphs when it is outside the contract. True when it did."""
+def _flattened(table: _Element, inside_cell: bool) -> list[_Node] | None:
+    """The paragraphs and images that replace a table outside the contract, or ``None`` for a table that stays."""
     rows = _own_rows(table)
     columns = max((len(_cells_of(row)) for row in rows), default=0)
-    parent = table.parent
-    if parent is None or (columns <= TABLE_MAX_COLUMNS and not _inside_cell(table)):
-        return False
+    if columns <= TABLE_MAX_COLUMNS and not inside_cell:
+        return None
 
     out: list[_Node] = []
     loose_images: list[_Node] = []
@@ -554,7 +655,7 @@ def _flatten_table(table: _Element) -> bool:
             continue
         paragraph = _Element("p")
         for node in _join_lines(lines):
-            _append(paragraph, node)
+            _adopt(paragraph, node)
         out.append(paragraph)
     out.extend(loose_images)
     for row in rows:
@@ -570,23 +671,24 @@ def _flatten_table(table: _Element) -> bool:
             holder = paragraph
             if all(cell.tag == "th" for cell in cells):
                 holder = _Element("strong")
-                _append(paragraph, holder)
+                _adopt(paragraph, holder)
             for index, content in enumerate(contents):
                 if index > 0:
-                    _append(holder, _Text(TABLE_CELL_SEPARATOR))
+                    _adopt(holder, _Text(TABLE_CELL_SEPARATOR))
                 for node in content:
-                    _append(holder, node)
+                    _adopt(holder, node)
             out.append(paragraph)
         out.extend(images)
-
-    position = parent.children.index(table)
-    for node in out:
-        _detach(node)
-    parent.children[position : position + 1] = out
-    for node in out:
-        node.parent = parent
-    table.parent = None
-    return True
+    # An image deep inside an inline element still stands in the list of that element. Each such list is
+    # built once without the images that left it: a search for each image would cost the square.
+    moved = [node for node in out if node.parent is not None]
+    if moved:
+        gone = set(moved)
+        for parent in {node.parent for node in moved if node.parent is not None}:
+            parent.children = [child for child in parent.children if child not in gone]
+        for node in moved:
+            node.parent = None
+    return out
 
 
 def _flatten_tables_outside_contract(html: str) -> str:
@@ -597,26 +699,47 @@ def _flatten_tables_outside_contract(html: str) -> str:
     header cells in ``strong``. Images and figures of a row follow its paragraph. Tables are done from the
     innermost out. ``richTextTableCases.json`` pins this function and the frontend renderer to one output.
     A document without such a table comes back as it is.
+
+    One walk over the tree. An element is done after everything below it, so an inner table is paragraphs
+    before the table around it is read. The walk carries whether a cell stands above an element, and the
+    list of children of an element is built once, with the paragraphs of its flattened tables in place.
     """
     if "<table" not in html:
         return html
     builder = _TreeBuilder()
     builder.feed(html)
     builder.close()
-    tables: list[_Element] = []
-    stack: list[_Node] = list(reversed(builder.root.children))
+    replacements: dict[_Element, list[_Node]] = {}
+    with_replaced_child: set[_Element] = set()
+    # (element, a cell stands above it, everything below it is done)
+    stack: list[tuple[_Element, bool, bool]] = [(builder.root, False, False)]
     while stack:
-        node = stack.pop()
-        if isinstance(node, _Element):
-            if node.tag == "table":
-                tables.append(node)
-            stack.extend(reversed(node.children))
-    changed = False
-    # Document order puts a table before the tables inside it, so the reverse order is innermost first.
-    for table in reversed(tables):
-        if _flatten_table(table):
-            changed = True
-    return _serialize(builder.root) if changed else html
+        element, inside_cell, below_done = stack.pop()
+        if not below_done:
+            stack.append((element, inside_cell, True))
+            child_inside_cell = inside_cell or element.tag in ("td", "th")
+            stack.extend(
+                (child, child_inside_cell, False) for child in reversed(element.children) if isinstance(child, _Element)
+            )
+            continue
+        if element in with_replaced_child:
+            children: list[_Node] = []
+            for child in element.children:
+                replacement = replacements.get(child) if isinstance(child, _Element) else None
+                if replacement is None:
+                    children.append(child)
+                    continue
+                child.parent = None
+                for node in replacement:
+                    node.parent = element
+                children.extend(replacement)
+            element.children = children
+        if element.tag == "table" and element.parent is not None:
+            flattened = _flattened(element, inside_cell)
+            if flattened is not None:
+                replacements[element] = flattened
+                with_replaced_child.add(element.parent)
+    return _serialize(builder.root) if replacements else html
 
 
 # Texts from before the editor. The clean document is parsed into the same tree as for the tables.
@@ -705,14 +828,25 @@ def map_legacy_elements(html: str) -> str:
     return _serialize(builder.root)
 
 
-def sanitize_html(html: str, media_prefix: str) -> str:
+def sanitize_html(
+    html: str,
+    media_prefix: str,
+    *,
+    max_length: int = RICH_TEXT_MAX_LENGTH,
+    loc: tuple[str, ...] = (),
+) -> str:
     """Return ``html`` reduced to the editor's allowlist, with images only under ``media_prefix``.
 
-    A text longer than ``RICH_TEXT_MAX_LENGTH`` raises ``ValueError`` before any other work.
+    A text longer than ``RICH_TEXT_MAX_LENGTH`` raises ``RichTextTooLongError`` before any other work, so the
+    filter never works on more. The cleaned text is what the write stores, and it can be longer than the
+    text that came in. So it is measured again, against ``max_length`` of the field, and a text that is too
+    long is refused, never cut. ``loc`` names the field in the error.
     """
     if len(html) > RICH_TEXT_MAX_LENGTH:
-        raise ValueError(f"Text must be at most {RICH_TEXT_MAX_LENGTH} characters")
+        raise RichTextTooLongError(RICH_TEXT_MAX_LENGTH, loc)
     if not html or not is_html(html):
+        if len(html) > max_length:
+            raise RichTextTooLongError(max_length, loc)
         return html
     cleaned = nh3.clean(
         html,
@@ -724,10 +858,19 @@ def sanitize_html(html: str, media_prefix: str) -> str:
         strip_comments=True,
     )
     mapped = map_legacy_elements(cleaned)
-    return _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+    result = _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+    if len(result) > max_length:
+        raise RichTextTooLongError(max_length, loc, cleaned=True)
+    return result
 
 
-def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
+def sanitize_optional_html(
+    value: str | None,
+    media_prefix: str,
+    *,
+    max_length: int = RICH_TEXT_MAX_LENGTH,
+    loc: tuple[str, ...] = (),
+) -> str | None:
     """Sanitise a one-language rich text that may be absent, such as the reference answer.
 
     A document without visible text and without an image is stored as ``None``, so an
@@ -740,7 +883,7 @@ def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
     """
     if value is None:
         return None
-    cleaned = sanitize_html(value, media_prefix).strip()
+    cleaned = sanitize_html(value, media_prefix, max_length=max_length, loc=loc).strip()
     if not cleaned:
         return None
     if is_html(cleaned) and not _IMG_TAG.search(cleaned) and not _TAG_OR_SPACE.sub("", cleaned):
@@ -748,12 +891,24 @@ def sanitize_optional_html(value: str | None, media_prefix: str) -> str | None:
     return cleaned
 
 
-def sanitize_multilingual(value: Mapping[str, str] | None, media_prefix: str) -> dict[str, str] | None:
-    """Sanitise every language of a multilingual text. ``None`` stays ``None``."""
+def sanitize_multilingual(
+    value: Mapping[str, str] | None,
+    media_prefix: str,
+    *,
+    max_length: int = RICH_TEXT_MAX_LENGTH,
+    loc: tuple[str, ...] = (),
+) -> dict[str, str] | None:
+    """Sanitise every language of a multilingual text. ``None`` stays ``None``.
+
+    The error of a language that is too long names the field and the language: ``loc`` plus the language.
+    """
     if value is None:
         return None
     return {
-        locale: sanitize_html(text, media_prefix) if isinstance(text, str) else text for locale, text in value.items()
+        locale: sanitize_html(text, media_prefix, max_length=max_length, loc=(*loc, locale))
+        if isinstance(text, str)
+        else text
+        for locale, text in value.items()
     }
 
 
@@ -761,11 +916,17 @@ def sanitize_station_tips(tips: dict[str, Any] | None, org_slug: str) -> dict[st
     """
     Sanitise the rich-text header of a station's tips block and leave the rest untouched.
 
-    Both routes that create a station use it, in the library and inside a rallye.
+    Both routes that create a station use it, in the library and inside a rallye. The header keeps its own
+    limit, ``TIPS_HEADER_MAX_LENGTH``, also for the cleaned text.
     """
     if not tips:
         return tips
     header = tips.get("header")
     if isinstance(header, dict):
-        tips = {**tips, "header": sanitize_multilingual(header, media_prefix_for(org_slug))}
+        tips = {
+            **tips,
+            "header": sanitize_multilingual(
+                header, media_prefix_for(org_slug), max_length=TIPS_HEADER_MAX_LENGTH, loc=("tips", "header")
+            ),
+        }
     return tips

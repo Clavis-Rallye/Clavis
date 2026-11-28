@@ -194,6 +194,7 @@
     "selectionMenu": "Auswahl formatieren",
     "pasteImagesLeftOut_one": "{{count}} Bild wurde nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.",
     "pasteImagesLeftOut_other": "{{count}} Bilder wurden nicht übernommen. Bilder fügst du mit der Bild-Schaltfläche ein.",
+    "pasteTooLarge": "Der eingefügte Inhalt ist zu groß und wurde nicht übernommen. Füge ihn in kleineren Teilen ein.",
     "tableColumnLimit": "Höchstens drei Spalten",
     "tooLong": "Der Text ist zu lang: {{count}} von höchstens {{max}} Zeichen, Formatierung eingerechnet."
   },

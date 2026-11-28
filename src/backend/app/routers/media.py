@@ -43,7 +43,7 @@ from app.routers.files import release_stream
 from app.services.audit import actor_from_user, record_audit_event
 from app.services.file_response import file_response_headers
 from app.services.image_variants import bare_content_type, clean_image_upload, image_not_decodable
-from app.services.richtext import image_sources, media_prefix_for
+from app.services.richtext import image_object_keys, media_prefix_for
 from app.storage import MAX_FILE_SIZE, get_minio_client
 from app.upload_route import ImageUploadRoute
 
@@ -161,9 +161,18 @@ async def _member_or_refusal(
 
 
 def _shown_in_legal_text(org: Organization, key: str) -> bool:
-    """True when the imprint, privacy or accessibility text of ``org`` shows this image."""
-    src = f"{media_prefix_for(org.slug)}{key}"
-    return any(src in image_sources(text) for text in (org.legal_imprint, org.legal_privacy, org.legal_accessibility))
+    """True when the imprint, privacy or accessibility text of ``org`` shows this image.
+
+    The decision opens an object to anyone without sign-in, so it reads the ``src`` of real ``img``
+    elements only and compares object keys in one form: the key of the request, which the server has
+    percent-decoded, with the percent-decoded key of each image source under the media route of this
+    organisation. Text that only looks like a source, for example inside another attribute, opens nothing.
+    """
+    prefix = media_prefix_for(org.slug)
+    return any(
+        key in image_object_keys(text, prefix)
+        for text in (org.legal_imprint, org.legal_privacy, org.legal_accessibility)
+    )
 
 
 @router.get(

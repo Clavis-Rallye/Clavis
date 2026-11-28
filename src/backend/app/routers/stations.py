@@ -228,7 +228,7 @@ async def create_station(
     try:
         station = await station_repo.create(
             title=body.title,
-            description=sanitize_multilingual(body.description, media_prefix_for(org.slug)),
+            description=sanitize_multilingual(body.description, media_prefix_for(org.slug), loc=("description",)),
             address=body.address,
             location_lat=body.location_lat,
             location_lng=body.location_lng,
@@ -322,7 +322,9 @@ async def update_station(
     if body.title is not None:
         update_kwargs["title"] = body.title
     if body.description is not None:
-        update_kwargs["description"] = sanitize_multilingual(body.description, media_prefix_for(org.slug))
+        update_kwargs["description"] = sanitize_multilingual(
+            body.description, media_prefix_for(org.slug), loc=("description",)
+        )
     if body.address is not None:
         update_kwargs["address"] = body.address
     if body.location_lat is not None:

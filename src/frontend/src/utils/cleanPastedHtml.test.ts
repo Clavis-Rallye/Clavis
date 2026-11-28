@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { cleanPastedHtml } from './cleanPastedHtml';
+import { describe, expect, it, vi } from 'vitest';
+import { cleanPastedHtml, PASTE_BUDGET } from './cleanPastedHtml';
 import contract from './richTextContract.json';
 import {
   GOOGLE_DOCS_PASTE_HTML,
@@ -304,5 +304,70 @@ describe('cleanPastedHtml in linear time', () => {
       '<span style="text-decoration:none;text-decoration:line-through">c</span>' +
       '<span style="text-decoration:none">d</span></p>';
     expect(cleanPastedHtml(html).html).toBe('<p><u>a<s>b</s></u><s>c</s>d</p>');
+  });
+});
+
+// The cleaning runs in one go on the thread of the page. A paste over a budget is refused before
+// that work, so a huge or deeply nested clipboard cannot freeze the tab.
+describe('cleanPastedHtml budgets', () => {
+  it('refuses markup over the character budget before it is parsed', () => {
+    const parse = vi.spyOn(DOMParser.prototype, 'parseFromString');
+    try {
+      const result = cleanPastedHtml('a'.repeat(PASTE_BUDGET.characters + 1));
+      expect(result).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'characters' });
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it('refuses a document with more nodes than the budget', () => {
+    const html = '<p>' + '<br>'.repeat(PASTE_BUDGET.nodes) + '</p>';
+    expect(html.length).toBeLessThan(PASTE_BUDGET.characters);
+    expect(cleanPastedHtml(html)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'nodes' });
+  });
+
+  it('refuses a document that is nested deeper than the budget', () => {
+    const html = '<div>'.repeat(PASTE_BUDGET.depth + 1) + 'x' + '</div>'.repeat(PASTE_BUDGET.depth + 1);
+    expect(cleanPastedHtml(html)).toEqual({ html: '', imagesLeftOut: 0, overBudget: 'depth' });
+  });
+
+  it('cleans a document just inside the depth budget and sets no flag', () => {
+    // html, head or body and the text node take three of the levels.
+    const levels = PASTE_BUDGET.depth - 3;
+    const result = cleanPastedHtml('<div>'.repeat(levels) + 'x' + '</div>'.repeat(levels));
+    expect(result).toEqual({ html: '<p>x</p>', imagesLeftOut: 0 });
+    expect('overBudget' in result).toBe(false);
+  });
+
+  it('holds the budgets that the comment promises', () => {
+    expect(PASTE_BUDGET).toEqual({ characters: 3_000_000, nodes: 100_000, depth: 100 });
+    // The longest text the server stores fits many times, with the markup of Word around it.
+    expect(PASTE_BUDGET.characters).toBeGreaterThan(20 * contract.text.maxLength);
+  });
+});
+
+// What holds nothing goes, from the inside out. Each element is judged once, with what its
+// children hold.
+describe('cleanPastedHtml removes what holds nothing', () => {
+  it('removes nested elements without text, and keeps what holds an image or a divider', () => {
+    expect(cleanPastedHtml('<div><ul><li><b> </b></li></ul><blockquote><p> </p></blockquote><p>a</p></div>').html).toBe(
+      '<p>a</p>',
+    );
+    expect(cleanPastedHtml(`<blockquote><img src="${MEDIA}" alt="x"></blockquote><p>a</p><hr>`).html).toBe(
+      `<blockquote><img src="${MEDIA}" alt="x"></blockquote><p>a</p><hr>`,
+    );
+  });
+
+  it('keeps an empty cell, and removes a row and a table without a cell', () => {
+    expect(cleanPastedHtml('<table><tr><td>a</td><td></td></tr><tr></tr></table><table><tr></tr></table>').html).toBe(
+      '<table><tbody><tr><td><p>a</p></td><td></td></tr></tbody></table>',
+    );
+  });
+
+  it('removes a long chain of empty elements at once', () => {
+    const depth = PASTE_BUDGET.depth - 10;
+    const html = '<p>a</p>' + '<blockquote>'.repeat(depth) + ' ' + '</blockquote>'.repeat(depth);
+    expect(cleanPastedHtml(html).html).toBe('<p>a</p>');
   });
 });
