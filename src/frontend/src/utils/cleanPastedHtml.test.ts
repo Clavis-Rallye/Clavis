@@ -281,12 +281,25 @@ describe('cleanPastedHtml on tables', () => {
 });
 
 describe('cleanPastedHtml in linear time', () => {
-  it('ends within half a second on a long style value', () => {
-    const style = 'text-decoration:'.repeat(125_000);
-    const start = performance.now();
-    const result = cleanPastedHtml(`<p><span style="${style}">a</span></p>`);
-    expect(performance.now() - start).toBeLessThan(500);
-    expect(result.html).toBe('<p>a</p>');
+  // A wall-time limit measures the runner, a ratio measures the growth.
+  const bestOf = (runs: number, fn: () => unknown): number => {
+    let best = Infinity;
+    for (let i = 0; i < runs; i += 1) {
+      const start = performance.now();
+      fn();
+      best = Math.min(best, performance.now() - start);
+    }
+    return best;
+  };
+
+  it('grows by less than a factor of ten when the style value grows by four', () => {
+    const styleSmall = 'text-decoration:'.repeat(31_250);
+    const styleLarge = 'text-decoration:'.repeat(125_000);
+    const small = bestOf(3, () => cleanPastedHtml(`<p><span style="${styleSmall}">a</span></p>`));
+    const large = bestOf(3, () => cleanPastedHtml(`<p><span style="${styleLarge}">a</span></p>`));
+    expect(large / Math.max(small, 1)).toBeLessThan(10);
+    expect(large).toBeLessThan(10_000);
+    expect(cleanPastedHtml(`<p><span style="${styleLarge}">a</span></p>`).html).toBe('<p>a</p>');
   });
 
   it('still counts an underline and a strike-through in a normal style', () => {

@@ -135,20 +135,42 @@ describe('richtext helpers run in linear time', () => {
     'shape 5': (k) => '<h1 '.repeat(k),
   };
 
-  const timed = (run: () => unknown): number => {
-    const start = performance.now();
-    run();
-    return performance.now() - start;
+  // A wall-time limit measures the runner, a ratio measures the growth.
+  const bestOf = (runs: number, fn: () => unknown): number => {
+    let best = Infinity;
+    for (let i = 0; i < runs; i += 1) {
+      const start = performance.now();
+      fn();
+      best = Math.min(best, performance.now() - start);
+    }
+    return best;
+  };
+
+  // The old sizes (400 000 and 2 000 000 characters) sit in a range where this V8 replaces
+  // single characters in dense strings slower than linearly, so a 4n input there measures the
+  // engine, not the filter. Sizes from about eight million characters on grow linearly again,
+  // and the larger inputs keep the smaller ones clearly above two milliseconds.
+  const SIZES: Record<string, number> = {
+    'shape 1': 102_400_000,
+    'shape 2': 12_800_000,
+    'shape 3': 102_400_000,
+    'shape 4': 12_800_000,
+    'shape 5': 12_800_000,
   };
 
   for (const [name, build] of Object.entries(SHAPES)) {
-    for (const size of [400_000, 2_000_000]) {
-      it(`ends isHtml and toEditorHtml within half a second on ${name} at ${size} characters`, () => {
-        const text = build(Math.ceil(size / build(1).length)).slice(0, size);
-        expect(timed(() => isHtml(text))).toBeLessThan(500);
-        expect(timed(() => toEditorHtml(text))).toBeLessThan(500);
-      });
-    }
+    const size = SIZES[name];
+    it(`grows isHtml and toEditorHtml on ${name} by less than a factor of ten when the input grows by four`, () => {
+      const textOf = (n: number) => build(Math.ceil(n / build(1).length)).slice(0, n);
+      const small = bestOf(3, () => isHtml(textOf(size / 4)));
+      const large = bestOf(3, () => isHtml(textOf(size)));
+      expect(large / Math.max(small, 1)).toBeLessThan(10);
+      expect(large).toBeLessThan(10_000);
+      const smallEditor = bestOf(3, () => toEditorHtml(textOf(size / 4)));
+      const largeEditor = bestOf(3, () => toEditorHtml(textOf(size)));
+      expect(largeEditor / Math.max(smallEditor, 1)).toBeLessThan(10);
+      expect(largeEditor).toBeLessThan(10_000);
+    });
   }
 
   it('keeps the meaning of isHtml', () => {
