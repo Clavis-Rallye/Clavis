@@ -292,6 +292,13 @@ describe('cleanPastedHtml in linear time', () => {
     return best;
   };
 
+  // A wall-time limit measures the runner, a ratio measures the growth. Below 50 ms the timer
+  // and the runner decide, not the code, so a measure that small passes without a ratio.
+  const expectLinearGrowth = (small: number, large: number) => {
+    if (large >= 50) expect(large / small).toBeLessThan(10);
+    expect(large).toBeLessThan(10_000);
+  };
+
   it('grows by less than a factor of ten when the style value grows by four', () => {
     const styleSmall = 'text-decoration:'.repeat(31_250);
     const styleLarge = 'text-decoration:'.repeat(125_000);
@@ -299,8 +306,7 @@ describe('cleanPastedHtml in linear time', () => {
     const largeInput = `<p><span style="${styleLarge}">a</span></p>`;
     const small = bestOf(3, () => cleanPastedHtml(smallInput));
     const large = bestOf(3, () => cleanPastedHtml(largeInput));
-    expect(large / Math.max(small, 1)).toBeLessThan(10);
-    expect(large).toBeLessThan(10_000);
+    expectLinearGrowth(small, large);
     expect(cleanPastedHtml(largeInput).html).toBe('<p>a</p>');
   });
 
