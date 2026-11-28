@@ -162,12 +162,14 @@ describe('richtext helpers run in linear time', () => {
     const size = SIZES[name];
     it(`grows isHtml and toEditorHtml on ${name} by less than a factor of ten when the input grows by four`, () => {
       const textOf = (n: number) => build(Math.ceil(n / build(1).length)).slice(0, n);
-      const small = bestOf(3, () => isHtml(textOf(size / 4)));
-      const large = bestOf(3, () => isHtml(textOf(size)));
-      expect(large / Math.max(small, 1)).toBeLessThan(10);
-      expect(large).toBeLessThan(10_000);
-      const smallEditor = bestOf(3, () => toEditorHtml(textOf(size / 4)));
-      const largeEditor = bestOf(3, () => toEditorHtml(textOf(size)));
+    const textSmall = textOf(size / 4);
+    const textLarge = textOf(size);
+    const small = bestOf(3, () => isHtml(textSmall));
+    const large = bestOf(3, () => isHtml(textLarge));
+    expect(large / Math.max(small, 1)).toBeLessThan(10);
+    expect(large).toBeLessThan(10_000);
+    const smallEditor = bestOf(3, () => toEditorHtml(textSmall));
+    const largeEditor = bestOf(3, () => toEditorHtml(textLarge));
       expect(largeEditor / Math.max(smallEditor, 1)).toBeLessThan(10);
       expect(largeEditor).toBeLessThan(10_000);
     });

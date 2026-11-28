@@ -295,11 +295,13 @@ describe('cleanPastedHtml in linear time', () => {
   it('grows by less than a factor of ten when the style value grows by four', () => {
     const styleSmall = 'text-decoration:'.repeat(31_250);
     const styleLarge = 'text-decoration:'.repeat(125_000);
-    const small = bestOf(3, () => cleanPastedHtml(`<p><span style="${styleSmall}">a</span></p>`));
-    const large = bestOf(3, () => cleanPastedHtml(`<p><span style="${styleLarge}">a</span></p>`));
+    const smallInput = `<p><span style="${styleSmall}">a</span></p>`;
+    const largeInput = `<p><span style="${styleLarge}">a</span></p>`;
+    const small = bestOf(3, () => cleanPastedHtml(smallInput));
+    const large = bestOf(3, () => cleanPastedHtml(largeInput));
     expect(large / Math.max(small, 1)).toBeLessThan(10);
     expect(large).toBeLessThan(10_000);
-    expect(cleanPastedHtml(`<p><span style="${styleLarge}">a</span></p>`).html).toBe('<p>a</p>');
+    expect(cleanPastedHtml(largeInput).html).toBe('<p>a</p>');
   });
 
   it('still counts an underline and a strike-through in a normal style', () => {
