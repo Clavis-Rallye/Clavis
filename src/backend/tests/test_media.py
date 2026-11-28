@@ -276,12 +276,10 @@ async def test_only_a_real_image_source_of_a_legal_text_opens_an_image(
         f"""<!-- <img src="{hidden}"> --><p>&lt;img src="{hidden}"&gt; src="{hidden}"</p><img src="{shown}">""",
         f"""<img src="{shown}" src="{hidden}">""",
         f"""<img src="{hidden}?x=1"><img src="{hidden}#x"><img src="{shown}">""",
-        # Inside content that the renderer removes with everything in it, the image is never shown.
-        f"""<template><img src="{hidden}"></template><img src="{shown}">""",
-        f"""<video controls><p>Fallback <img src="{hidden}"></p></video><img src="{shown}">""",
-        f"""<noscript><img src="{hidden}"></noscript><select><img src="{hidden}"></select><img src="{shown}">""",
+        # A figure inside a figure: the write filter and the renderer remove it, so nothing of it is public.
+        f"""<figure><figure><img src="{hidden}"></figure></figure><img src="{shown}">""",
         # The prefix of the real image written with a character reference: a browser reads the same address.
-        f"""<img src="{shown.replace("/api/", "&#47;api/", 1)}"><textarea><img src="{hidden}"></textarea>""",
+        f"""<img src="{shown.replace("/api/", "&#47;api/", 1)}"><p>src="{hidden}"</p>""",
     ]
     for text in decoys:
         await db_session.execute(
@@ -290,6 +288,25 @@ async def test_only_a_real_image_source_of_a_legal_text_opens_an_image(
         await db_session.commit()
         assert (await client.get(shown)).status_code == 200, text
         assert (await client.get(hidden)).status_code == 401, text
+
+    # An element that two parsers read in different ways: such a text opens no image at all. The first
+    # case shows no image in the renderer of the frontend, and a parser with scripting on finds one.
+    closed = [
+        f"""<noscript><p title="</noscript><img src="{hidden}">"></p>""",
+        f"""<template><img src="{hidden}"></template><img src="{shown}">""",
+        f"""<video controls><p>Fallback <img src="{hidden}"></p></video><img src="{shown}">""",
+        f"""<select><img src="{hidden}"></select><textarea><img src="{hidden}"></textarea><img src="{shown}">""",
+    ]
+    for text in closed:
+        await db_session.execute(
+            update(Organization).where(Organization.slug == slug).values(legal_privacy=text, legal_imprint=None)
+        )
+        await db_session.commit()
+        assert (await client.get(shown)).status_code == 401, text
+        assert (await client.get(hidden)).status_code == 401, text
+    # A member still reads both.
+    assert (await client.get(shown, headers=headers)).status_code == 200
+    assert (await client.get(hidden, headers=headers)).status_code == 200
 
 
 @pytest.mark.asyncio

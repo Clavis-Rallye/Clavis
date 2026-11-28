@@ -351,9 +351,10 @@ RENDERER_DROPS_WITH_CONTENT: frozenset[str] = frozenset(
     }
 )
 
-# A browser of today keeps an image inside ``select``, an older one drops it while it parses. No such image
-# is public, so the answer does not depend on the browser.
-_NOT_SHOWN_IN_EVERY_BROWSER: frozenset[str] = frozenset({"select"})
+# Elements that two HTML parsers read in different ways: with scripting on or off, as raw text or as
+# elements, inside or outside foreign content. A legal text of an older release that names one of them
+# shows no public image at all. The legal texts of the editor never hold one.
+_PARSER_SENSITIVE: frozenset[str] = RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame"}
 
 # A legal text of an older release can be longer than the limit. Beyond this length no image of it is
 # public: the answer of an open route must not cost unbounded work.
@@ -362,32 +363,34 @@ _SHOWN_IMAGES_MAX_LENGTH = 4 * RICH_TEXT_MAX_LENGTH
 
 @lru_cache(maxsize=64)
 def image_object_keys(html: str | None, media_prefix: str) -> frozenset[str]:
-    """The object keys of the images that a stored document shows from ``media_prefix``.
+    """The object keys of the images that a stored legal text shows from ``media_prefix``.
 
-    The media route opens an object to anyone on this answer (``routers/media.py``), and a legal text of an
-    older release is stored as it came in. So the answer is not "every ``img`` in the text" but "every image
-    that the renderer shows": the text is cleaned with the allowlist of the write filter, and what the
-    renderer removes with its content goes with its content, for example an image inside ``template`` or
-    ``video``. ``nh3`` parses like a browser, so raw text, comments and attribute values are no elements.
-    Then the ``src`` of each ``img`` that is left counts when it has the strict form of ``_is_media_source``.
+    The media route opens an object to anyone on this answer (``routers/media.py``), so it fails closed.
+    An image counts only when it is still there after the write filter: the text as a save of today would
+    store it. For a text that passed the filter, that is the stored text itself, which the renderer shows as
+    it is. A legal text of an older release is stored as it came in, and for it the answer is what the
+    filter would keep: no image in a comment, in an attribute value, in a figure that the filter removes,
+    or outside the strict form of ``_is_media_source``.
+
+    The filter and a browser are two parsers, and a few elements are read in different ways by them
+    (``_PARSER_SENSITIVE``: raw text, scripting, foreign content, what the renderer removes with its
+    content). A text that names one of them anywhere shows no public image. So does a text that is far over
+    the limit, and one that the filter refuses.
+
     The key is the part after the prefix, percent-decoded, which is the form the media route receives.
-
     The answer for one text is kept: the route asks again for every image of a legal page.
     """
     if not html or "<" not in html or len(html) > _SHOWN_IMAGES_MAX_LENGTH:
         return frozenset()
-    shown = nh3.clean(
-        html,
-        tags=ALLOWED_TAGS | _LEGACY_TAGS,
-        clean_content_tags=set(RENDERER_DROPS_WITH_CONTENT | _NOT_SHOWN_IN_EVERY_BROWSER),
-        attributes=_NH3_ATTRIBUTES,
-        tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
-        url_schemes=URL_SCHEMES,
-        link_rel=LINK_REL,
-        strip_comments=True,
-    )
+    lowered = html.lower()
+    if any(f"<{tag}" in lowered for tag in _PARSER_SENSITIVE):
+        return frozenset()
+    try:
+        kept = _clean_document(html, media_prefix)
+    except RichTextTooNestedError:
+        return frozenset()
     return frozenset(
-        unquote(src[len(media_prefix) :]) for src in image_sources(shown) if _is_media_source(src, media_prefix)
+        unquote(src[len(media_prefix) :]) for src in image_sources(kept) if _is_media_source(src, media_prefix)
     )
 
 
@@ -934,6 +937,21 @@ def map_legacy_elements(html: str) -> str:
     return _serialize(builder.root)
 
 
+def _clean_document(html: str, media_prefix: str) -> str:
+    """The steps of the write filter on a text with markup, without the limits of a field."""
+    cleaned = nh3.clean(
+        html,
+        tags=ALLOWED_TAGS | _LEGACY_TAGS,
+        attributes=_NH3_ATTRIBUTES,
+        tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
+        url_schemes=URL_SCHEMES,
+        link_rel=LINK_REL,
+        strip_comments=True,
+    )
+    mapped = map_legacy_elements(cleaned)
+    return _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+
+
 def sanitize_html(
     html: str,
     media_prefix: str,
@@ -955,18 +973,8 @@ def sanitize_html(
         if len(html) > max_length:
             raise RichTextTooLongError(max_length, loc)
         return html
-    cleaned = nh3.clean(
-        html,
-        tags=ALLOWED_TAGS | _LEGACY_TAGS,
-        attributes=_NH3_ATTRIBUTES,
-        tag_attribute_values=_NH3_ATTRIBUTE_VALUES,
-        url_schemes=URL_SCHEMES,
-        link_rel=LINK_REL,
-        strip_comments=True,
-    )
-    mapped = map_legacy_elements(cleaned)
     try:
-        result = _flatten_tables_outside_contract(_strip_foreign_images(mapped, media_prefix))
+        result = _clean_document(html, media_prefix)
     except RichTextTooNestedError:
         raise RichTextTooNestedError(loc) from None
     if len(result) > max_length:

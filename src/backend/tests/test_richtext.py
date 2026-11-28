@@ -973,63 +973,77 @@ def test_leading_and_trailing_breaks_of_a_cell_leave_no_trace() -> None:
 
 
 # ---------------------------------------------------------------------------
-# An image is public only when the renderer shows it. A legal text of an older release is stored as it
-# came in, so an image inside content that the renderer throws away must open nothing.
+# The public decision fails closed. An image of a legal text counts only when it is still there after the
+# write filter, and a text that names an element which two parsers read in different ways shows none.
+# A legal text of an older release is stored as it came in.
 # ---------------------------------------------------------------------------
 
 KEY = "11111111-1111-1111-1111-111111111111/media/real.png"
+IMG = f'<img src="{REAL}">'
+
+_SENSITIVE = sorted(RENDERER_DROPS_WITH_CONTENT | {"select", "textarea", "frameset", "frame"})
 
 
-# ``svg`` and ``math`` are not in the list: a browser ends them at an ``img`` and shows the image.
-_WRAPPERS_THAT_HIDE = sorted(
-    RENDERER_DROPS_WITH_CONTENT
-    - {"head", "colgroup", "desc", "foreignobject", "annotation-xml", "selectedcontent", "svg", "math"}
-) + ["select", "textarea"]
-
-
-@pytest.mark.parametrize("wrapper", _WRAPPERS_THAT_HIDE)
-def test_an_image_inside_content_that_the_renderer_removes_is_not_shown(wrapper: str) -> None:
-    html = f'<p>a</p><{wrapper}><img src="{REAL}"></{wrapper}><p>b</p>'
-    assert image_object_keys(html, PREFIX) == frozenset(), wrapper
+@pytest.mark.parametrize("element", _SENSITIVE)
+def test_a_text_that_names_a_parser_sensitive_element_shows_no_public_image(element: str) -> None:
+    # Around the image, beside a real image, in upper case, and only as text inside an attribute.
+    assert image_object_keys(f"<{element}>{IMG}</{element}>", PREFIX) == frozenset(), element
+    assert image_object_keys(f"<p>{IMG}</p><{element.upper()}></{element.upper()}>", PREFIX) == frozenset(), element
+    assert image_object_keys(f'<p title="<{element}>">{IMG}</p>', PREFIX) == frozenset(), element
 
 
 @pytest.mark.parametrize(
     "html",
     [
-        f'<svg><desc><img src="{REAL}"></desc></svg>',
-        f'<math><mtext><img src="{REAL}"></mtext></math>',
-        f'<svg><foreignObject><img src="{REAL}"></foreignObject></svg>',
-        f'<template><div><p><img src="{REAL}"></p></div></template>',
-        f'<video controls><source src="x.mp4"><p>Fallback <img src="{REAL}"></p></video>',
-        f'<![CDATA[<img src="{REAL}">]]>',
+        # Measured in the renderer of the frontend: each of these shows no image.
+        f'<noscript><p title="</noscript>{IMG}">',
+        f"<figure><figure>{IMG}</figure></figure>",
+        f"<svg><foreignObject>{IMG}</foreignObject></svg>",
+        f"<math><mtext>{IMG}</mtext></math>",
+        f"<plaintext>{IMG}",
+        f"<template><div><p>{IMG}</p></div></template>",
+        f'<video controls><source src="x.mp4"><p>Fallback {IMG}</p></video>',
+        f"<![CDATA[{IMG}]]>",
+        f"<!-- {IMG} -->",
         f'<img src="{REAL}"',
+        f"<p>&lt;img src=&quot;{REAL}&quot;&gt;</p>",
     ],
 )
-def test_an_image_in_a_place_no_browser_shows_is_not_shown(html: str) -> None:
+def test_an_image_that_the_renderer_does_not_show_is_not_public(html: str) -> None:
     assert image_object_keys(html, PREFIX) == frozenset()
 
 
 @pytest.mark.parametrize(
     "html",
     [
-        f'<p><img src="{REAL}"></p>',
-        f'<a href="https://example.org"><img src="{REAL}"></a>',
-        f'<figure><img src="{REAL}"><figcaption>x</figcaption></figure>',
-        f'<div class="x"><span><img src="{REAL}"></span></div>',
-        f'<table><tr><td><img src="{REAL}"></td></tr></table>',
-        # A browser ends this comment at "--!>", so the image after it is real.
-        f'<!-- x --!><img src="{REAL}">',
+        f"<p>{IMG}</p>",
+        f'<a href="https://example.org">{IMG}</a>',
+        f"<figure>{IMG}<figcaption>x</figcaption></figure>",
+        f'<div class="x"><span>{IMG}</span></div>',
+        f"<table><tr><td>{IMG}</td></tr></table>",
+        f"<h1>Impressum</h1><pre>Zeile</pre>{IMG}",
+        # Measured in the renderer of the frontend: both show the image.
+        f"<form><form>{IMG}",
+        f"<table><form>{IMG}",
         # The prefix written with a character reference is the same address for a browser.
         f'<img src="&#47;api/orgs/stadt-augsburg/media/{KEY}">',
         f'<IMG SRC="{REAL}">',
-        # A browser ends svg and math at an img and shows the image after them.
-        f'<svg><img src="{REAL}"></svg>',
-        f'<math><img src="{REAL}"></math>',
     ],
 )
-def test_an_image_that_the_renderer_shows_is_shown(html: str) -> None:
+def test_an_image_that_the_write_filter_keeps_is_public(html: str) -> None:
     assert PREFIX == "/api/orgs/stadt-augsburg/media/"
     assert image_object_keys(html, PREFIX) == frozenset({KEY})
+
+
+def test_the_public_images_of_a_filtered_text_are_the_images_of_the_stored_text() -> None:
+    stored = sanitize_html(f'<h2>Impressum</h2><p>{IMG}</p><figure><img src="{PREFIX}{KEY}2"></figure>', PREFIX)
+    assert image_object_keys(stored, PREFIX) == frozenset({KEY, KEY + "2"})
+    assert {src.removeprefix(PREFIX) for src in image_sources(stored)} == {KEY, KEY + "2"}
+
+
+def test_tables_nested_too_deep_show_no_public_image() -> None:
+    nested = "<table><tr><td>" * (TABLE_MAX_NESTING + 1) + IMG + "</td></tr></table>" * (TABLE_MAX_NESTING + 1)
+    assert image_object_keys(nested, PREFIX) == frozenset()
 
 
 def test_the_list_of_removed_content_is_the_list_of_the_renderer() -> None:
